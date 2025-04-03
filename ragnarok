@@ -1,0 +1,4768 @@
+// ==UserScript==
+// @name         Ragnarok
+// @namespace    http://tampermonkey.net/
+// @version      6.2.0_firebase_auth_persist
+// @description  [PT/RU/EN] Enhanced market interface with Firebase authorization, user inputs, save, multi-language, effects, Gemini AI - Workers & LZString. Persists session across reloads.
+// @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
+// @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
+// @match        https://*.tribalwars.com.br/game.php?t=*&village=*&screen=market&mode=exchange
+// @connect      firebaseio.com
+// @connect      cloudfunctions.net
+// @connect      googleapis.com
+// @connect      gstatic.com
+// @require      https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js
+// @require      https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js
+// @require      https://unpkg.com/i18next@23.15.1/dist/umd/i18next.min.js
+// @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/js/all.min.js
+// @require      https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js
+// @require      https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js
+// @require      https://unpkg.com/mobx@6.9.0/dist/mobx.umd.production.min.js
+// @require      https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js
+// @grant        GM_xmlhttpRequest
+// @grant        GM_addElement
+// @grant        GM_addStyle
+// @grant        unsafeWindow
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_deleteValue
+// @connect      ip-api.com
+// ==/UserScript==
+
+(async function() {
+"use strict";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const firebaseConfig = {
+apiKey: "AIzaSyAnDVwYDWa_JZj6uApXv6o9_d66JUZwF9o",
+authDomain: "compra-e-venda-ragnarok.firebaseapp.com",
+projectId: "compra-e-venda-ragnarok",
+storageBucket: "compra-e-venda-ragnarok.appspot.com",
+messagingSenderId: "896525993752",
+appId: "1:896525993752:web:1f99c76f66e16669f3c06d",
+measurementId: "G-1B10ECJN01"
+};
+const SCRIPT_NAME = "RAGNAROK_AUTH_SESSION";
+const SESSION_HEARTBEAT_MINUTES = 3;
+const SESSION_VALIDITY_MINUTES = 7;
+const IP_API_URL = "http://ip-api.com/json/?fields=status,message,query,city,country";
+const GM_SESSION_KEY_PREFIX = `${SCRIPT_NAME}_session_`;
+const GM_EXPIRATION_KEY_PREFIX = `${SCRIPT_NAME}_expiration_`;
+let isScriptActive = false;
+let firestoreListenerUnsubscribe = null;
+let sessionHeartbeatTimer = null;
+let currentSessionId = null;
+let currentPlayerNickname = null;
+let cleanupAttempted = false;
+
+function initializeFirebase() {
+try {
+if (!firebase.apps.length) {
+firebase.initializeApp(firebaseConfig);
+}
+return firebase.firestore();
+} catch (error) {
+alert(`${SCRIPT_NAME}: Falha cr\xEDtica ao inicializar o sistema de verifica\xE7\xE3o. O script n\xE3o pode continuar.`);
+return null;
+}
+}
+
+function getPlayerNickname() {
+try {
+const nick = TribalWars.getGameData().player.name.toString();
+if (!nick || nick.trim() === "") {
+throw new Error("Nickname do jogador vazio ou inv\xE1lido.");
+}
+return nick;
+} catch (e) {
+return null;
+}
+}
+
+function generateSessionId() {
+return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+async function fetchGeoInfo() {
+return new Promise((resolve) => {
+GM_xmlhttpRequest({
+method: "GET",
+url: IP_API_URL,
+timeout: 5e3,
+onload: function(response) {
+if (response.status >= 200 && response.status < 300) {
+try {
+const data = JSON.parse(response.responseText);
+if (data.status === "success") {
+resolve({ ip: data.query, city: data.city, country: data.country });
+} else {
+resolve({ ip: "Erro API", city: "Erro API", country: "Erro API" });
+}
+} catch (e) {
+resolve({ ip: "Erro Parse", city: "Erro Parse", country: "Erro Parse" });
+}
+} else {
+resolve({ ip: `Erro HTTP ${response.status}`, city: `Erro HTTP ${response.status}`, country: `Erro HTTP ${response.status}` });
+}
+},
+onerror: function(error) {
+resolve({ ip: "Erro Rede", city: "Erro Rede", country: "Erro Rede" });
+},
+ontimeout: function() {
+resolve({ ip: "Timeout", city: "Timeout", country: "Timeout" });
+}
+});
+});
+}
+
+async function checkLicenseAndRegisterSession(playerNickname) {
+if (!playerNickname) {
+return { authorized: false, reason: "Nickname inv\xE1lido fornecido." };
+}
+
+const db = initializeFirebase();
+if (!db) {
+return { authorized: false, reason: "Firestore n\xE3o inicializado." };
+}
+
+const newSessionId = generateSessionId();
+const playerDocRef = db.collection("jogadores_permitidos").doc(playerNickname);
+const sessionsColRef = playerDocRef.collection("sessoes_ativas");
+let finalResult = { authorized: false, reason: "Falha desconhecida na verifica\xE7\xE3o.", sessionId: null };
+const FirestoreTimestamp = firebase.firestore.Timestamp;
+
+try {
+let expirationDate = null;
+await db.runTransaction(async (transaction) => {
+const playerDocSnap = await transaction.get(playerDocRef);
+if (!playerDocSnap.exists) {
+throw new Error("Nickname n\xE3o encontrado na lista de permiss\xF5es.");
+}
+
+const playerData = playerDocSnap.data();
+if (!playerData || !playerData.data_expiracao || typeof playerData.data_expiracao.toDate !== "function") {
+throw new Error("Formato da data de expira\xE7\xE3o inv\xE1lido no banco de dados.");
+}
+
+expirationDate = playerData.data_expiracao.toDate();
+const currentDate = new Date();
+if (currentDate >= expirationDate) {
+throw new Error(`Licen\xE7a expirada em ${expirationDate.toLocaleString()}.`);
+}
+
+const newSessionRef = sessionsColRef.doc(newSessionId);
+const nowTimestamp = FirestoreTimestamp.now();
+const sessionData = {
+timestamp_criacao: nowTimestamp,
+timestamp_heartbeat: nowTimestamp
+};
+transaction.set(newSessionRef, sessionData);
+});
+
+try {
+const geoInfo = await fetchGeoInfo();
+const sessionRef = sessionsColRef.doc(newSessionId);
+await sessionRef.update({
+ip_registrado: geoInfo.ip || "N/A",
+cidade_registrada: geoInfo.city || "N/A",
+pais_registrado: geoInfo.country || "N/A",
+info_navegador: navigator.userAgent || "N/A"
+});
+} catch (updateError) {}
+
+finalResult = {
+authorized: true,
+reason: "Licen\xE7a OK, Sess\xE3o Registrada.",
+sessionId: newSessionId,
+expirationDate
+};
+} catch (error) {
+finalResult = {
+authorized: false,
+reason: `Falha na verifica\xE7\xE3o: ${error.message}` || "Erro desconhecido na verifica\xE7\xE3o.",
+sessionId: null
+};
+}
+
+return finalResult;
+}
+
+async function sendHeartbeat(playerNickname, sessionId) {
+if (!playerNickname || !sessionId) return false;
+const db = initializeFirebase();
+if (!db) return false;
+
+const sessionRef = db.collection("jogadores_permitidos").doc(playerNickname).collection("sessoes_ativas").doc(sessionId);
+try {
+await sessionRef.update({
+timestamp_heartbeat: firebase.firestore.FieldValue.serverTimestamp()
+});
+return true;
+} catch (error) {
+if (error.code === "not-found") {
+return false;
+}
+throw error;
+}
+}
+
+async function cleanupSessionOnUnload(playerNick, sessId) {
+if (cleanupAttempted || !playerNick || !sessId) return;
+cleanupAttempted = true;
+const storageKey = GM_SESSION_KEY_PREFIX + playerNick;
+try {
+GM_deleteValue(storageKey);
+} catch (e) {}
+
+const db = initializeFirebase();
+if (!db) return;
+const sessionRef = db.collection("jogadores_permitidos").doc(playerNick).collection("sessoes_ativas").doc(sessId);
+try {
+sessionRef.delete();
+} catch (e) {}
+}
+
+function desativarScript(motivo) {
+if (!isScriptActive && firestoreListenerUnsubscribe === null && sessionHeartbeatTimer === null) {
+return;
+}
+
+const wasActive = isScriptActive;
+isScriptActive = false;
+
+if (firestoreListenerUnsubscribe) {
+try {
+firestoreListenerUnsubscribe();
+} catch (e) {}
+firestoreListenerUnsubscribe = null;
+}
+
+if (sessionHeartbeatTimer) {
+clearInterval(sessionHeartbeatTimer);
+sessionHeartbeatTimer = null;
+}
+
+if (wasActive && currentPlayerNickname) {
+const storageKey = GM_SESSION_KEY_PREFIX + currentPlayerNickname;
+try {
+GM_deleteValue(storageKey);
+} catch (e) {}
+}
+
+if (currentPlayerNickname && currentSessionId) {
+const db = initializeFirebase();
+if (db) {
+db.collection("jogadores_permitidos").doc(currentPlayerNickname).collection("sessoes_ativas").doc(currentSessionId).delete().catch((err) => {});
+}
+}
+
+currentSessionId = null;
+alert(`RAGNAROK: O script foi desativado.
+Motivo: ${motivo}
+
+Recarregue a p\xE1gina se o problema for resolvido.`);
+try {
+const container = document.querySelector(".market-container");
+if (container) {
+container.querySelectorAll("button, input, select, textarea").forEach((el) => el.disabled = true);
+let overlay = container.querySelector(".ragnarok-disabled-overlay");
+if (!overlay) {
+overlay = document.createElement("div");
+overlay.className = "ragnarok-disabled-overlay";
+overlay.style.position = "absolute";
+overlay.style.top = "0";
+overlay.style.left = "0";
+overlay.style.width = "100%";
+overlay.style.height = "100%";
+overlay.style.background = "rgba(100, 100, 100, 0.7)";
+overlay.style.color = "white";
+overlay.style.zIndex = "1000";
+overlay.style.display = "flex";
+overlay.style.flexDirection = "column";
+overlay.style.justifyContent = "center";
+overlay.style.alignItems = "center";
+overlay.style.fontSize = "18px";
+overlay.style.textAlign = "center";
+overlay.style.backdropFilter = "blur(2px)";
+overlay.style.borderRadius = "15px";
+overlay.innerHTML = `Script RAGNAROK Desativado<br><small style="font-size: 12px;">(${motivo})</small>`;
+container.style.position = "relative";
+container.appendChild(overlay);
+}
+}
+} catch (e) {}
+}
+
+async function iniciarMonitoramentoRealtimeEHeartbeat(playerNickname, sessionId) {
+if (!playerNickname || !sessionId) {
+desativarScript("Erro interno: Falta de dados para iniciar monitoramento.");
+return;
+}
+
+const db = initializeFirebase();
+if (!db) {
+desativarScript("Erro cr\xEDtico: Firestore indispon\xEDvel.");
+return;
+}
+
+const playerDocRef = db.collection("jogadores_permitidos").doc(playerNickname);
+firestoreListenerUnsubscribe = playerDocRef.onSnapshot(
+(docSnap) => {
+if (!isScriptActive) return;
+if (!docSnap.exists || !docSnap.data()?.data_expiracao?.toDate()) {
+desativarScript("Licen\xE7a revogada ou inv\xE1lida.");
+return;
+}
+const expirationDate = docSnap.data().data_expiracao.toDate();
+if (new Date() >= expirationDate) {
+desativarScript(`Licen\xE7a expirou em ${expirationDate.toLocaleString()}.`);
+}
+},
+(error) => desativarScript(`Erro de conex\xE3o no monitoramento (${error.code}).`)
+);
+
+sessionHeartbeatTimer = setInterval(async () => {
+try {
+const success = await sendHeartbeat(playerNickname, sessionId);
+if (!success && isScriptActive) {
+const checkResult = await checkLicenseAndRegisterSession(playerNickname);
+if (checkResult.authorized && checkResult.sessionId) {
+currentSessionId = checkResult.sessionId;
+} else {
+desativarScript(checkResult.reason || "Falha ao recriar sess\xE3o.");
+}
+}
+} catch (error) {
+desativarScript(`Erro de comunica\xE7\xE3o com o servidor (${error.code || "desconhecido"}).`);
+}
+}, SESSION_HEARTBEAT_MINUTES * 60 * 1e3);
+
+window.addEventListener("beforeunload", () => cleanupSessionOnUnload(playerNickname, sessionId));
+}
+
+function getStoredExpiration(nickname) {
+const key = GM_EXPIRATION_KEY_PREFIX + nickname;
+const storedExpiration = GM_getValue(key);
+if (storedExpiration) {
+const expirationDate = new Date(storedExpiration);
+if (!isNaN(expirationDate.getTime())) {
+return expirationDate;
+}
+}
+return null;
+}
+
+function storeExpiration(nickname, expirationDate) {
+const key = GM_EXPIRATION_KEY_PREFIX + nickname;
+GM_setValue(key, expirationDate.toISOString());
+}
+
+async function verificarLicenca() {
+currentPlayerNickname = getPlayerNickname();
+if (!currentPlayerNickname) {
+desativarScript("N\xE3o foi poss\xEDvel identificar o Nickname.");
+return false;
+}
+
+const storedExpiration = getStoredExpiration(currentPlayerNickname);
+const currentDate = new Date();
+if (storedExpiration && currentDate < storedExpiration) {
+currentSessionId = GM_getValue(GM_SESSION_KEY_PREFIX + currentPlayerNickname)?.sessionId || generateSessionId();
+return true;
+}
+
+const checkResult = await checkLicenseAndRegisterSession(currentPlayerNickname);
+if (checkResult.authorized && checkResult.sessionId && checkResult.expirationDate) {
+storeExpiration(currentPlayerNickname, checkResult.expirationDate);
+currentSessionId = checkResult.sessionId;
+const storageKey = GM_SESSION_KEY_PREFIX + currentPlayerNickname;
+GM_setValue(storageKey, { sessionId: currentSessionId, timestamp: Date.now(), expirationDate: checkResult.expirationDate.toISOString() });
+return true;
+} else {
+desativarScript(checkResult.reason || "Falha na verifica\xE7\xE3o da licen\xE7a.");
+return false;
+}
+}
+
+if (typeof firebase === "undefined" || typeof firebase.firestore === "undefined") {
+alert(`${SCRIPT_NAME}: Erro cr\xEDtico - Componentes de verifica\xE7\xE3o n\xE3o encontrados.`);
+return;
+}
+
+const licencaValida = await verificarLicenca();
+if (!licencaValida) {
+return;
+}
+
+isScriptActive = true;
+iniciarMonitoramentoRealtimeEHeartbeat(currentPlayerNickname, currentSessionId);
+
+
+
+
+
+let isSellCooldownActive = false; // <-- Flag para controlar o cooldown
+const SELL_COOLDOWN_MS = 6000; // <-- 6000 milissegundos = 6 segundos
+const VOLATILITY_WINDOW = 15;
+const TREND_SENSITIVITY = 0.15;
+const _ = window._;
+const DateTime = luxon.DateTime;
+if (typeof axios === "undefined") {
+return;
+}
+const mobx = window.mobx;
+const GEMINI_API_KEY = "";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+const requestCache = {
+cache: {},
+cacheLimit: 100,
+cacheKeys: [],
+get: function(url) {
+if (this.cache[url]) {
+this.cacheKeys = _.filter(this.cacheKeys, (key) => key !== url);
+this.cacheKeys.push(url);
+return this.cache[url].data;
+}
+return void 0;
+},
+set: function(url, data) {
+if (this.cache[url]) {
+this.cache[url].data = data;
+this.cacheKeys = _.filter(this.cacheKeys, (key) => key !== url);
+this.cacheKeys.push(url);
+} else {
+if (this.cacheKeys.length >= this.cacheLimit) {
+const oldestKey = this.cacheKeys.shift();
+delete this.cache[oldestKey];
+}
+this.cache[url] = { data };
+this.cacheKeys.push(url);
+}
+}
+};
+
+async function fetchMarketData(url) {
+const cachedData = requestCache.get(url);
+if (cachedData) {
+return cachedData;
+}
+try {
+const response = await axios.get(url, {
+headers: { "X-Requested-With": "XMLHttpRequest" },
+timeout: 5e3
+});
+requestCache.set(url, response.data);
+return response.data;
+} catch (error) {
+return null;
+}
+}
+
+const translations = {
+resources: {
+pt: {
+translation: {
+title: "RAGNAROK COMPRA E VENDA DE RECURSOS",
+buyModeToggleOn: "Desativar Compra",
+buyModeToggleOff: "Habilitar Compra",
+sellModeToggleOn: "Desativar Venda",
+sellModeToggleOff: "Habilitar Venda",
+saveConfig: "\u{1F4BE} Salvar",
+resetAll: "Resetar Tudo",
+pause: "Pausar",
+transactions: "Transa\xE7\xF5es",
+aiAssistant: "",
+settings: "Configura\xE7\xF5es",
+saveSuccess: "Configura\xE7\xE3o salva com sucesso!",
+portuguese: "Portugu\xEAs",
+russian: "Russo",
+english: "Ingl\xEAs",
+activated: "Ativado",
+deactivated: "Deativado",
+transactionInProgress: "Processando transa\xE7\xE3o...",
+transactionSuccess: "Transa\xE7\xE3o conclu\xEDda com sucesso!",
+transactionError: "Erro na transa\xE7\xE3o. Tente novamente.",
+domError: "Erro ao acessar elementos do jogo. Atualizando...",
+noTransactions: "Nenhuma transa\xE7\xE3o encontrada.",
+transactionsHeader: "Hist\xF3rico de Transa\xE7\xF5es",
+transaction: "Transa\xE7\xE3o",
+date: "Data",
+type: "Tipo",
+change: "Mudan\xE7a",
+newPremiumPoints: "Novos Pontos Premium",
+close: "Fechar",
+filters: "Filtros",
+dateFrom: "Data Inicial",
+dateTo: "Data Final",
+worldFilter: "Filtro por Mundo",
+sortAsc: "Ordenar Ascendente",
+sortDesc: "Ordenar Descendente",
+page: "P\xE1gina",
+next: "Pr\xF3ximo",
+previous: "Anterior",
+chartTitle: "Mudan\xE7as ao Longo do Tempo",
+expenses: "Despesas",
+sales: "Lucros",
+profit: "Lucro",
+aiPrompt: "Digite sua pergunta para o Assistente AI",
+aiLoading: "Carregando resposta...",
+aiError: "Erro ao obter resposta do AI",
+minimize: "Minimizar",
+stockDesiredTooltip: "Quantidade de {resource} que o script mant\xE9m na aldeia. Compra se estiver abaixo.",
+userRateTooltip: "Taxa m\xEDnima (pontos premium por unidade) para comprar {resource}. O script s\xF3 compra se o mercado for igual ou maior.",
+buyPerTimeTooltip: "Quantidade m\xE1xima de {resource} por compra. O script n\xE3o excede esse valor por transa\xE7\xE3o.",
+reserveAmountTooltip: "Quantidade m\xEDnima de {resource} a manter. O script n\xE3o vende se o estoque for igual ou menor.",
+reserveRateTooltip: "Taxa m\xE1xima (pontos premium por unidade) para vender {resource}. O script s\xF3 vende se o mercado for igual ou menor.",
+sellLimitTooltip: "Quantidade m\xE1xima de {resource} por venda. O script n\xE3o excede esse valor por transa\xE7\xE3o.",
+resourceNames: {
+wood: "madeira",
+stone: "argila",
+iron: "ferro"
+}
+}
+},
+
+     ru: {
+    translation: {
+      title: "РАГНАРОК ПОКУПКА И ПРОДАЖА РЕСУРСОВ",
+      buyModeToggleOn: "Отключить покупку",
+      buyModeToggleOff: "Включить покупку",
+      sellModeToggleOn: "Отключить продажу",
+      sellModeToggleOff: "Включить продажу",
+      saveConfig: "💾 Сохранить",
+      resetAll: "Сбросить всё",
+      pause: "Пауза",
+      transactions: "Транзакции",
+      aiAssistant: "",
+      settings: "Настройки",
+      saveSuccess: "Конфигурация успешно сохранена!",
+      portuguese: "Португальский",
+      russian: "Русский",
+      english: "Английский",
+      activated: "Активировано",
+      deactivated: "Деактивировано",
+      transactionInProgress: "Обработка транзакции...",
+      transactionSuccess: "Транзакция успешно завершена!",
+      transactionError: "Ошибка транзакции. Попробуйте снова.",
+      domError: "Ошибка доступа к элементам игры. Обновление...",
+      noTransactions: "Транзакций не найдено.",
+      transactionsHeader: "История транзакций",
+      transaction: "Транзакция",
+      date: "Дата",
+      type: "Тип",
+      change: "Изменение",
+      newPremiumPoints: "Новые премиум-очки",
+      close: "Закрыть",
+      filters: "Фильтры",
+      dateFrom: "Дата начала",
+      dateTo: "Дата окончания",
+      worldFilter: "Фильтр по миру",
+      sortAsc: "Сортировать по возрастанию",
+      sortDesc: "Сортировать по убыванию",
+      page: "Страница",
+      next: "Следующая",
+      previous: "Предыдущая",
+      chartTitle: "Изменения с течением времени",
+      expenses: "Расходы",
+      sales: "Прибыль",
+      profit: "Доход",
+      aiPrompt: "Введите ваш вопрос для ИИ-помощника",
+      aiLoading: "Загрузка ответа...",
+      aiError: "Ошибка получения ответа от ИИ",
+      minimize: "Свернуть",
+      stockDesiredTooltip: "Количество {resource}, которое скрипт поддерживает в деревне. Покупает, если меньше.",
+      userRateTooltip: "Минимальная ставка (премиум-очки за единицу) для покупки {resource}. Скрипт покупает только если рыночная ставка равна или выше.",
+      buyPerTimeTooltip: "Максимальное количество {resource} за покупку. Скрипт не превышает это значение за транзакцию.",
+      reserveAmountTooltip: "Минимальное количество {resource} для хранения. Скрипт не продает, если запас равен или меньше.",
+      reserveRateTooltip: "Максимальная ставка (премиум-очки за единицу) для продажи {resource}. Скрипт продает только если рыночная ставка равна или ниже.",
+      sellLimitTooltip: "Максимальное количество {resource} за продажу. Скрипт не превышает это значение за транзакцию.",
+      resourceNames: {
+        wood: "дерево",
+        stone: "глина",
+        iron: "железо"
+      }
+    }
+  },
+  en: {
+    translation: {
+      title: "RAGNAROK RESOURCE TRADING",
+      buyModeToggleOn: "Turn Off Buying",
+      buyModeToggleOff: "Turn On Buying",
+      sellModeToggleOn: "Turn Off Selling",
+      sellModeToggleOff: "Turn On Selling",
+      saveConfig: "💾 Save",
+      resetAll: "Reset Everything",
+      pause: "Pause",
+      transactions: "Transactions",
+      aiAssistant: "",
+      settings: "Settings",
+      saveSuccess: "Settings saved successfully!",
+      portuguese: "Portuguese",
+      russian: "Russian",
+      english: "English",
+      activated: "Activated",
+      deactivated: "Deactivated",
+      transactionInProgress: "Processing transaction...",
+      transactionSuccess: "Transaction completed successfully!",
+      transactionError: "Transaction failed. Please try again.",
+      domError: "Error accessing game elements. Refreshing...",
+      noTransactions: "No transactions found.",
+      transactionsHeader: "Transaction History",
+      transaction: "Transaction",
+      date: "Date",
+      type: "Type",
+      change: "Change",
+      newPremiumPoints: "New Premium Points",
+      close: "Close",
+      filters: "Filters",
+      dateFrom: "Start Date",
+      dateTo: "End Date",
+      worldFilter: "Filter by World",
+      sortAsc: "Sort Ascending",
+      sortDesc: "Sort Descending",
+      page: "Page",
+      next: "Next",
+      previous: "Previous",
+      chartTitle: "Changes Over Time",
+      expenses: "Costs",
+      sales: "Revenue",
+      profit: "Profit",
+      aiPrompt: "Type your question for the AI Assistant",
+      aiLoading: "Loading response...",
+      aiError: "Error retrieving AI response",
+      minimize: "Minimise",
+      stockDesiredTooltip: "Amount of {resource} the script keeps in the village. It buys if stock falls below this.",
+      userRateTooltip: "Minimum rate (premium points per unit) to buy {resource}. The script only buys if the market rate is at or above this.",
+      buyPerTimeTooltip: "Maximum amount of {resource} per purchase. The script won't exceed this per transaction.",
+      reserveAmountTooltip: "Minimum amount of {resource} to keep. The script won't sell if stock is at or below this.",
+      reserveRateTooltip: "Maximum rate (premium points per unit) to sell {resource}. The script only sells if the market rate is at or below this.",
+      sellLimitTooltip: "Maximum amount of {resource} per sale. The script won't exceed this per transaction.",
+      resourceNames: {
+        wood: "wood",
+        stone: "clay",
+        iron: "iron"
+      }
+    }
+  }
+ }
+};
+
+const i18n = window.i18next;
+i18n.init({
+  lng: localStorage.getItem("language") || "pt",
+  fallbackLng: "en",
+  resources: translations.resources
+});
+
+const elementCache = new Map();
+let currentResources = { wood: 0, stone: 0, iron: 0 };
+const resourceImgSrc = {
+  wood: "wood",
+  stone: "clay",
+  iron: "iron"
+};
+
+function getResourceAmount(doc, resourceName) {
+  let selector = `#${resourceName}.res`;
+  if (resourceName === "stone") {
+    selector = "#stone";
+  }
+  const resourceElement = doc.querySelector(selector);
+  if (resourceElement) {
+    const textContent = resourceElement.textContent;
+    const trimmedText = textContent.trim();
+    const parsedValue = _.parseInt(trimmedText.replace(/\D/g, ""), 10);
+    return parsedValue || 0;
+  } else {
+    return 0;
+  }
+}
+
+function getStorageCapacity() {
+  if (typeof TribalWars !== "undefined" && TribalWars.getGameData) {
+    const villageData = TribalWars.getGameData().village;
+    const storageCapacity = villageData.storage_max || 1e3;
+    return storageCapacity;
+  }
+  const storageElement = document.querySelector("#storage");
+  if (!storageElement) return 1e3;
+  const storageText = storageElement.textContent.trim();
+  const parts = storageText.split("/");
+  if (parts.length >= 2) {
+    const maxStorage = sanitizeNumber(parts[1]);
+    return maxStorage;
+  }
+  return 1e3;
+}
+
+async function fetchResources() {
+  const villageId = TribalWars.getGameData().village.id;
+  const overviewUrl = `https://${window.location.host}/game.php?village=${villageId}&screen=overview`;
+  const response = await fetchMarketData(overviewUrl);
+  if (response) {
+    const html = response;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    currentResources.wood = getResourceAmount(doc, "wood");
+    currentResources.stone = getResourceAmount(doc, "stone");
+    currentResources.iron = getResourceAmount(doc, "iron");
+  }
+  state.storageCapacity = getStorageCapacity();
+}
+
+class ResourceHandler {
+  constructor(name, config) {
+    this.name = name;
+    this.config = config;
+    this.elementCache = new Map();
+  }
+
+  getDomElement(selector) {
+    if (!this.elementCache.has(selector)) {
+      const element = document.querySelector(selector);
+      this.elementCache.set(selector, element);
+      return element;
+    }
+    return this.elementCache.get(selector);
+  }
+
+  sanitizeNumber(value) {
+    return _.parseInt(value, 10) || 0;
+  }
+
+  getStock() {
+    return this.sanitizeNumber(this.getDomElement(this.config.stockSelector)?.textContent.trim());
+  }
+
+  getGameRate() {
+    return this.sanitizeNumber(this.getDomElement(this.config.rateSelector)?.textContent.trim().replace(/\D/g, ""));
+  }
+
+  getUserRate() {
+    return this.sanitizeNumber(this.config.uiRateInput?.value);
+  }
+
+  getTotal() {
+    return currentResources[this.name];
+  }
+
+  getReserved() {
+    return this.sanitizeNumber(this.config.uiReserveInput?.value);
+  }
+
+  getMarketValue() {
+    const marketImg = this.getDomElement(this.config.marketImg);
+    if (!marketImg) {
+      return 0;
+    }
+    const valueText = marketImg.parentElement?.textContent.trim();
+    if (!valueText) {
+      return 0;
+    }
+    return this.sanitizeNumber(valueText.replace(/[^0-9]/g, "")) || 0;
+  }
+
+  getReserveRate() {
+    return this.sanitizeNumber(this.config.uiReserveRateInput?.value);
+  }
+
+  getBuyInput() {
+    return this.getDomElement(this.config.buyInputSelector);
+  }
+
+  getSellInput() {
+    return this.getDomElement(this.config.sellInputSelector);
+  }
+}
+
+const resourceTemplate = (name, outputDefault) => ({
+  stockSelector: `#premium_exchange_stock_${name}`,
+  rateSelector: `#premium_exchange_rate_${name} > div:nth-child(1)`,
+  buyInputSelector: `input.premium-exchange-input[data-resource="${name}"][data-type="buy"]`,
+  sellInputSelector: `input.premium-exchange-input[data-resource="${name}"][data-type="sell"]`,
+  totalSelector: `#${name}.res`,
+  marketImg: `.premium-exchange-sep ${`img[src*="${name}_18x16"]`}`,
+  outputDefault
+});
+
+const resourceConfigs = {
+  wood: resourceTemplate("wood", 39),
+  stone: resourceTemplate("stone", 46),
+  iron: resourceTemplate("iron", 63)
+};
+
+const state = mobx.observable({
+  resources: {
+    storageCapacity: 1e3,
+    wood: 0,
+    stone: 0,
+    iron: 0
+  },
+  incomingResources: {
+    wood: 0,
+    stone: 0,
+    iron: 0
+  },
+  marketRates: {},
+  transactions: [],
+  buyModeActive: localStorage.getItem("buyModeActive") === "true",
+  sellModeActive: localStorage.getItem("sellModeActive") === "true",
+  hasExecutedBuy: false,
+  hasExecutedSell: false,
+  reloadPending: false,
+  isDarkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
+  currentVillage: null,
+  worldProfit: 0,
+  language: localStorage.getItem("language") || "pt",
+  optimizedRates: mobx.computed(function() {
+    return this.marketRates;
+  }),
+  rateHistory: {
+    wood: [],
+    stone: [],
+    iron: []
+  },
+  marketTrends: {
+    wood: "neutral",
+    stone: "neutral",
+    iron: "neutral"
+  },
+  marketVolatility: {
+    wood: 0,
+    stone: 0,
+    iron: 0
+  },
+  lastUpdate: {
+    wood: null,
+    stone: null,
+    iron: null
+  },
+  marketConditions: mobx.computed(function() {
+    return {
+      wood: {
+        trend: this.marketTrends.wood,
+        volatility: this.marketVolatility.wood,
+        lastUpdate: this.lastUpdate.wood
+      },
+      stone: {
+        trend: this.marketTrends.stone,
+        volatility: this.marketVolatility.stone,
+        lastUpdate: this.lastUpdate.stone
+      },
+      iron: {
+        trend: this.marketTrends.iron,
+        volatility: this.marketVolatility.iron,
+        lastUpdate: this.lastUpdate.iron
+      }
+    };
+  }),
+  isUpdating: false,
+  isSettingsModalOpen: false
+});
+
+const ui = {
+  elements: new Map(),
+  buyInputs: new Map(),
+  sellInputs: new Map(),
+  gameElements: new Map(),
+  getElement(key) {
+    if (!this.elements.has(key)) {
+      const element = elementCache.get(key) || document.querySelector(`#${key}`);
+      if (element) {
+        this.elements.set(key, element);
+        elementCache.set(key, element);
+      }
+      return element;
+    }
+    return this.elements.get(key);
+  }
+};
+
+const createElement = (tag, props = {}) => {
+  const element = Object.assign(document.createElement(tag), props);
+  if (props.id) elementCache.set(props.id, element);
+  return element;
+};
+
+const tooltip = createElement("div", { className: "tooltip", style: "display: none;" });
+document.body.appendChild(tooltip);
+
+const hideTooltip = () => {
+  tooltip.style.display = "none";
+  if (tooltip.parentNode !== document.body) {
+    document.body.appendChild(tooltip);
+  }
+};
+
+function isModalOpen() {
+  const transactionsModal = document.getElementById("transactionsModal");
+  const aiModal = document.getElementById("aiModal");
+  const settingsModal = document.getElementById("settingsModal");
+  return transactionsModal && transactionsModal.style.display === "flex" || aiModal && aiModal.style.display === "flex" || settingsModal && settingsModal.style.display === "flex";
+}
+
+const showTooltip = (event, text) => {
+  if (!text) return;
+  const resourceKey = event.target.dataset.resource.split("-")[0];
+  const translatedResource = i18n.t(`resourceNames.${resourceKey}`);
+  const finalText = i18n.t(event.target.dataset.tooltip, { resource: translatedResource });
+  tooltip.innerHTML = finalText;
+  document.body.appendChild(tooltip);
+  const inputElement = event.target;
+  const inputRect = inputElement.getBoundingClientRect();
+  const tooltipWidth = tooltip.offsetWidth;
+  const tooltipHeight = tooltip.offsetHeight;
+  let x = inputRect.left + window.scrollX + 5;
+  let y = inputRect.bottom + window.scrollY + 5;
+  if (x + tooltipWidth > window.innerWidth) {
+    x = window.innerWidth - tooltipWidth - 10;
+  }
+  if (y + tooltipHeight > window.innerHeight) {
+    y = inputRect.top + window.scrollY - tooltipHeight - 5;
+  }
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top = `${y}px`;
+  tooltip.style.display = "block";
+};
+
+const updateTooltipPosition = (event) => {
+  if (!tooltip.style.display || tooltip.style.display === "none") return;
+  const inputElement = event.target;
+  const inputRect = inputElement.getBoundingClientRect();
+  const tooltipWidth = tooltip.offsetWidth;
+  const tooltipHeight = tooltip.offsetHeight;
+  let x = inputRect.left + window.scrollX + 5;
+  let y = inputRect.bottom + window.scrollY + 5;
+  if (x + tooltipWidth > window.innerWidth) {
+    x = window.innerWidth - tooltipWidth - 10;
+  }
+  if (y + tooltipHeight > window.innerHeight) {
+    y = inputRect.top + window.scrollY - tooltipHeight - 5;
+  }
+  tooltip.style.left = `${x}px`;
+  tooltip.style.top = `${y}px`;
+};
+
+const sanitizeNumber = (value) => _.parseInt(value, 10) || 0;
+
+const createResourceCard = (resource, type, iconUrl, placeholders) => {
+  const tooltipKeys = {
+    "wood-stock": "stockDesiredTooltip",
+    "stone-stock": "stockDesiredTooltip",
+    "iron-stock": "stockDesiredTooltip",
+    "wood": "userRateTooltip",
+    "stone": "userRateTooltip",
+    "iron": "userRateTooltip",
+    "buy-per-time": "buyPerTimeTooltip",
+    "storage-limit": "buyPerTimeTooltip",
+    "max-spend": "buyPerTimeTooltip",
+    "reserve-wood": "reserveAmountTooltip",
+    "reserve-stone": "reserveAmountTooltip",
+    "reserve-iron": "reserveAmountTooltip",
+    "reserve-wood-rate": "reserveRateTooltip",
+    "reserve-stone-rate": "reserveRateTooltip",
+    "reserve-iron-rate": "reserveRateTooltip",
+    "sell-limit": "sellLimitTooltip",
+    "sell-limit-stone": "sellLimitTooltip",
+    "sell-limit-iron": "sellLimitTooltip"
+  };
+
+  const getTooltipKey = (resourceName, placeholderKey) => {
+    if (type === "buy") {
+      if (placeholderKey === 0) return tooltipKeys[`${resourceName}-stock`];
+      if (placeholderKey === 1) return tooltipKeys[resourceName];
+      if (placeholderKey === 2 && placeholders[2].key === "buy-per-time") return tooltipKeys["buy-per-time"];
+      if (placeholderKey === 2 && placeholders[2].key === "storage-limit") return tooltipKeys["storage-limit"];
+      if (placeholderKey === 2 && placeholders[2].key === "max-spend") return tooltipKeys["max-spend"];
+    } else if (type === "sell") {
+      if (placeholderKey === 0) return tooltipKeys[`reserve-${resourceName}`];
+      if (placeholderKey === 1) return tooltipKeys[`reserve-${resourceName}-rate`];
+      if (placeholderKey === 2 && placeholders[2].key === "sell-limit") return tooltipKeys["sell-limit"];
+      if (placeholderKey === 2 && placeholders[2].key === "sell-limit-stone") return tooltipKeys["sell-limit-stone"];
+      if (placeholderKey === 2 && placeholders[2].key === "sell-limit-iron") return tooltipKeys["sell-limit-iron"];
+    }
+    return void 0;
+  };
+
+  return `
+    <div class="resource-card base-card" data-resource="${resource}">
+        <img src="${iconUrl}" alt="${resource}" />
+        <input type="number" class="rate-input"
+               data-resource="${type === "buy" ? `${resource}-stock` : `reserve-${resource}`}"
+               data-tooltip="${getTooltipKey(resource, 0)}"
+               placeholder="${placeholders[0]}">
+
+        <span>${type === "buy" ? "↑" : "↓"}</span>
+
+        <input type="number" class="rate-input"
+               data-resource="${type === "buy" ? resource : `reserve-${resource}-rate`}"
+               data-tooltip="${getTooltipKey(resource, 1)}"
+               placeholder="${placeholders[1]}">
+
+        <div class="num-input">
+            <img src="https://dsus.innogamescdn.com/asset/95eda994/graphic/items/resources.png" alt="Resources" class="resource-icon" />
+            <input type="number" class="rate-input"
+                   data-resource="${type === "buy" ? placeholders[2].key : `sell-limit${resource === "wood" ? "" : `-${resource}`}`}"
+                   data-tooltip="${getTooltipKey(resource, 2)}"
+                   placeholder="${placeholders[2].value}">
+        </div>
+    </div>
+  `;
+};
+
+const createButton = (id, text, classes = "black-btn") => `<button class="${classes}" id="${id}">${text}</button>`;
+const callGeminiAPI = async (prompt) => {
+  try {
+    const response = await axios.post(
+      `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }]
+      },
+      {
+        headers: {
+          "Content-Type": "application/json"
+        },
+        timeout: 1e4
+      }
+    );
+    if (response.status === 200) {
+      const content = response.data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+      return content;
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}, ${response.statusText}`);
+    }
+  } catch (error) {
+    throw error;
+  }
+};
+const initializeUI = () => {
+  const container = createElement("div", {
+    className: "market-container draggable",
+    style: "position: fixed; top: 50px; left: 50px; z-index: 2147483647;"
+  });
+  elementCache.set("market-container", container);
+  container.innerHTML = `
+  <div class="market-container">
+       <div class="header">
+      <h2 id="headerTitle">${i18n.t("title")}</h2>
+      <div class="dropdowns">
+          <div class="dropdown">
+              <span class="village-icon">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z" fill="#ffa500"/>
+</svg>
+</span>
+              <select id="villageSelect"><option value="current">Carregando...</option></select>
+          </div>
+          <div class="profit-info">
+              <span class="icon header premium"></span> <span id="worldProfit">0</span>
+          </div>
+      </div>
+      <div class="header-buttons">
+  <div class="btn-group-left">
+ <button class="icon-btn" id="aiAssistantBtn">
+  <i class="fa-solid fa-robot"></i>
+</button>
+</div>
+  <div class="btn-group-right">
+      ${createButton("minimizeButton", `<i class="fa-solid fa-window-minimize"></i>`, "icon-btn")}
+      ${createButton("settingsBtn", `<i class="fa-solid fa-gear"></i>`, "icon-btn")}
+  </div>
+</div>
+      <div class="sections">
+          <div class="section buy" id="buySection">
+              <h3>Status: <span class="status" id="buyStatus">${i18n.t(state.buyModeActive ? "activated" : "deactivated")}</span></h3>
+              <div class="sortable-container" id="buySortable">
+                  ${createResourceCard("wood", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/WoodProduction_large.png", ["200", "2000", { key: "buy-per-time", value: "5000" }])}
+                  ${createResourceCard("stone", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/StoneProduction_large.png", ["200", "2000", { key: "storage-limit", value: "5000" }])}
+                  ${createResourceCard("iron", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png", ["200", "2000", { key: "max-spend", value: "5000" }])}
+              </div>
+              <div class="buttons">
+                  ${createButton("buyModeToggle", i18n.t(state.buyModeActive ? "buyModeToggleOn" : "buyModeToggleOff"), "black-btn toggle-btn")}
+                  <div class="premium-input-wrapper">
+                      <span class="icon header premium"></span>
+                      <input type="number" id="premiumPointsInput" placeholder="PP">
+                  </div>
+                  ${createButton("buyPause", i18n.t("pause"))}
+                  <span class="spinner" id="buySpinner" style="display: none;"></span>
+              </div>
+          </div>
+          <div class="section sell" id="sellSection">
+              <h3>Status: <span class="status" id="sellStatus">${i18n.t(state.sellModeActive ? "activated" : "deactivated")}</span></h3>
+              <div class="sortable-container" id="sellSortable">
+                  ${createResourceCard("wood", "sell", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/WoodProduction_large.png", ["1000", "64", { key: "sell-limit", value: "200" }])}
+                  ${createResourceCard("stone", "sell", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/StoneProduction_large.png", ["1000", "64", { key: "sell-limit-stone", value: "200" }])}
+                  ${createResourceCard("iron", "sell", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png", ["1000", "64", { key: "sell-limit-iron", value: "200" }])}
+              </div>
+              <div class="buttons">
+                  ${createButton("sellModeToggle", i18n.t(state.sellModeActive ? "sellModeToggleOn" : "sellModeToggleOff"), "black-btn toggle-btn")}
+                  ${createButton("sellPause", i18n.t("pause"))}
+                  <span class="spinner" id="sellSpinner" style="display: none;"></span>
+              </div>
+          </div>
+      </div>
+      <div class="footer">
+          <div class="footer-buttons-row">
+              ${createButton("resetAll", `\u21BB ${i18n.t("resetAll")}`)}
+              ${createButton("transactionsBtn", i18n.t("transactions"))}
+              ${createButton("saveConfig", i18n.t("saveConfig"))}
+          </div>
+      </div>
+      <div class="notification" id="notification" style="display: none;"></div>
+      <div class="modal" id="transactionsModal" style="display: none;">
+          <div class="modal-content">
+              <h3>${i18n.t("transactionsHeader")}</h3>
+              <div id="filterSection"></div>
+              <div id="transactionsTableContainer"></div>
+              <div id="paginationControls" style="margin-top: 10px;"></div>
+              <canvas id="transactionsChart" style="display: block; margin-top: 20px; max-width: 100%;"></canvas>
+              <div style="margin-top: 10px;">
+                  ${createButton("closeModal", i18n.t("close"))}
+              </div>
+          </div>
+      </div>
+      <div class="modal" id="aiModal" style="display: none;">
+          <div class="modal-content">
+              <h3>${i18n.t("aiAssistant")}</h3>
+              <textarea id="aiPrompt" placeholder="${i18n.t("aiPrompt")}" rows="4" style="width: 100%; margin-bottom: 10px;"></textarea>
+              <div id="aiResponse" style="margin-bottom: 10px;"></div>
+              <div>
+                  ${createButton("submitAI", "Enviar")}
+                  ${createButton("closeAIModal", i18n.t("close"))}
+              </div>
+          </div>
+      </div>
+      <div class="modal" id="settingsModal" style="display: none;">
+          <div class="modal-content">
+              <h3>${i18n.t("settings")}</h3>
+              <div class="dropdown">
+                  <span class="icon green">\u2713</span>
+                  <select id="languageSelect">
+                      <option value="pt" ${state.language === "pt" ? "selected" : ""}>\u{1F1F5}\u{1F1F9} ${i18n.t("portuguese")}</option>
+                      <option value="ru" ${state.language === "ru" ? "selected" : ""}>\u{1F1F7}\u{1F1FA} ${i18n.t("russian")}</option>
+                      <option value="en" ${state.language === "en" ? "selected" : ""}>\u{1F1EC}\u{1F1E7} ${i18n.t("english")}</option>
+                  </select>
+              </div>
+              <div>
+                  <p>Em breve: op\xE7\xF5es de configura\xE7\xE3o adicionais.</p>
+              </div>
+              <div style="margin-top: 10px;">
+                  ${createButton("closeSettingsModal", i18n.t("close"))}
+              </div>
+          </div>
+      </div>
+  </div>
+`;
+  document.body.appendChild(container);
+  const minimizedBox = createElement("div", {
+    id: "minimizedMarketBox",
+    className: "minimized-box",
+    style: `
+      position: fixed;
+      right: 10px;
+      top: 10px;
+      width: 40px;
+      height: 40px;
+      background-color: #2a2d32;
+      border: 2px solid #ffd700;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+      color: #ffffff;
+      font-family: 'Roboto', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 2147483647;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+  `
+  });
+  document.body.appendChild(minimizedBox);
+  const fetchPlayerInitial = () => {
+    if (typeof TribalWars === "undefined" || !TribalWars.getGameData) return "?";
+    const player = TribalWars.getGameData().player;
+    return player?.name?.charAt(0).toUpperCase() || "?";
+  };
+  const updateMinimizedBox = () => {
+    const initial = fetchPlayerInitial();
+    minimizedBox.textContent = initial;
+    const colors = ["#FF5733", "#33FF57", "#3357FF", "#F3FF33", "#FF33F3"];
+    const colorIndex = initial.charCodeAt(0) % colors.length;
+    minimizedBox.style.backgroundColor = "#b8860b";
+    minimizedBox.style.color = "#000000";
+  };
+  updateMinimizedBox();
+  setInterval(updateMinimizedBox, 6e4);
+  minimizedBox.addEventListener("mouseenter", () => {
+    minimizedBox.style.transform = "scale(1.1)";
+    minimizedBox.style.boxShadow = "0 6px 20px rgba(255, 215, 0, 0.8)";
+  });
+  minimizedBox.addEventListener("mouseleave", () => {
+    minimizedBox.style.transform = "scale(1)";
+    minimizedBox.style.boxShadow = "0 4px 15px rgba(0, 0, 0, 0.5)";
+  });
+  const isMinimized = localStorage.getItem("isMinimized") === "true";
+  state.isMinimized = isMinimized;
+  minimizeButton.addEventListener("click", () => {
+    state.isMinimized = true;
+    container.style.display = "none";
+    minimizedBox.style.display = "block";
+    localStorage.setItem("isMinimized", "true");
+  });
+  minimizedBox.addEventListener("click", () => {
+    state.isMinimized = false;
+    container.style.display = "block";
+    minimizedBox.style.display = "none";
+    localStorage.setItem("isMinimized", "false");
+  });
+  addDragAndDropListeners(container);
+  initializeSortable();
+  const savedPos = JSON.parse(localStorage.getItem("marketContainerPosition"));
+  if (savedPos) {
+    container.style.left = savedPos.left;
+    container.style.top = savedPos.top;
+  }
+};
+const addDragAndDropListeners = (element) => {
+  let isDragging = false;
+  let offsetX, offsetY;
+  let animationFrame = null;
+  let lastX, lastY;
+  let isProcessing = false;
+  element.addEventListener("mousedown", (e) => {
+    isDragging = true;
+    const rect = element.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    element.style.cursor = "grabbing";
+  });
+  document.addEventListener("mouseup", () => {
+    if (isDragging) {
+      isDragging = false;
+      element.style.cursor = "move";
+      cancelAnimationFrame(animationFrame);
+      if (element.style.left && element.style.top) {
+        localStorage.setItem(
+          "marketContainerPosition",
+          JSON.stringify({
+            left: element.style.left,
+            top: element.style.top
+          })
+        );
+      }
+    }
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!isDragging || isProcessing) return;
+    isProcessing = true;
+    let newX = e.clientX - offsetX;
+    let newY = e.clientY - offsetY;
+    const maxX = window.innerWidth - element.offsetWidth - 10;
+    const maxY = window.innerHeight - element.offsetHeight - 10;
+    lastX = Math.max(0, Math.min(newX, maxX));
+    lastY = Math.max(0, Math.min(newY, maxY));
+    const moveElement = () => {
+      animationFrame = requestAnimationFrame(() => {
+        if (isDragging) {
+          element.style.left = `${lastX}px`;
+          element.style.top = `${lastY}px`;
+          moveElement();
+        }
+      });
+    };
+    moveElement();
+    e.preventDefault();
+    setTimeout(() => isProcessing = false, 16);
+  });
+  element.addEventListener("mouseleave", () => {
+    if (isDragging) {
+      isDragging = false;
+      element.style.cursor = "move";
+      cancelAnimationFrame(animationFrame);
+    }
+  });
+};
+const initializeSortable = () => {
+  if (typeof Sortable === "undefined") {
+    return;
+  }
+  const buySortable = document.getElementById("buySortable");
+  const sellSortable = document.getElementById("sellSortable");
+  new Sortable(buySortable, {
+    animation: 150,
+    handle: ".resource-card",
+    onEnd: (evt) => {
+    }
+  });
+  new Sortable(sellSortable, {
+    animation: 150,
+    handle: ".resource-card",
+    onEnd: (evt) => {
+    }
+  });
+};
+const getActiveWorld = () => {
+  return window.location.hostname.split(".")[0];
+};
+const updateVillageInfo = () => {
+  if (typeof TribalWars !== "undefined" && TribalWars.getGameData) {
+    const villageData = TribalWars.getGameData().village;
+    if (villageData) {
+      state.currentVillage = {
+        name: villageData.name,
+        coordinates: villageData.coord,
+        world: getActiveWorld()
+      };
+      ui.getElement("villageSelect").innerHTML = `<option value="current">${villageData.name} (${villageData.coord})</option>`;
+      return;
+    }
+  }
+  state.currentVillage = { name: "Desconhecido", coordinates: "N/A", world: getActiveWorld() };
+  ui.getElement("villageSelect").innerHTML = `<option value="current">Carregando...</option>`;
+};
+const initializeElements = () => {
+  const elementsToCache = [
+    "headerTitle",
+    "worldProfit",
+    "buyModeToggle",
+    "sellModeToggle",
+    "saveConfig",
+    "resetAll",
+    "transactionsBtn",
+    "aiAssistantBtn",
+    "settingsBtn",
+    "languageSelect",
+    "villageSelect",
+    "buyStatus",
+    "sellStatus",
+    "buyPause",
+    "sellPause",
+    "buySpinner",
+    "sellSpinner",
+    "notification",
+    "transactionsModal",
+    "transactionsTableContainer",
+    "filterSection",
+    "paginationControls",
+    "transactionsChart",
+    "closeModal",
+    "aiModal",
+    "aiPrompt",
+    "aiResponse",
+    "submitAI",
+    "closeAIModal",
+    "minimizeButton",
+    "minimizedMarketBox",
+    "settingsModal",
+    "closeSettingsModal",
+    "premiumPointsInput"
+  ];
+  elementsToCache.forEach((id) => {
+    const element = document.querySelector(`#${id}`);
+    if (element) {
+      ui.elements.set(id, element);
+      elementCache.set(id, element);
+    }
+  });
+  ui.elements.set("inputs", Array.from(document.querySelectorAll(".rate-input")));
+  ui.elements.set("buyPerTimeInput", document.querySelector('.rate-input[data-resource="buy-per-time"]'));
+  ui.elements.set("storageLimitInput", document.querySelector('.rate-input[data-resource="storage-limit"]'));
+  ui.elements.set("maxSpendInput", document.querySelector('.rate-input[data-resource="max-spend"]'));
+  ui.elements.set("sellLimitInput", document.querySelector('.rate-input[data-resource="sell-limit"]'));
+  return Array.from(ui.elements.values()).every((el) => el !== null);
+};
+const initializeResources = () => {
+  const resources2 = Object.keys(resourceConfigs).reduce((acc, name) => {
+    const config = { ...resourceConfigs[name] };
+    config.uiRateInput = document.querySelector(`.rate-input[data-resource="${name}"]`);
+    config.uiReserveInput = document.querySelector(`.rate-input[data-resource="reserve-${name}"]`);
+    config.uiReserveRateInput = document.querySelector(`.rate-input[data-resource="reserve-${name}-rate"]`);
+    acc[name] = new ResourceHandler(name, config);
+    return acc;
+  }, {});
+  Object.keys(resources2).forEach((name) => {
+    ui.buyInputs.set(name, resources2[name].getBuyInput());
+    ui.sellInputs.set(name, resources2[name].getSellInput());
+    const buyInput = ui.buyInputs.get(name);
+    if (buyInput && !buyInput.dataset.default) {
+      buyInput.dataset.default = "1000";
+    }
+  });
+  return resources2;
+};
+const updateGameElements = () => {
+  ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
+  ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
+  ui.gameElements.set("calculateButton", document.querySelector("input.btn-premium-exchange-buy"));
+  ui.gameElements.set("sellButton", document.querySelector("#premium_exchange_form > input"));
+};
+const scheduleReload = () => {
+  if (!state.reloadPending) {
+    state.reloadPending = true;
+    setTimeout(() => {
+      window.location.reload();
+      state.reloadPending = false;
+    }, 2e3);
+  }
+};
+const notifyUser = (message, type = "success", duration = 3e3) => {
+  const notification = ui.getElement("notification");
+  notification.textContent = message;
+  notification.className = `notification ${type}`;
+  notification.style.display = "block";
+  notification.style.opacity = "1";
+  setTimeout(() => {
+    notification.style.opacity = "0";
+    setTimeout(() => notification.style.display = "none", 500);
+  }, duration);
+};
+const notifySuccess = (message) => notifyUser(message, "success");
+const notifyError = (message) => notifyUser(message, "error");
+const updateTheme = () => {
+  state.isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const container = elementCache.get("market-container");
+  container.classList.toggle("dark", state.isDarkMode);
+  container.classList.toggle("light", !state.isDarkMode);
+};
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", updateTheme);
+const toggleMode = (mode) => {
+  state[mode] = !state[mode];
+  localStorage.setItem(mode, state[mode]);
+  state.hasExecutedBuy = mode === "buyModeActive" && !state[mode] ? false : state.hasExecutedBuy;
+  state.hasExecutedSell = mode === "sellModeActive" && !state[mode] ? false : state.hasExecutedSell;
+  updateUI();
+  if (state[mode]) mode === "buyModeActive" ? updateAll() : updateSell();
+  else if (mode === "buyModeActive") resetBuyInputs();
+};
+let isFetching = false;
+let cachedTransactions = null;
+const checkForUpdates = async () => {
+  try {
+    const { transactions: firstPageTransactions } = await fetchPage(1);
+    if (firstPageTransactions.length === 0) {
+      return false;
+    }
+    const latestServerDate = firstPageTransactions[0].date;
+    if (!cachedTransactions || cachedTransactions.length === 0) {
+      return false;
+    }
+    const latestSavedDate = cachedTransactions[0].date;
+    return latestServerDate > latestSavedDate;
+  } catch (error) {
+    return true;
+  }
+};
+const fetchAllPages = async () => {
+  let allTransactions = [];
+  let pageNum = 1;
+  let totalPages = null;
+  try {
+    const { transactions, doc } = await fetchPage(pageNum);
+    allTransactions.push(...transactions);
+    const paginationLinks = doc.querySelectorAll("a[href*='page=']");
+    let maxPage = 1;
+    paginationLinks.forEach((link) => {
+      const href = link.getAttribute("href");
+      const pageMatch = href.match(/page=(\d+)/);
+      if (pageMatch) {
+        const pageNum2 = _.parseInt(pageMatch[1]) + 1;
+        maxPage = Math.max(maxPage, pageNum2);
+      }
+    });
+    totalPages = maxPage;
+  } catch (error) {
+    isFetching = false;
+    throw error;
+  }
+  while (pageNum < totalPages) {
+    pageNum++;
+    try {
+      const { transactions } = await fetchPage(pageNum);
+      allTransactions.push(...transactions);
+      if (transactions.length === 0) {
+        break;
+      }
+    } catch (error) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  allTransactions.sort((a, b) => b.date - a.date);
+  localStorage.setItem("ragnarokMarketTransactions", JSON.stringify(allTransactions));
+  cachedTransactions = allTransactions;
+  isFetching = false;
+  return allTransactions;
+};
+const fetchPremiumLogs = () => {
+  return new Promise(async (resolve, reject) => {
+    if (isFetching) {
+      if (cachedTransactions) {
+        return resolve(cachedTransactions);
+      }
+      return reject("Busca em andamento. Tente novamente em breve.");
+    }
+    isFetching = true;
+    const savedTransactions = localStorage.getItem("ragnarokMarketTransactions");
+    if (savedTransactions) {
+      cachedTransactions = JSON.parse(savedTransactions).map((t) => ({
+        ...t,
+        date: new Date(t.date)
+      }));
+    }
+    if (typeof TribalWars === "undefined" || !TribalWars.getGameData) {
+      isFetching = false;
+      return reject("Dados do jogo TribalWars n\xE3o acess\xEDveis.");
+    }
+    try {
+      const needsUpdate = await checkForUpdates();
+      if (needsUpdate) {
+        const transactions = await fetchAllPages();
+        isFetching = false;
+        resolve(transactions);
+      } else {
+        isFetching = false;
+        resolve(cachedTransactions);
+      }
+    } catch (error) {
+      isFetching = false;
+      reject(error);
+    }
+  });
+};
+
+const fetchPage = async (pageNum = 1) => {
+    const gameData = TribalWars.getGameData ? TribalWars.getGameData() : {};
+    const villageId = gameData.village?.id || null;
+    if (!villageId) {
+      throw new Error("ID da vila n\xE3o encontrado no gameData");
+    }
+    const baseUrl = `${window.location.origin}/game.php?village=${villageId}&screen=premium&mode=log`;
+    const url = pageNum === 1 ? baseUrl : `${baseUrl}&page=${pageNum - 1}`;
+    try {
+      const response = await fetchMarketData(url);
+      if (!response) {
+        throw new Error("Falha ao buscar logs premium");
+      }
+      const doc = new DOMParser().parseFromString(response, "text/html");
+      const contentValue = doc.querySelector("#content_value");
+      if (!contentValue) {
+        throw new Error("N\xE3o foi poss\xEDvel encontrar o elemento #content_value");
+      }
+      let transactionTable = null;
+      const tables = contentValue.querySelectorAll("table");
+      for (const table of tables) {
+        const headers = Array.from(table.querySelectorAll("th")).map((th) => th.textContent.trim().toLowerCase());
+        if (headers.some((h) => h.includes("date") || h.includes("data")) && headers.some((h) => h.includes("world") || h.includes("mundo")) && headers.some((h) => h.includes("transaction") || h.includes("transa\xE7\xE3o"))) {
+          transactionTable = table;
+          break;
+        }
+      }
+      let transactions = [];
+      if (transactionTable) {
+        const rows = Array.from(transactionTable.querySelectorAll("tr")).slice(1);
+        transactions = parseTransactions(rows);
+      }
+      return { transactions, doc };
+    } catch (error) {
+      throw error;
+    }
+  };
+  const parseDate = (dateStr) => {
+    if (!dateStr || typeof dateStr !== "string") return /* @__PURE__ */ new Date(NaN);
+    const locales = ["en-US", "pt-BR", "ru"];
+    let parsedDate = null;
+    for (const locale of locales) {
+      parsedDate = DateTime.fromFormat(dateStr, "LLL dd, HH:mm", { locale });
+      if (parsedDate.isValid) break;
+    }
+    if (!parsedDate || !parsedDate.isValid) {
+      return /* @__PURE__ */ new Date(NaN);
+    }
+    const now = DateTime.now();
+    let date = parsedDate.set({ year: now.year });
+    if (date > now) {
+      date = date.set({ year: now.year - 1 });
+    }
+    return date.toJSDate();
+  };
+  const parseTransactions = (rows) => {
+    const transactions = [];
+    const serverCode = window.location.hostname.includes("tribalwars.com.br") ? "br" : "us";
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length >= 6) {
+        const date = parseDate(cells[0].textContent.trim());
+        if (isNaN(date.getTime())) return;
+        let displayedWorld = cells[1].textContent.trim();
+        const worldNumberMatch = displayedWorld.match(/(\d+)$/);
+        let world = displayedWorld;
+        if (worldNumberMatch) {
+          const worldNumber = worldNumberMatch[1];
+          world = `${serverCode}${worldNumber}`;
+        }
+        const type = cells[2].textContent.trim();
+        const changeMatch = cells[3].textContent.trim().match(/[-+]?\d+(?:\.\d+)?/);
+        const pointsMatch = cells[4].textContent.trim().match(/\d+/);
+        let transactionType = type;
+        let changeValue = changeMatch ? parseFloat(changeMatch[0]) || 0 : 0;
+        if (type === "Points redeemed" || type === "Pontos resgatados" || type === "Utilizado") {
+          transactionType = "Despesa";
+          changeValue = -Math.abs(changeValue);
+        } else if (type === "Transfer" || type === "Transfer\xEAncia") {
+          transactionType = changeValue < 0 ? "Despesa" : "Lucro";
+        }
+        transactions.push({
+          date,
+          type: transactionType,
+          change: Math.floor(changeValue),
+          newPremiumPoints: pointsMatch ? _.parseInt(pointsMatch[0], 10) || 0 : 0,
+          // Lodash _.parseInt
+          world
+        });
+      }
+    });
+    return transactions.sort((a, b) => b.date - a.date);
+  };
+  const calculateWorldProfit = () => {
+    if (!state.transactions || !state.currentVillage?.world) return 0;
+    const worldTransactions = state.transactions.filter((t) => t.world === state.currentVillage.world);
+    const expenses = worldTransactions.filter((t) => t.change < 0 || t.type === "Despesa").reduce((sum, t) => sum + Math.abs(t.change), 0);
+    const sales = worldTransactions.filter((t) => t.change > 0 || t.type === "Lucro").reduce((sum, t) => sum + t.change, 0);
+    return Math.floor(sales - expenses);
+  };
+  const filterTransactions = (transactions, filters) => {
+    if (!transactions) return [];
+    const { dateFrom, dateTo, worldFilter } = filters;
+    return _.filter(transactions, (t) => {
+      if (isNaN(t.date.getTime())) return false;
+      const dateFromDate = dateFrom ? new Date(dateFrom) : null;
+      const dateToDate = dateTo ? new Date(dateTo) : null;
+      const isDateValid = (!dateFromDate || t.date >= dateFromDate) && (!dateToDate || t.date <= dateToDate);
+      let isWorldValid = true;
+      if (worldFilter) {
+        isWorldValid = t.world.toLowerCase().includes(worldFilter.toLowerCase().trim());
+      }
+      return isDateValid && isWorldValid;
+    });
+  };
+  const sortTransactions = (transactions, sortField, sortDirection) => {
+    return _.orderBy(transactions, [sortField], [sortDirection]);
+  };
+  const paginateTransactions = (transactions, page, perPage = 10) => {
+    const start = (page - 1) * perPage;
+    return _.slice(transactions, start, start + perPage);
+  };
+  const renderLedgerTable = (transactions, sortField = "date", sortDirection = "desc", page = 1, perPage = 10) => {
+    const expenses = transactions.filter((t) => t.change < 0 || t.type === "Despesa");
+    const sales = transactions.filter((t) => t.change > 0 || t.type === "Lucro");
+    const totalExpenses = Math.floor(expenses.reduce((sum, t) => sum + Math.abs(t.change), 0));
+    const totalSales = Math.floor(sales.reduce((sum, t) => sum + t.change, 0));
+    const profit = Math.floor(totalSales - totalExpenses);
+    const sortedExpenses = sortTransactions(expenses, sortField, sortDirection);
+    const sortedSales = sortTransactions(sales, sortField, sortDirection);
+    const allTransactions = [...sortedExpenses, ...sortedSales];
+    const totalPages = Math.ceil(allTransactions.length / perPage);
+    const paginated = paginateTransactions(allTransactions, page, perPage);
+    ui.getElement("transactionsTableContainer").innerHTML = `
+            <table class="ledger-table">
+                <thead><tr>
+                    <th data-sort="date">${i18n.t("date")}</th>
+                    <th data-sort="type">${i18n.t("type")}</th>
+                    <th data-sort="change">${i18n.t("change")}</th>
+                    <th data-sort="world">${i18n.t("world")}</th>
+                </tr></thead>
+                <tbody>
+                    <tr><td colspan="4" class="section-header">${i18n.t("expenses")}</td></tr>
+                    ${paginated.filter((t) => t.change < 0 || t.type === "Despesa").map((t) => `
+                        <tr>
+                            <td>${t.date.toLocaleString()}</td>
+                            <td>${t.type}</td>
+                            <td><span class="icon header premium"></span> (${Math.abs(t.change)})</td>
+                            <td>${t.world}</td>
+                        </tr>
+                    `).join("")}
+                    <tr><td colspan="4" class="section-header">${i18n.t("sales")}</td></tr>
+                    ${paginated.filter((t) => t.change > 0 || t.type === "Lucro").map((t) => `
+                        <tr>
+                            <td>${t.date.toLocaleString()}</td>
+                            <td>${t.type}</td>
+                            <td><span class="icon header premium"></span> ${t.change}</td>
+                            <td>${t.world}</td>
+                        </tr>
+                    `).join("")}
+                    <tr><td colspan="4" class="section-header">${i18n.t("profit")}: <span class="icon header premium"></span> ${profit}</td></tr>
+                </tbody>
+            </table>
+        `;
+    ui.getElement("paginationControls").innerHTML = `
+           <button class="black-btn" id="prevPage" ${page === 1 ? "disabled" : ""}>${i18n.t("previous")}</button>
+        <button class="black-btn" id="nextPage" ${page === totalPages || allTransactions.length === 0 ? "disabled" : ""}>${i18n.t("next")}</button>
+    `;
+    if (allTransactions.length > 0) {
+      renderChart(allTransactions.sort((a, b) => a.date - b.date));
+      ui.getElement("transactionsChart").style.display = "block";
+    } else {
+      ui.getElement("transactionsChart").style.display = "none";
+    }
+    ui.getElement("transactionsTableContainer").querySelectorAll("th[data-sort]").forEach(
+      (header) => header.addEventListener("click", () => {
+        const newSortField = header.dataset.sort;
+        const newSortDirection = sortField === newSortField && sortDirection === "asc" ? "desc" : "asc";
+        renderLedgerTable(transactions, newSortField, newSortDirection, page, perPage);
+      })
+    );
+    ui.getElement("paginationControls").querySelector("#prevPage")?.addEventListener("click", () => page > 1 && renderLedgerTable(transactions, sortField, sortDirection, page - 1, perPage));
+    ui.getElement("paginationControls").querySelector("#nextPage")?.addEventListener("click", () => page < totalPages && renderLedgerTable(transactions, sortField, sortDirection, page + 1, perPage));
+  };
+  let chartInstance = null;
+  const renderChart = (transactions) => {
+    const ctx = ui.getElement("transactionsChart").getContext("2d");
+    if (chartInstance) chartInstance.destroy();
+    const dates = [...new Set(transactions.map((t) => t.date.toLocaleDateString()))].sort((a, b) => new Date(a) - new Date(b));
+    const data = dates.map((date) => {
+      const dayTransactions = transactions.filter((t) => t.date.toLocaleDateString() === date);
+      return Math.floor(dayTransactions.reduce((sum, t) => sum + t.change, 0));
+    });
+    chartInstance = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: dates,
+        datasets: [{
+          label: i18n.t("change"),
+          data,
+          backgroundColor: "#ffd700",
+          borderColor: "#b8860b",
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { title: { display: true, text: i18n.t("date") } },
+          y: { title: { display: true, text: i18n.t("change") }, beginAtZero: true }
+        },
+        plugins: {
+          title: { display: true, text: i18n.t("chartTitle") }
+        }
+      }
+    });
+  };
+  const renderTransactionsModal = (transactions, currentFilters, currentSortField, currentSortDirection, currentPage, perPage) => {
+    ui.getElement("transactionsModal").querySelector(".modal-content").innerHTML = `
+        <h3>${i18n.t("transactionsHeader")}</h3>
+        <div id="filterSection"></div>
+        <div id="transactionsTableContainer"></div>
+        <div id="paginationControls" style="margin-top: 10px;"></div>
+        <canvas id="transactionsChart" style="display: block; margin-top: 20px; max-width: 100%;"></canvas>
+        <div style="margin-top: 10px;">
+            ${createButton("closeModal", i18n.t("close"))}
+        </div>
+    `;
+    ui.elements.set("filterSection", ui.getElement("transactionsModal").querySelector("#filterSection"));
+    ui.elements.set("transactionsTableContainer", ui.getElement("transactionsModal").querySelector("#transactionsTableContainer"));
+    ui.elements.set("paginationControls", ui.getElement("transactionsModal").querySelector("#paginationControls"));
+    ui.elements.set("transactionsChart", ui.getElement("transactionsModal").querySelector("#transactionsChart"));
+    ui.elements.set("closeModal", ui.getElement("transactionsModal").querySelector("#closeModal"));
+    ui.getElement("filterSection").innerHTML = `
+        <div>
+            <label>${i18n.t("dateFrom")}: <input type="date" id="dateFrom" value="${currentFilters.dateFrom || ""}"></label>
+            <label>${i18n.t("dateTo")}: <input type="date" id="dateTo" value="${currentFilters.dateTo || ""}"></label>
+            <label>${i18n.t("worldFilter")}: <input type="text" id="worldFilter" value="${currentFilters.worldFilter || ""}"></label>
+        </div>
+    `;
+    const debouncedApplyFilters = _.debounce(() => {
+      currentFilters = {
+        dateFrom: ui.getElement("filterSection").querySelector("#dateFrom").value,
+        dateTo: ui.getElement("filterSection").querySelector("#dateTo").value,
+        worldFilter: ui.getElement("filterSection").querySelector("#worldFilter").value
+      };
+      const filtered = filterTransactions(transactions, currentFilters);
+      if (filtered.length === 0) {
+        ui.getElement("transactionsTableContainer").innerHTML = `<p>${i18n.t("noTransactions")}</p>`;
+        ui.getElement("paginationControls").innerHTML = "";
+        ui.getElement("transactionsChart").style.display = "none";
+      } else {
+        renderLedgerTable(filtered, currentSortField, currentSortDirection, currentPage, perPage);
+      }
+    }, 300);
+    ui.getElement("filterSection").querySelectorAll("input").forEach((input) => input.addEventListener("input", debouncedApplyFilters));
+    debouncedApplyFilters();
+    ui.getElement("closeModal").addEventListener("click", () => {
+      ui.getElement("transactionsModal").style.display = "none";
+      if (chartInstance) chartInstance.destroy();
+      ui.getElement("transactionsChart").style.display = "none";
+    });
+  };
+  const showTransactions = () => {
+    if (!state.transactions || mobx.toJS(state.transactions).length === 0) {
+      fetchAndUpdateProfit().then(() => {
+        renderTransactionsModal(
+          mobx.toJS(state.transactions),
+          // Pass plain JS array
+          {},
+          "date",
+          "desc",
+          1,
+          10
+        );
+        ui.getElement("transactionsModal").style.display = "flex";
+      });
+    } else {
+      ui.getElement("transactionsModal").style.display = "flex";
+      renderTransactionsModal(
+        mobx.toJS(state.transactions),
+        // Pass plain JS array
+        {},
+        "date",
+        "desc",
+        1,
+        10
+      );
+    }
+  };
+  const fetchAndUpdateProfit = async () => {
+    try {
+      const transactions = await fetchPremiumLogs();
+      if (!transactions || transactions.length === 0) {
+        notifyUser(i18n.t("noTransactions"), "warning");
+        state.transactions.replace([]);
+        state.worldProfit = 0;
+        updateUI();
+        return;
+      }
+      state.transactions.replace(transactions);
+      state.worldProfit = calculateWorldProfit();
+      updateUI();
+    } catch (error) {
+      state.transactions.replace([]);
+      notifyError(i18n.t("domError"));
+      state.worldProfit = 0;
+      updateUI();
+    }
+  };
+  const executeTransaction = (type, resource, amount) => {
+    const isBuy = type === "buy";
+    const input = isBuy ? ui.buyInputs.get(resource.name) : ui.sellInputs.get(resource.name);
+    const actionButton = isBuy ? ui.gameElements.get("calculateButton") : ui.gameElements.get("sellButton");
+    const transactionSpinner = isBuy ? ui.getElement("buySpinner") : ui.getElement("sellSpinner");
+    if (!input || !actionButton) {
+      updateGameElements();
+      notifyError(i18n.t("transactionError"));
+      return scheduleReload();
+    }
+    transactionSpinner.style.display = "inline-block";
+    notifyUser(i18n.t("transactionInProgress"), "warning");
+    const handleButtonClick = () => {
+      if (actionButton.disabled) {
+        const observer = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            if (mutation.attributeName === "disabled" && !actionButton.disabled) {
+              observer.disconnect();
+              actionButton.click();
+              startConfirmationCheck();
+            }
+          });
+        });
+        observer.observe(actionButton, {
+          attributes: true,
+          attributeFilter: ["disabled"]
+        });
+      } else {
+        actionButton.click();
+        startConfirmationCheck();
+      }
+    };
+    const startConfirmationCheck = () => {
+      const confirmTransaction = () => {
+        const popup = document.querySelector("div.ui-dialog, div[role='dialog']");
+        if (!popup) return false;
+        const confirmButton = popup.querySelector("div.confirmation-buttons button.btn.evt-confirm-btn.btn-confirm-yes");
+        if (!confirmButton) return false;
+        if (isBuy) {
+          const costMatch = popup.querySelector("#confirmation-msg > div > p")?.innerHTML.match(/<img[^>]*>\s*(\d+)\./);
+          if (!costMatch) return false;
+          const premiumCost = sanitizeNumber(costMatch[1]);
+          if (premiumCost <= 0) return false;
+          const premiumInput = ui.getElement("premiumPointsInput");
+          if (premiumInput) {
+            const currentPP = sanitizeNumber(premiumInput.value) || 0;
+            const newPP = Math.max(0, currentPP - premiumCost);
+            premiumInput.value = newPP;
+            const compressedConfig = localStorage.getItem("compressedConfig");
+            if (compressedConfig) {
+              try {
+                const config = JSON.parse(LZString.decompress(compressedConfig));
+                config.premiumPoints = String(newPP);
+                localStorage.setItem("compressedConfig", LZString.compress(JSON.stringify(config)));
+              } catch (e) {
+              }
+            }
+          }
+          confirmButton.click();
+          updateMaxSpend(-premiumCost);
+        } else {
+          confirmButton.click();
+        }
+        transactionSpinner.style.display = "none";
+        notifySuccess(i18n.t("transactionSuccess"));
+        scheduleReload();
+        return true;
+      };
+      if (!confirmTransaction()) {
+        let attempts = 0;
+        const interval = setInterval(() => {
+          if (confirmTransaction() || attempts++ >= 50) {
+            clearInterval(interval);
+            if (attempts >= 50) {
+              transactionSpinner.style.display = "none";
+              notifyError(i18n.t("transactionError"));
+            }
+          }
+        }, 100);
+      }
+    };
+    input.value = sanitizeNumber(amount);
+    handleButtonClick();
+  };
+  const calculateMaxBuyAmount = (resource) => {
+    const gameRate = resource.getGameRate();
+    const userRate = resource.getUserRate();
+    const stock = resource.getStock();
+    const output = resource.config.outputDefault;
+    const buyPerTime = sanitizeNumber(ui.getElement("buyPerTimeInput").value);
+    const storageLimit = sanitizeNumber(ui.getElement("storageLimitInput").value) || 1e3;
+    const maxSpend = sanitizeNumber(ui.getElement("maxSpendInput").value);
+    if (gameRate <= 0 || userRate <= 0 || stock <= 0 || maxSpend <= 0) return 0;
+    const adjustedStorageLimit = Math.max(0, storageLimit - output);
+    if (gameRate < userRate) return 0;
+    let maxBuyAmount = stock < buyPerTime ? stock : Math.min(maxSpend * gameRate, buyPerTime, adjustedStorageLimit, stock);
+    return Math.max(0, Math.floor(maxBuyAmount));
+  };
+  const calculateAvailableCapacityForResource = async (resourceName) => {
+    const storageCapacity = state.storageCapacity;
+    const currentStock = currentResources[resourceName];
+    const incomingResources = await fetchTransportData();
+    const totalStock = currentStock + incomingResources[resourceName];
+    return Math.max(0, storageCapacity - totalStock);
+  };
+  let isProcessingBuy = false;
+  const processBuyBasedOnResources = async () => {
+    if (!state.buyModeActive || isProcessingBuy) {
+      return;
+    }
+    isProcessingBuy = true;
+    try {
+      await fetchIncomingResources();
+    } catch (error) {
+    }
+    state.storageCapacity = getStorageCapacity();
+    const availablePP = getAvailablePremiumPoints();
+    const premiumInput = ui.getElement("premiumPointsInput");
+    const maxPP = premiumInput ? sanitizeNumber(premiumInput.value) : Infinity;
+    const effectivePP = Math.min(availablePP, maxPP);
+    if (effectivePP <= 0) {
+      state.hasExecutedBuy = false;
+      isProcessingBuy = false;
+      return;
+    }
+    const workerData = {
+      action: "calculateBuyAmount",
+      data: {
+        resources: Object.keys(resources).map((name) => {
+          const handler = resources[name];
+          const desiredStockInput = document.querySelector(`.rate-input[data-resource="${name}-stock"]`);
+          const desiredStock = sanitizeNumber(desiredStockInput?.value) || 0;
+          const userRateLimitInput = document.querySelector(`.rate-input[data-resource="${name}"]`);
+          const userRateLimit = sanitizeNumber(userRateLimitInput?.value) || 0;
+          const buyLimitPerTime = sanitizeNumber(ui.getElement("buyPerTimeInput")?.value) || Infinity;
+          return {
+            name,
+            desiredStock,
+            marketRate: handler.getGameRate() || 0,
+            userRateLimit,
+            buyLimitPerTime
+          };
+        }),
+        effectivePP,
+        storageCapacity: state.storageCapacity,
+        incomingResources: { ...state.incomingResources },
+        currentResources: { ...currentResources }
+      }
+      };
+
+
+
+
+
+
+    worker.postMessage(workerData);
+    worker.onmessage = async (e) => {
+      if (e.data.action === "buyAmountCalculated") {
+        const { amountToBuy, resourceName } = e.data.result;
+        if (amountToBuy > 0 && resourceName) {
+          const handler = resources[resourceName];
+          console.log(`[Compra] Tentando comprar ${amountToBuy} ${resourceName}`);
+          const initialPremium = getAvailablePremiumPoints();
+          const initialStock = currentResources[resourceName] || 0;
+          await executeTransaction("buy", handler, amountToBuy);
+          state.hasExecutedBuy = true;
+          await new Promise((resolve) => setTimeout(resolve, 1e3));
+          const finalPremium = getAvailablePremiumPoints();
+          const finalStock = currentResources[resourceName] || 0;
+          const premiumSpent = initialPremium - finalPremium;
+          const stockIncreased = finalStock > initialStock;
+          if (premiumInput && premiumInput.value !== "0" && (premiumSpent > 0 || stockIncreased)) {
+            const newPP = Math.max(0, maxPP - premiumSpent);
+            premiumInput.value = newPP;
+            console.log(`[Compra] Transa\xE7\xE3o confirmada. Pontos premium gastos: ${premiumSpent}, Novo valor no input: ${newPP}`);
+          } else {
+            console.log(`[Compra] Transa\xE7\xE3o n\xE3o confirmada (PP inicial: ${initialPremium}, PP final: ${finalPremium}, Estoque inicial: ${initialStock}, Estoque final: ${finalStock})`);
+          }
+        } else {
+          console.log("[Compra] Nenhum recurso eleg\xEDvel para compra");
+          state.hasExecutedBuy = false;
+        }
+      }
+      isProcessingBuy = false;
+    };
+    worker.onerror = (error) => {
+      console.error("[Compra] Erro no Worker:", error);
+      isProcessingBuy = false;
+    };
+  };
+  function getAvailablePremiumPoints() {
+    const premiumElement = document.querySelector("#premium_points");
+    return premiumElement ? sanitizeNumber(premiumElement.textContent.trim()) : 0;
+  }
+  const resetBuyInputs = () => ui.buyInputs.forEach((input) => input && (input.value = ""));
+  const updateMaxSpend = (change) => {
+    const currentValue = sanitizeNumber(ui.getElement("maxSpendInput").value);
+    const newValue = Math.max(0, currentValue + change);
+    ui.getElement("maxSpendInput").value = newValue;
+    localStorage.setItem("max-spend", String(newValue));
+    console.log(`[UpdateMaxSpend] Novo valor de maxSpend: ${newValue}`);
+  };
+  const fetchTransportData = async () => {
+    const gameData = TribalWars.getGameData();
+    const villageId = gameData.village.id;
+    const world = getActiveWorld();
+    const url = `https://${world}.tribalwars.com.br/game.php?village=${villageId}&screen=market&mode=transports`;
+    try {
+      const response = await fetchMarketData(url);
+      if (!response) throw new Error("Falha ao buscar dados de transporte");
+      const doc = new DOMParser().parseFromString(response, "text/html");
+      const transportRows = doc.querySelectorAll(".transport_row");
+      const incomingResources = {
+        wood: 0,
+        stone: 0,
+        iron: 0
+      };
+      transportRows.forEach((row) => {
+        const direction = row.querySelector(".transport_direction").textContent;
+        if (direction.includes("Para esta aldeia")) {
+          const resourceType = row.querySelector(".transport_resource").dataset.type;
+          const amount = sanitizeNumber(row.querySelector(".transport_amount").textContent);
+          incomingResources[resourceType] += amount;
+        }
+      });
+      return incomingResources;
+    } catch (error) {
+      console.error("[Transporte] Falha ao obter dados:", error);
+      return { wood: 0, stone: 0, iron: 0 };
+    }
+  };
+
+
+
+
+
+ const transportLogger = {
+    log: () => {},   // Does nothing
+    error: () => {}, // Does nothing
+    warn: () => {},  // Does nothing
+    debug: () => {}  // Does nothing
+};
+
+
+
+
+
+
+  function parseIntSafeTransport(str) {
+    if (typeof str !== "string" || !str) return 0;
+    const cleanedStr = str.replace(/[.,]/g, "").replace(/[^\d]/g, "");
+    const num = parseInt(cleanedStr, 10);
+    return isNaN(num) ? 0 : num;
+  }
+  function extractResourcesFromElement(element) {
+    const resources2 = { wood: 0, stone: 0, iron: 0 };
+    if (!element) return resources2;
+    const woodIcon = element.querySelector(".icon.header.wood");
+    const stoneIcon = element.querySelector(".icon.header.stone");
+    const ironIcon = element.querySelector(".icon.header.iron");
+    const getValueNearIcon = (icon) => {
+      if (!icon) return 0;
+      let potentialValueElement = icon.nextElementSibling;
+      if (potentialValueElement && potentialValueElement.textContent.match(/[\d.,]+/)) {
+        if (!potentialValueElement.querySelector(".icon.header")) {
+          return parseIntSafeTransport(potentialValueElement.textContent);
+        }
+      }
+      let nextNode = icon.nextSibling;
+      while (nextNode && nextNode.nodeType !== Node.TEXT_NODE) {
+        if (nextNode.nodeType === Node.ELEMENT_NODE && nextNode.textContent.match(/[\d.,]+/)) {
+          if (!nextNode.querySelector(".icon.header")) {
+            return parseIntSafeTransport(nextNode.textContent);
+          }
+        }
+        nextNode = nextNode.nextSibling;
+      }
+      if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
+        const numberMatch = nextNode.textContent.trim().match(/^[\s]*([\d.,]+)/);
+        if (numberMatch) {
+          return parseIntSafeTransport(numberMatch[1]);
+        }
+      }
+      let parent = icon.parentElement;
+      if (parent && parent.textContent) {
+        const parentText = parent.textContent.trim();
+        const potentialValues = parentText.match(/([\d.,]+)/g);
+        if (potentialValues && potentialValues.length >= 1) {
+        }
+      }
+      return 0;
+    };
+    resources2.wood = getValueNearIcon(woodIcon);
+    resources2.stone = getValueNearIcon(stoneIcon);
+    resources2.iron = getValueNearIcon(ironIcon);
+    if (resources2.wood === 0 && resources2.stone === 0 && resources2.iron === 0 && (woodIcon || stoneIcon || ironIcon)) {
+      transportLogger.debug("Icon-based extraction failed, attempting text-based fallback within element:", element.textContent.substring(0, 100));
+      const textContent = element.textContent || "";
+      const numbers = (textContent.match(/[\d.,]+/g) || []).map((n) => parseIntSafeTransport(n));
+      let numIndex = 0;
+      if (woodIcon && numIndex < numbers.length) {
+        resources2.wood = numbers[numIndex];
+        numIndex++;
+      }
+      if (stoneIcon && numIndex < numbers.length) {
+        resources2.stone = numbers[numIndex];
+        numIndex++;
+      }
+      if (ironIcon && numIndex < numbers.length) {
+        resources2.iron = numbers[numIndex];
+        numIndex++;
+      }
+      transportLogger.debug(" - Text fallback results:", resources2);
+      if (numIndex === 1 && [woodIcon, stoneIcon, ironIcon].filter(Boolean).length > 1) {
+        transportLogger.warn("Single number found for multiple icons via text fallback, resetting as likely incorrect.");
+        return { wood: 0, stone: 0, iron: 0 };
+      }
+    }
+    return resources2;
+  }
+  function parseTransportData(html) {
+    transportLogger.log("Iniciando parseamento da p\xE1gina de transportes.");
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const incoming = { madeira: 0, argila: 0, ferro: 0 };
+    let foundIncomingData = false;
+    const allText = doc.body.textContent.toLowerCase();
+    if (allText.includes("n\xE3o h\xE1 transportes chegando") || allText.includes("nenhum transporte em chegada") || allText.includes("no incoming transports") || allText.includes("\u043D\u0435\u0442 \u0432\u0445\u043E\u0434\u044F\u0449\u0438\u0445 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u043E\u0432")) {
+      transportLogger.log("P\xE1gina indica explicitamente que n\xE3o h\xE1 transportes de chegada.");
+      return incoming;
+    }
+    let incomingTable = null;
+    incomingTable = doc.querySelector("#market_transports_in table.vis, #market_transports_in, #market_status_in table.vis");
+    if (!incomingTable) {
+      const headers = Array.from(doc.querySelectorAll("h2, h3, h4, .content-header, .box-header, th, .table-header"));
+      const incomingKeywords = [
+        "transportes em chegada",
+        "entrando",
+        "incoming transports",
+        "chegando",
+        "mercadores chegando",
+        "arrival",
+        "\u043F\u0440\u0438\u0431\u044B\u0432\u0430\u044E\u0449\u0438\u0435 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u044B",
+        "chegada",
+        "transporte de entrada",
+        "transporte chegando",
+        "\u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442 \u043F\u0440\u0438\u0431\u044B\u0442\u0438\u044F"
+      ];
+      for (const header of headers) {
+        const headerText = header.textContent.trim().toLowerCase();
+        if (incomingKeywords.some((keyword) => headerText.includes(keyword))) {
+          transportLogger.log(`Cabe\xE7alho de chegada encontrado: "${headerText}"`);
+          let current = header;
+          let searchLimit = 5;
+          while (current && searchLimit > 0) {
+            if (current.tagName === "TABLE" && current.classList.contains("vis")) {
+              incomingTable = current;
+              break;
+            }
+            const tableInside = current.querySelector("table.vis");
+            if (tableInside) {
+              incomingTable = tableInside;
+              break;
+            }
+            current = current.nextElementSibling;
+            searchLimit--;
+          }
+          if (incomingTable) {
+            transportLogger.log(`Tabela de chegada encontrada pr\xF3xima ao cabe\xE7alho "${headerText}"`);
+            break;
+          }
+        }
+      }
+    }
+    if (incomingTable) {
+      transportLogger.log("Processando tabela de chegada encontrada...");
+      const rows = Array.from(incomingTable.querySelectorAll("tr")).filter(
+        (row) => !row.querySelector("th") && row.cells && row.cells.length > 1
+      );
+      const summaryRow = Array.from(incomingTable.querySelectorAll("tr")).find((row) => {
+        const text = row.textContent.toLowerCase();
+        return (text.includes("total:") || text.includes("soma:") || text.includes("summe:") || text.includes("\u0438\u0442\u043E\u0433\u043E:") || text.includes("entrada:")) && !row.querySelector("th");
+      });
+      if (summaryRow) {
+        transportLogger.log("Processando linha de sum\xE1rio de chegada...");
+        const resources2 = extractResourcesFromElement(summaryRow);
+        if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+          incoming.madeira = resources2.wood;
+          incoming.argila = resources2.stone;
+          incoming.ferro = resources2.iron;
+          foundIncomingData = true;
+          transportLogger.log("Recursos extra\xEDdos da linha de sum\xE1rio:", incoming);
+        }
+      } else if (rows.length > 0) {
+        transportLogger.log(`Processando ${rows.length} linhas de dados na tabela de chegada...`);
+        rows.forEach((row, index) => {
+          const resources2 = extractResourcesFromElement(row);
+          if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+            incoming.madeira += resources2.wood;
+            incoming.argila += resources2.stone;
+            incoming.ferro += resources2.iron;
+            foundIncomingData = true;
+            transportLogger.debug(`Linha ${index}: Recursos adicionados: W=${resources2.wood}, S=${resources2.stone}, I=${resources2.iron}`);
+          }
+        });
+        transportLogger.log("Total de recursos encontrados:", incoming);
+      } else {
+        transportLogger.warn("Tabela de chegada encontrada, mas sem linhas de dados ou sum\xE1rio reconhec\xEDvel.");
+      }
+    } else {
+      transportLogger.warn("Nenhuma tabela espec\xEDfica de chegada encontrada. Tentando estrat\xE9gia alternativa...");
+    }
+    if (!foundIncomingData) {
+      transportLogger.log("Buscando linhas de transporte gerais e verificando dire\xE7\xE3o...");
+      const allPossibleRows = [
+        ...doc.querySelectorAll(".transport_row"),
+        ...doc.querySelectorAll('tr[id^="market_"]'),
+        ...doc.querySelectorAll("tr.row_a, tr.row_b"),
+        // Padrão comum de linhas alternadas
+        ...doc.querySelectorAll("table.vis tr:not(:first-child)")
+        // Todas as linhas não-cabeçalho de qualquer tabela
+      ];
+      if (allPossibleRows.length > 0) {
+        transportLogger.log(`Encontradas ${allPossibleRows.length} poss\xEDveis linhas de transporte para an\xE1lise.`);
+        allPossibleRows.forEach((row, index) => {
+          let isIncoming = false;
+          const rowText = row.textContent.toLowerCase();
+          const rowHTML = row.innerHTML.toLowerCase();
+          const incomingKeywords = [
+            "para esta aldeia",
+            "incoming",
+            "arrival",
+            "chegada",
+            "chegando",
+            "entrada",
+            "para c\xE1",
+            "entrando",
+            "recebendo"
+          ];
+          const incomingSymbols = [
+            "arrow_right",
+            "arrow_in",
+            "icon_in",
+            "\u2192",
+            "\u25B6",
+            "\u21E8"
+          ];
+          if (incomingKeywords.some((keyword) => rowText.includes(keyword)) || incomingSymbols.some((symbol) => rowHTML.includes(symbol))) {
+            isIncoming = true;
+          }
+          const directionElement = row.querySelector(".transport_direction, .direction, .movement-direction");
+          if (directionElement) {
+            const directionText = directionElement.textContent.trim().toLowerCase();
+            const directionHTML = directionElement.innerHTML.toLowerCase();
+            if (incomingKeywords.some((keyword) => directionText.includes(keyword)) || incomingSymbols.some((symbol) => directionHTML.includes(symbol))) {
+              isIncoming = true;
+            }
+          }
+          if (isIncoming) {
+            transportLogger.debug(`Linha ${index} identificada como CHEGANDO`);
+            const resourceCell = row.querySelector(".resources_sum, .res") || row;
+            const resources2 = extractResourcesFromElement(resourceCell);
+            if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+              incoming.madeira += resources2.wood;
+              incoming.argila += resources2.stone;
+              incoming.ferro += resources2.iron;
+              foundIncomingData = true;
+              transportLogger.debug(`Recursos adicionados: W=${resources2.wood}, S=${resources2.stone}, I=${resources2.iron}`);
+            }
+          }
+        });
+      } else {
+        transportLogger.error("Nenhuma linha de transporte encontrada em toda a p\xE1gina.");
+      }
+    }
+    if (!foundIncomingData) {
+      transportLogger.log("Tentando encontrar elementos de sum\xE1rio de recursos...");
+      const summaryElements = [
+        doc.querySelector("#market_status_in"),
+        doc.querySelector(".incoming-resources"),
+        doc.querySelector(".resources-incoming"),
+        ...doc.querySelectorAll(".sum_incoming"),
+        ...doc.querySelectorAll(".incoming_total")
+      ].filter(Boolean);
+      for (const element of summaryElements) {
+        const resources2 = extractResourcesFromElement(element);
+        if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+          incoming.madeira = resources2.wood;
+          incoming.argila = resources2.stone;
+          incoming.ferro = resources2.iron;
+          foundIncomingData = true;
+          transportLogger.log("Recursos encontrados em elemento de sum\xE1rio:", incoming);
+          break;
+        }
+      }
+    }
+    if (foundIncomingData) {
+      transportLogger.log("Parseamento conclu\xEDdo com sucesso. Recursos CHEGANDO:", incoming);
+      return { madeira: incoming.madeira, argila: incoming.argila, ferro: incoming.ferro };
+    } else {
+      transportLogger.error("N\xE3o foi poss\xEDvel encontrar dados de transportes em chegada na p\xE1gina.");
+      return { madeira: 0, argila: 0, ferro: 0 };
+    }
+  }
+  async function fetchIncomingResources() {
+    return new Promise((resolve, reject) => {
+      const gameData = typeof TribalWars !== "undefined" && TribalWars.getGameData ? TribalWars.getGameData() : {};
+      const villageId = gameData.village?.id;
+      if (!villageId) {
+        transportLogger.error("[Fetch] ID da vila n\xE3o encontrado.");
+        mobx.runInAction(() => {
+          state.incomingResources.wood = 0;
+          state.incomingResources.stone = 0;
+          state.incomingResources.iron = 0;
+        });
+        return resolve({ wood: 0, stone: 0, iron: 0 });
+      }
+      const transportUrl = `https://${window.location.host}/game.php?village=${villageId}&screen=market&mode=transports`;
+      transportLogger.log(`[Fetch] Buscando dados de transporte de: ${transportUrl}`);
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: transportUrl,
+        timeout: 15e3,
+        // Timeout can be adjusted
+        onload: (response) => {
+          if (response.status >= 200 && response.status < 300) {
+            transportLogger.log("[Fetch] Resposta da p\xE1gina de transporte recebida (Status OK).");
+            try {
+              const incomingData = parseTransportData(response.responseText);
+              if (incomingData === null) {
+                transportLogger.error("[Fetch] parseTransportData retornou null (falha ao encontrar/parsear dados). Resolvendo com recursos zerados.");
+                mobx.runInAction(() => {
+                  state.incomingResources.wood = 0;
+                  state.incomingResources.stone = 0;
+                  state.incomingResources.iron = 0;
+                });
+                resolve({ wood: 0, stone: 0, iron: 0 });
+              } else {
+                transportLogger.log("[Fetch] Atualizando state.incomingResources:", incomingData);
+                mobx.runInAction(() => {
+                  state.incomingResources.wood = incomingData.madeira || 0;
+                  state.incomingResources.stone = incomingData.argila || 0;
+                  state.incomingResources.iron = incomingData.ferro || 0;
+                });
+                resolve({
+                  wood: state.incomingResources.wood,
+                  // Resolve with state values
+                  stone: state.incomingResources.stone,
+                  iron: state.incomingResources.iron
+                });
+              }
+            } catch (parseError) {
+              transportLogger.error(`[Fetch] Erro durante o parseamento: ${parseError.message}`, parseError);
+              mobx.runInAction(() => {
+                state.incomingResources.wood = 0;
+                state.incomingResources.stone = 0;
+                state.incomingResources.iron = 0;
+              });
+              reject(parseError);
+            }
+          } else {
+            transportLogger.error(`[Fetch] Falha ao buscar dados de transporte. Status: ${response.status}`);
+            mobx.runInAction(() => {
+              state.incomingResources.wood = 0;
+              state.incomingResources.stone = 0;
+              state.incomingResources.iron = 0;
+            });
+            reject(new Error(`HTTP error! status: ${response.status}`));
+          }
+        },
+        onerror: (error) => {
+          transportLogger.error(`[Fetch] Erro na requisi\xE7\xE3o GM_xmlhttpRequest:`, error);
+          mobx.runInAction(() => {
+            state.incomingResources.wood = 0;
+            state.incomingResources.stone = 0;
+            state.incomingResources.iron = 0;
+          });
+          reject(error);
+        },
+        ontimeout: () => {
+          transportLogger.error("[Fetch] Requisi\xE7\xE3o para transportes expirou (timeout).");
+          mobx.runInAction(() => {
+            state.incomingResources.wood = 0;
+            state.incomingResources.stone = 0;
+            state.incomingResources.iron = 0;
+          });
+          reject(new Error("Transport request timed out"));
+        }
+      });
+    });
+  }
+  const calculateSellAmount = (resource, merchantsAvailable) => {
+    const marketValue = resource.getMarketValue();
+    const total = resource.getTotal();
+    const reserveAmount = resource.getReserved();
+    const available = Math.max(0, total - reserveAmount);
+    const minRate = resource.getReserveRate();
+    if (marketValue >= minRate) return 0;
+    const sellLimitSelector = `[data-resource="sell-limit${resource.name === "wood" ? "" : `-${resource.name}`}"]`;
+    const sellLimitInput = document.querySelector(sellLimitSelector);
+    const perTransactionLimit = sellLimitInput ? sanitizeNumber(sellLimitInput.value) : Infinity;
+    const merchantCapacity = merchantsAvailable * 1e3;
+    const grossAmount = Math.min(
+      available,
+      // Não ultrapassar recursos disponíveis
+      merchantCapacity,
+      // Limite de carga dos mercadores
+      perTransactionLimit
+      // Limite por transação do usuário
+    );
+    const netAmount = Math.floor(grossAmount * 0.9);
+    return Math.max(0, netAmount);
+  };
+  const enforceMerchantLimit = true;
+  const unitSize = 100;
+  const FIXED_FEE = 100;
+  const minProfitThreshold = 1;
+  const dataCache = /* @__PURE__ */ new Map();
+  let isProcessingSell = false;
+
+
+
+const workerScript = `
+self.onmessage = function(e) {
+    const { action, data } = e.data;
+    switch (action) {
+        case 'calculateSellAmount':
+            const sellResult = calculateSellAmount(data);
+            self.postMessage({ action: 'sellAmountCalculated', result: sellResult });
+            break;
+        case 'calculateBuyAmount':
+            const buyResult = calculateBuyAmount(data); // A lógica de compra permanece a mesma
+            self.postMessage({ action: 'buyAmountCalculated', result: buyResult });
+            break;
+        default:
+            self.postMessage({ error: 'Ação desconhecida' });
+    }
+};
+
+
+
+
+
+function calculateSellAmount(data) {
+    const { resources, merchantsAvailable, state, config } = data;
+
+    const resourceData = resources.map(r => {
+        const marketRate = r.marketRate;
+        const minRate = r.minRate;
+        const total = r.total;
+        const reserve = r.reserve;
+        const available = Math.max(0, total - reserve);
+        const sellLimit = r.sellLimit;
+        const marketCapacityRaw = r.marketCapacityRaw;
+        const dynamicFee = calculateDynamicFee(r, state);
+        const maxFromMarket = Math.floor((marketCapacityRaw - config.FIXED_FEE) / (1 + dynamicFee));
+        const maxFromStock = Math.floor((available - config.FIXED_FEE) / (1 + dynamicFee));
+        const maxFromMerchants = config.enforceMerchantLimit
+            ? Math.floor(((merchantsAvailable * 1000) - config.FIXED_FEE) / (1 + dynamicFee))
+            : Infinity;
+        const effectiveUserLimit = sellLimit === Infinity ? maxFromStock : sellLimit;
+        const maxPossible = Math.min(maxFromStock, maxFromMarket, maxFromMerchants, effectiveUserLimit);
+        const maxPossibleAdjusted = Math.floor(maxPossible / config.unitSize) * config.unitSize;
+        const maxProfit = maxPossibleAdjusted > 0 ? calculateProfit(r, maxPossibleAdjusted) : 0;
+
+        return {
+            resource: r,
+            marketRate,
+            minRate,
+            available,
+            sellLimit,
+            maxPossibleAdjusted,
+            maxProfit,
+            exchangeRate: r.exchangeRate // Taxa de c\xE2mbio mais recente
+        };
+    }).filter(r => {
+        const effectiveRate = r.marketRate * (1 + (state.marketTrends[r.resource.name] === 'up' ? 0.02 : -0.01));
+        return effectiveRate <= r.minRate && r.available > 0;
+    }).sort((a, b) => {
+        const trendWeightA = state.marketTrends[a.resource.name] === 'down' ? 1.2 : 1;
+        const volatilityWeightA = 1 + (state.marketVolatility[a.resource.name] || 0);
+        const aScore = a.maxProfit * trendWeightA * volatilityWeightA;
+
+        const trendWeightB = state.marketTrends[b.resource.name] === 'down' ? 1.2 : 1;
+        const bVolatilityWeightB = 1 + (state.marketVolatility[b.resource.name] || 0);
+        const bScore = b.maxProfit * trendWeightB * bVolatilityWeightB;
+
+        return bScore - aScore || a.exchangeRate - b.exchangeRate;
+    });
+
+    if (resourceData.length === 0) {
+        return { amountToSell: 0, profit: 0, resourceName: null };
+    }
+
+    const topResource = resourceData[0];
+    const trendAdjustment = state.marketTrends[topResource.resource.name] === 'up' ? 0.95 : 1.05;
+    const dynamicFee = calculateDynamicFee(topResource.resource, state);
+    let exchangeRate = topResource.resource.exchangeRate; // Usamos o exchangeRate mais recente
+
+    // Calcula limites iniciais
+    const adjustedMarketCapacity = topResource.resource.marketCapacityRaw * trendAdjustment;
+    const maxFromMarket = Math.floor((adjustedMarketCapacity - config.FIXED_FEE) / (1 + dynamicFee));
+    const maxFromStock = Math.floor((topResource.available - config.FIXED_FEE) / (1 + dynamicFee));
+    const maxFromMerchants = config.enforceMerchantLimit
+        ? Math.floor(((merchantsAvailable * 1000) - config.FIXED_FEE) / (1 + dynamicFee))
+        : Infinity;
+    const effectiveUserLimit = topResource.sellLimit === Infinity ? maxFromStock : topResource.sellLimit;
+
+    // Determina a quantidade m\xE1xima poss\xEDvel
+    let amountToSell = Math.min(maxFromStock, maxFromMarket, maxFromMerchants, effectiveUserLimit);
+    if (amountToSell <= 0) {
+        return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
+    }
+
+    // Garante o lucro m\xEDnimo e ajusta para m\xFAltiplo de exchangeRate
+    const minAmountForProfit = Math.ceil(config.minProfitThreshold * exchangeRate);
+    amountToSell = Math.max(amountToSell, minAmountForProfit);
+    amountToSell = Math.floor(amountToSell / config.unitSize) * config.unitSize;
+
+    if (amountToSell < config.unitSize) {
+        return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
+    }
+
+    // Ajuste otimizado para lucro inteiro e estoque dispon\xEDvel
+    let profit = calculateProfit(topResource.resource, amountToSell);
+    amountToSell = Math.floor(amountToSell / exchangeRate) * exchangeRate; // M\xFAltiplo de exchangeRate
+    profit = calculateProfit(topResource.resource, amountToSell);
+
+    if (profit < config.minProfitThreshold) {
+        return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
+    }
+
+    // Verifica e ajusta o lucro para um valor inteiro vi\xE1vel
+    const requiredStock = Math.ceil(amountToSell + config.FIXED_FEE + (amountToSell * dynamicFee));
+    if (requiredStock > topResource.available) {
+        // Tenta ajustar para o maior lucro inteiro poss\xEDvel dentro do estoque
+        let targetProfit = Math.floor(profit);
+        while (targetProfit >= config.minProfitThreshold) {
+            amountToSell = Math.floor(targetProfit * exchangeRate);
+            const requiredStockForTarget = Math.ceil(amountToSell + config.FIXED_FEE + (amountToSell * dynamicFee));
+            if (requiredStockForTarget <= topResource.available) {
+                profit = targetProfit;
+                break;
+            }
+            targetProfit--;
+        }
+        if (targetProfit < config.minProfitThreshold) {
+            return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
+        }
+    } else if (profit > config.minProfitThreshold) {
+        // Tenta alcan\xE7ar o pr\xF3ximo PP inteiro se houver estoque
+        const nextProfit = Math.ceil(profit);
+        const nextAmount = Math.ceil(nextProfit * exchangeRate);
+        const nextRequiredStock = Math.ceil(nextAmount + config.FIXED_FEE + (nextAmount * dynamicFee));
+        if (nextRequiredStock <= topResource.available) {
+            amountToSell = nextAmount;
+            profit = nextProfit;
+        }
+    }
+
+    // Nova l\xF3gica: Reavalia\xE7\xE3o din\xE2mica baseada em mudan\xE7as recentes do exchangeRate
+    const volatility = state.marketVolatility[topResource.resource.name] || 0;
+    if (volatility > 0.1) { // Se a volatilidade for alta (>10%), ajusta a venda com cautela
+        const adjustmentFactor = state.marketTrends[topResource.resource.name] === 'up' ? 0.9 : 1.1;
+        amountToSell = Math.floor(amountToSell * adjustmentFactor / exchangeRate) * exchangeRate;
+        profit = calculateProfit(topResource.resource, amountToSell);
+        const newRequiredStock = Math.ceil(amountToSell + config.FIXED_FEE + (amountToSell * dynamicFee));
+        if (newRequiredStock > topResource.available || profit < config.minProfitThreshold) {
+            return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
+        }
+    }
+
+    return { amountToSell, profit, resourceName: topResource.resource.name };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function calculateBuyAmount(data) {
+    const { resources, effectivePP, storageCapacity, incomingResources, currentResources } = data;
+
+    const resourcesToConsider = resources.map(r => {
+        const desiredStock = r.desiredStock || 0;
+        const currentStock = currentResources[r.name] || 0;
+        const incomingStock = incomingResources[r.name] || 0;
+        const totalEffectiveStock = currentStock + incomingStock;
+
+        const deficit = Math.max(0, desiredStock - totalEffectiveStock);
+        const availableCapacity = Math.max(0, storageCapacity - totalEffectiveStock);
+        const marketRate = r.marketRate || 0;
+        const userRateLimit = r.userRateLimit || 0;
+        const buyLimitPerTime = r.buyLimitPerTime || Infinity;
+        const isRateAcceptable = marketRate > 0 && (userRateLimit === 0 || marketRate >= userRateLimit);
+
+        const costInPP = Math.ceil(deficit / marketRate);
+        const affordableAmount = Math.floor(effectivePP * marketRate);
+
+        return {
+            name: r.name,
+            deficit,
+            availableCapacity,
+            marketRate,
+            userRateLimit,
+            isRateAcceptable,
+            canPhysicallyBuy: Math.min(deficit, availableCapacity, affordableAmount),
+            buyLimitPerTime
+        };
+    });
+
+    const buyableResources = resourcesToConsider.filter(r =>
+        r.deficit > 0 &&
+        r.availableCapacity > 0 &&
+        r.canPhysicallyBuy > 0 &&
+        r.isRateAcceptable
+    );
+
+    if (buyableResources.length === 0) {
+        return { amountToBuy: 0, resourceName: null };
+    }
+
+    buyableResources.sort((a, b) => b.marketRate - a.marketRate);
+    const priorityResource = buyableResources[0];
+
+    let buyAmount = Math.min(
+        priorityResource.canPhysicallyBuy,
+        priorityResource.buyLimitPerTime
+    );
+
+    const finalCostPP = Math.ceil(buyAmount / priorityResource.marketRate);
+    if (finalCostPP > effectivePP) {
+        buyAmount = Math.floor(effectivePP * priorityResource.marketRate);
+    }
+
+    buyAmount = Math.max(0, Math.floor(buyAmount));
+
+    return { amountToBuy: buyAmount, resourceName: priorityResource.name };
+}
+
+
+
+
+function calculateDynamicFee(resource, state) {
+    const marketRate = resource.marketRate;
+    const trend = state.marketTrends[resource.name];
+    let feePercentage = 0.05;
+
+    if (trend === 'up') feePercentage -= 0.01;
+    else if (trend === 'down') feePercentage += 0.015;
+
+    if (marketRate >= 140 && marketRate <= 145) feePercentage = 0.0544;
+    else if (marketRate < 120) feePercentage = 0.06;
+    else if (marketRate > 150) feePercentage = 0.045;
+
+    return Math.min(Math.max(feePercentage, 0.04), 0.07);
+}
+
+function calculateProfit(resource, amountSold) {
+    return Math.floor(amountSold / resource.exchangeRate);
+
+}
+`;
+
+
+
+
+
+
+
+  const worker = new Worker(URL.createObjectURL(new Blob([workerScript], { type: "text/javascript" })));
+  function getResourceElement(resource, selector) {
+    const base = resource.name === "wood" ? `[data-resource="${selector}"]` : `[data-resource="${selector}-${resource.name}"]`;
+    return document.querySelector(base);
+  }
+
+
+
+  function getGameDataCached() {
+    const cacheKey = "gameData";
+    if (dataCache.has(cacheKey)) {
+      return dataCache.get(cacheKey);
+    }
+    const gameData = getGameDataSafely();
+    if (gameData) {
+      dataCache.set(cacheKey, gameData);
+    }
+    return gameData;
+  }
+  function getGameDataSafely() {
+    if (typeof TribalWars !== "undefined" && TribalWars.getGameData) {
+      try {
+        return TribalWars.getGameData();
+      } catch (e) {
+          // Silently ignore errors or add minimal logging if needed
+      }
+    }
+    return null;
+  }
+
+
+
+
+ function getMarketCapacity(resource) {
+    const resourceName = resource.name;
+    // console.log(`[getMarketCapacity - ${resourceName}] Buscando capacidade... (CACHE REMOVIDO)`); // Log opcional
+
+    // 1. Tenta pegar via API do Jogo PRIMEIRO
+    try {
+        const gameData = getGameDataSafely(); // Chama a função que busca SÓ gameData, sem cache interno complexo
+        if (gameData && gameData.market && gameData.market.capacities && gameData.market.capacities[resourceName]) {
+            const capacityData = gameData.market.capacities[resourceName];
+            const totalCapacityAPI = capacityData.total || 0;
+            const currentStockAPI = capacityData.current || 0; // Estoque DO MERCADO
+            const capacityAPI = Math.max(0, totalCapacityAPI - currentStockAPI);
+            // DECISÃO: Confiar na API se ela retornar um valor > 0, ou se for 0 mas DOM também falhar
+            // Vamos preferir o DOM se a API retornar 0, pois o DOM costuma ser mais atualizado para *este* dado.
+             // if (capacityAPI > 0) return capacityAPI; // Removemos o retorno imediato para checar o DOM também
+
+        } else {
+             // Dados da API não encontrados ou incompletos.
+        }
+    } catch (e) {
+        console.error(`[getMarketCapacity - ${resourceName}] Erro ao acessar API TribalWars:`, e);
+    }
+
+
+    // 2. Tenta ler do DOM (HTML da página) como fonte principal ou fallback
+    try {
+        const capacityEl = document.querySelector(`#premium_exchange_capacity_${resourceName}`);
+        const stockEl = document.querySelector(`#premium_exchange_stock_${resourceName}`); // Estoque DO MERCADO
+
+        if (capacityEl && stockEl) {
+            const capacityText = capacityEl.textContent.trim();
+            const stockText = stockEl.textContent.trim();
+
+            // Usa regex mais robusto para extrair números, mesmo com pontos/vírgulas
+             const parseNumber = (text) => parseInt(String(text || '0').replace(/[^\d]/g, ''), 10) || 0;
+
+            const totalCapacityDOM = parseNumber(capacityText);
+            const currentStockDOM = parseNumber(stockText); // Estoque DO MERCADO
+            const capacityDOM = Math.max(0, totalCapacityDOM - currentStockDOM);
+
+            return capacityDOM; // Retorna o valor lido do DOM
+
+        } else {
+            console.warn(`[getMarketCapacity - ${resourceName}] Elementos DOM (#premium_exchange_capacity / #premium_exchange_stock) não encontrados.`);
+            // Se a API também falhou, retornamos 0. Se a API deu um valor, poderíamos usar ele, mas o DOM é preferível.
+             // Se a API retornou um valor e o DOM falhou, poderia retornar capacityAPI aqui. Mas DOM é mais provável de estar certo para esse dado.
+             return 0;
+        }
+    } catch(e){
+         console.error(`[getMarketCapacity - ${resourceName}] Erro ao ler DOM:`, e);
+         return 0; // Retorna 0 em caso de erro
+    }
+
+    // Se chegou aqui, ambos API e DOM falharam
+     // console.log(`[getMarketCapacity - ${resourceName}] Falha ao obter capacidade via API e DOM. Retornando 0.`);
+     // return 0; // Este return não será alcançado devido aos returns anteriores
+}
+
+
+
+
+
+
+
+
+  function calculateMarketTrend(history) {
+    if (history.length < 3) return "neutral";
+    const changes = history.slice(-3).map(
+      (entry, i, arr) => i > 0 ? entry.rate - arr[i - 1].rate : 0
+    );
+    const avgChange = changes.reduce((a, b) => a + b, 0) / changes.length;
+    if (avgChange > TREND_SENSITIVITY) return "up";
+    if (avgChange < -TREND_SENSITIVITY) return "down";
+    return "neutral";
+  }
+  function calculateMarketVolatility(history) {
+    if (history.length < 2) return 0;
+    const changes = history.slice(-5).map(
+      (entry, i, arr) => i > 0 ? Math.abs(entry.rate - arr[i - 1].rate) : 0
+    );
+    const maxChange = Math.max(...changes);
+    const minChange = Math.min(...changes);
+    return (maxChange - minChange) / 100;
+  }
+  function updateMarketAnalysis(resourceName, currentRate) {
+    const now = DateTime.now();
+    state.rateHistory[resourceName].push({ rate: currentRate, timestamp: now });
+    state.rateHistory[resourceName] = state.rateHistory[resourceName].filter(
+      (entry) => now.diff(entry.timestamp, "minutes").minutes <= VOLATILITY_WINDOW
+    );
+    state.marketTrends[resourceName] = calculateMarketTrend(state.rateHistory[resourceName]);
+    state.marketVolatility[resourceName] = calculateMarketVolatility(state.rateHistory[resourceName]);
+    state.lastUpdate[resourceName] = now.toLocaleString(DateTime.DATETIME_SHORT);
+  }
+  function getMarketRate(resource) {
+    if (!resource || !resource.name) {
+      return 100;
+    }
+    const selector = `#premium_exchange_rate_${resource.name} > div:nth-child(1)`;
+    const rateElement = document.querySelector(selector);
+    if (rateElement) {
+      const rateText = rateElement.textContent.trim();
+      const rate = parseFloat(rateText.replace(/[^0-9.]/g, "")) || 100;
+      dataCache.set(`rate_${resource.name}`, rate);
+      updateMarketAnalysis(resource.name, rate);
+      return rate;
+    }
+    const cacheKey = `rate_${resource.name}`;
+    if (dataCache.has(cacheKey)) {
+      const cachedRate = dataCache.get(cacheKey);
+      updateMarketAnalysis(resource.name, cachedRate);
+      return cachedRate;
+    }
+    const gameData = getGameDataCached();
+    if (gameData && gameData.market && gameData.market.rates) {
+      const rate2 = gameData.market.rates[resource.name];
+      if (rate2 !== void 0) {
+        const parsedRate = parseFloat(rate2) || 100;
+        dataCache.set(cacheKey, parsedRate);
+        updateMarketAnalysis(resource.name, parsedRate);
+        return parsedRate;
+      }
+    }
+    updateMarketAnalysis(resource.name, 100);
+    return 100;
+  }
+  const rateElements = {
+    wood: document.querySelector("#premium_exchange_rate_wood > div:nth-child(1)"),
+    stone: document.querySelector("#premium_exchange_rate_stone > div:nth-child(1)"),
+    iron: document.querySelector("#premium_exchange_rate_iron > div:nth-child(1)")
+  };
+
+
+
+
+
+  const rateObservers = {};
+
+
+
+
+
+   // Modifique esta função existente
+  function setupMarketRateObservers() {
+    Object.entries(rateElements).forEach(([resource, element]) => {
+      if (element) {
+        const observer = new MutationObserver(() => {
+          const newRate = sanitizeNumber(element.textContent.trim().replace(/[^0-9.]/g, "")) || 100;
+          // Log removido
+          dataCache.set(`rate_${resource}`, newRate); // Atualiza cache
+          updateMarketAnalysis(resource, newRate); // Atualiza análise de tendência/volatilidade
+
+          // --- Disparo Imediato ---
+          if (state.sellModeActive && !isProcessingSell) { // Se venda ativa e não processando
+                // Log removido
+                updateSell(); // Chama updateSell DIRETAMENTE (ou debouncedUpdateSell se preferir minima proteção contra flood)
+          }
+          if (state.buyModeActive && !isProcessingBuy) { // Se compra ativa e não processando
+                // Log removido
+                processBuyBasedOnResources(); // Chama processBuy DIRETAMENTE
+          }
+          // --- Fim do Disparo Imediato ---
+
+        });
+        observer.observe(element, { childList: true, subtree: true, characterData: true }); // Adicionado characterData
+        rateObservers[resource] = observer;
+         // Log removido
+      } else {
+         console.warn(`${SCRIPT_NAME}: Elemento da taxa de mercado para ${resource} não encontrado.`); // Aviso se faltar elemento
+      }
+    });
+  }
+
+
+
+
+
+
+
+  function getSellLimit(resource) {
+    const cacheKey = `sellLimit_${resource.name}`;
+    if (dataCache.has(cacheKey)) {
+      return dataCache.get(cacheKey);
+    }
+    const sellInputEl = getResourceElement(resource, "sell-limit");
+    if (!sellInputEl) {
+      return Infinity;
+    }
+    const val = parseInt(sellInputEl.value, 10);
+    const result = isNaN(val) || val <= 0 ? Infinity : val;
+    dataCache.set(cacheKey, result);
+    return result;
+  }
+  function getDynamicFee(resource) {
+    const marketRate = getMarketRate(resource);
+    const trend = state.marketTrends[resource.name];
+    let feePercentage = 0.05;
+    if (trend === "up") {
+      feePercentage -= 0.01;
+    } else if (trend === "down") {
+      feePercentage += 0.015;
+    }
+    if (marketRate >= 140 && marketRate <= 145) {
+      feePercentage = 0.0544;
+    } else if (marketRate < 120) {
+      feePercentage = 0.06;
+    } else if (marketRate > 150) feePercentage = 0.045;
+    return Math.min(Math.max(feePercentage, 0.04), 0.07);
+  }
+  function getExchangeRate(resource) {
+    const cacheKey = `exchange_${resource.name}`;
+    const selector = `#premium_exchange_rate_${resource.name} .premium-exchange-sep`;
+    const rateEl = document.querySelector(selector);
+    if (rateEl) {
+      const rateText2 = rateEl.textContent.trim();
+      const rate2 = parseFloat(rateText2.replace(/[^0-9.]/g, "")) || 1;
+      dataCache.set(cacheKey, rate2);
+      return rate2;
+    }
+    if (dataCache.has(cacheKey)) {
+      return dataCache.get(cacheKey);
+    }
+    const gameData = getGameDataCached();
+    if (gameData && gameData.market && gameData.market.exchangeRates) {
+      const exchangeRate = gameData.market.exchangeRates[resource.name];
+      if (exchangeRate !== void 0) {
+        const parsedRate = parseFloat(exchangeRate) || 1;
+        dataCache.set(cacheKey, parsedRate);
+        return parsedRate;
+      }
+    }
+    if (!rateEl) {
+      return 1;
+    }
+    const rateText = rateEl.textContent.trim();
+    const rate = parseFloat(rateText.replace(/[^0-9.]/g, "")) || 1;
+    dataCache.set(cacheKey, rate);
+    return rate;
+  }
+  function calculateProfit(resource, amountSold) {
+    const exchangeRate = getExchangeRate(resource);
+    // Na função principal, `resource` é o objeto Resource, não o objeto do worker
+    // Portanto, precisa chamar getExchangeRate ou acessar a propriedade correta se ela existir
+    // Ajustando para usar getExchangeRate como fallback seguro
+    const rate = resource.exchangeRate || getExchangeRate(resource);
+    return Math.floor(amountSold / rate);
+  }
+  function getMerchantsAvailable() {
+    const merchantsElement = document.querySelector("#market_merchant_available_count");
+    if (merchantsElement) {
+      return sanitizeNumber(merchantsElement.textContent);
+    }
+    return 0;
+  }
+
+
+
+
+
+ // Modifique esta função existente
+ function setupMerchantsObserver() {
+    const merchantsElement = document.querySelector("#market_merchant_available_count");
+    if (merchantsElement) {
+      const observer = new MutationObserver(() => {
+        const merchantsAvailable = getMerchantsAvailable(); // Pega o novo valor
+        // Log removido
+
+        // --- Disparo Imediato ---
+        if (state.sellModeActive && !isProcessingSell) { // Só afeta a venda
+             // Log removido
+             updateSell(); // Chama a reavaliação da VENDA (ou debouncedUpdateSell)
+        }
+        // --- Fim do Disparo Imediato ---
+
+      });
+      // Observa o texto mudar dentro do elemento
+      observer.observe(merchantsElement, { childList: true, subtree: true, characterData: true }); // Adicionado characterData
+      // Substitui a chave antiga, se existir
+      resourceObservers.merchants = observer; // Usa a mesma estrutura dos outros observers se preferir
+       // Log removido
+    } else {
+         console.warn(`${SCRIPT_NAME}: Elemento de contagem de mercadores (#market_merchant_available_count) não encontrado.`); // Aviso
+    }
+  }
+
+
+
+
+// NOVO: Observer para Pontos Premium
+function setupPremiumObserver() {
+    const premiumElement = document.querySelector("#premium_points"); // Confirme se este é o ID correto
+    if (!premiumElement) {
+        console.warn(`${SCRIPT_NAME}: Elemento de Pontos Premium (#premium_points) não encontrado para observação.`);
+        return;
+    }
+
+    const premiumObserver = new MutationObserver(() => {
+        // Log removido
+        // Atualiza o estado interno (se você tiver um estado para PPs)
+        // Ex: state.availablePP = getAvailablePremiumPoints();
+
+        // Chama a reavaliação da compra imediatamente
+        if (state.buyModeActive && !isProcessingBuy) { // Verifica se não está processando outra compra
+             // Log removido
+             // Chama diretamente, sem debounce, pois é uma mudança do jogo
+             processBuyBasedOnResources();
+        }
+    });
+
+    premiumObserver.observe(premiumElement, {
+        childList: true,    // Observa se o texto dentro muda
+        subtree: true,      // Observa mudanças nos filhos também (caso o número esteja em um <span>)
+        characterData: true // Importante para detectar mudança no texto do nó
+    });
+    // Log removido
+    // Armazena a referência se precisar desconectar depois
+     // if (!window.ragnarokObservers) window.ragnarokObservers = {};
+     // window.ragnarokObservers.premium = premiumObserver;
+}
+
+// NOVO: Observer para Capacidade do Armazém
+function setupStorageObserver() {
+    // Tenta encontrar por IDs comuns. Adapte se necessário.
+    const storageElement = document.querySelector("#storage") || document.getElementById('storage');
+    if (!storageElement) {
+        console.warn(`${SCRIPT_NAME}: Elemento de Armazém (#storage) não encontrado para observação.`);
+        return;
+    }
+
+     // Função para ler a capacidade máxima do elemento correto
+    const getStorageCapacityFromDOM = () => {
+        const capacityElement = document.getElementById('storage'); // Ou o seletor correto para a capacidade MÁXIMA
+        if (capacityElement) {
+           // Extrai o valor após a barra '/' ou o valor total se for só um número
+            const text = capacityElement.textContent || "";
+            const match = text.match(/(\d[\d.,]*)\s*\/\s*(\d[\d.,]*)/) || text.match(/(\d[\d.,]*)/); // Tenta 'atual / max' ou só 'max'
+             if (match && match[2]) { // Caso 'atual / max'
+                 return sanitizeNumber(match[2].replace(/[.,]/g, '')); // Pega o segundo valor (máximo)
+             } else if (match && match[1]) { // Caso só tenha um número (assumindo ser o máximo)
+                 return sanitizeNumber(match[1].replace(/[.,]/g, ''));
+             }
+        }
+        console.warn(`${SCRIPT_NAME}: Não foi possível ler a capacidade máxima do armazém do DOM.`);
+        return state.storageCapacity || 1000; // Retorna o último valor conhecido ou um padrão
+    };
+
+
+    const storageObserver = new MutationObserver(() => {
+        // Log removido
+        const newCapacity = getStorageCapacityFromDOM(); // Lê a nova capacidade MÁXIMA
+
+         // Verifica se a capacidade MÁXIMA realmente mudou
+        if (newCapacity !== state.storageCapacity) {
+            // Log removido
+            state.storageCapacity = newCapacity; // Atualiza o estado
+
+            // Chama a reavaliação da compra (pois afeta 'availableCapacity')
+             if (state.buyModeActive && !isProcessingBuy) {
+                  // Log removido
+                  processBuyBasedOnResources();
+             }
+            // A venda geralmente não é afetada pela capacidade máxima, mas sim pelo estoque atual.
+        } else {
+             // Pode ser uma mudança no estoque atual, não na capacidade.
+             // A mudança no estoque atual já deve ser coberta pelo setupResourceObservers
+             // console.log(...);
+        }
+    });
+
+    // Observa mudanças no conteúdo e estrutura do elemento do armazém
+    storageObserver.observe(storageElement, {
+        childList: true,
+        subtree: true,
+        characterData: true
+    });
+     // Log removido
+    // Armazena a referência
+    // if (!window.ragnarokObservers) window.ragnarokObservers = {};
+    // window.ragnarokObservers.storage = storageObserver;
+}
+
+
+
+
+
+
+
+
+ function updateSell() {
+    // 1. Verifica se o cooldown de venda está ativo
+    if (isSellCooldownActive) {
+        // console.log(`[${SCRIPT_NAME}] Cooldown de venda ativo. Pulando verificação.`); // Log opcional
+        return; // Sai imediatamente se o cooldown estiver ativo
+    }
+
+    // 2. Verificações originais: Modo ativo e processamento em andamento
+    if (!state.sellModeActive || isProcessingSell) {
+        return;
+    }
+
+    // 3. Verificação original: Mercadores disponíveis
+    const merchantsAvailable = getMerchantsAvailable();
+    if (merchantsAvailable <= 0) {
+        // console.log(`[${SCRIPT_NAME}] Sem mercadores disponíveis para venda.`); // Log opcional
+        return;
+    }
+
+    // 4. Marca como processando para evitar chamadas simultâneas ao worker
+    isProcessingSell = true;
+    // console.log(`[${SCRIPT_NAME}] Iniciando cálculo de venda...`); // Log opcional
+
+    // 5. Prepara os dados para o worker (lógica original)
+    const workerData = {
+        action: "calculateSellAmount",
+        data: {
+            resources: Object.values(resources).map((resource) => {
+                const exchangeRate = getExchangeRate(resource);
+                const marketRate = getMarketRate(resource);
+                const minRate = resource.getReserveRate();
+                const total = resource.getTotal(); // Estoque total atual da aldeia
+                const reserve = resource.getReserved(); // Reserva definida pelo usuário
+                const marketCapacityRaw = getMarketCapacity(resource); // Capacidade do mercado de comprar
+
+                return {
+                    name: resource.name,
+                    marketRate, // Taxa principal (PP por unidade)
+                    minRate,    // Taxa máxima do usuário para vender
+                    total,      // Total na aldeia
+                    reserve,    // Reserva do usuário
+                    sellLimit: getSellLimit(resource), // Limite de venda por transação
+                    marketCapacityRaw: marketCapacityRaw, // Capacidade bruta do mercado
+                    exchangeRate // Taxa de câmbio (Recursos por 1 PP)
+                };
+            }),
+            merchantsAvailable,
+            state: {
+                marketTrends: { ...state.marketTrends }, // Passa cópia do estado de tendências
+                marketVolatility: { ...state.marketVolatility } // Passa cópia do estado de volatilidade
+            },
+            config: { // Passa constantes de configuração
+                enforceMerchantLimit,
+                unitSize,
+                FIXED_FEE,
+                minProfitThreshold // Limite mínimo de lucro (1 PP)
+            }
+        }
+    };
+
+    // 6. Envia dados para o worker
+    try {
+        worker.postMessage(workerData);
+    } catch (error) {
+        console.error(`${SCRIPT_NAME}: Erro ao enviar mensagem para o Worker (Venda):`, error);
+        isProcessingSell = false; // Libera a flag de processamento em caso de erro
+        return;
+    }
+
+    // 7. Lida com a resposta do worker
+    worker.onmessage = (e) => {
+        // console.log(`[${SCRIPT_NAME}] Resposta do Worker (Venda):`, e.data); // Log opcional
+        if (e.data.action === "sellAmountCalculated") {
+            const { amountToSell, profit, resourceName } = e.data.result;
+
+            // Se uma venda válida foi calculada:
+            if (amountToSell > 0 && resourceName) {
+                const resource = resources[resourceName];
+                console.log(`[${SCRIPT_NAME}] Calculado para vender: ${amountToSell} ${resourceName} por ${profit} PP.`); // Log informativo
+
+                // ---> ATIVA O COOLDOWN ANTES DE EXECUTAR <---
+                isSellCooldownActive = true;
+                console.log(`[${SCRIPT_NAME}] Cooldown de venda de ${SELL_COOLDOWN_MS / 1000}s iniciado.`);
+                setTimeout(() => {
+                    isSellCooldownActive = false; // Desativa o cooldown após o tempo
+                    console.log(`[${SCRIPT_NAME}] Cooldown de venda finalizado.`);
+                    // Opcional: verificar se ainda deve vender após cooldown
+                    // if (state.sellModeActive) updateSell();
+                }, SELL_COOLDOWN_MS);
+                // ---> FIM DA ATIVAÇÃO DO COOLDOWN <---
+
+                // Executa a transação
+                executeTransaction("sell", resource, amountToSell);
+                notifyUser(`${i18n.t("profit")}: ${profit} PP`, "success"); // Notifica o lucro
+
+            } else {
+                 // Nenhuma venda lucrativa/válida encontrada
+                 // console.log(`[${SCRIPT_NAME}] Nenhuma venda válida calculada pelo worker.`); // Log opcional
+            }
+        } else if (e.data.error) {
+            console.error(`${SCRIPT_NAME}: Erro recebido do Worker (Venda):`, e.data.error);
+        }
+        // Libera a flag de processamento *após* receber a resposta ou erro
+        isProcessingSell = false;
+    };
+
+    // 8. Lida com erros do worker
+    worker.onerror = (error) => {
+        console.error(`${SCRIPT_NAME}: Erro no Worker (Venda):`, error);
+        isProcessingSell = false; // Libera a flag de processamento em caso de erro
+    };
+} // Fim da função updateSell
+
+
+
+  const debouncedUpdateSell = _.debounce(updateSell, 100);
+  const updateAll = () => {
+    if (state.buyModeActive) {
+      Object.values(resources).forEach((resource) => processBuyBasedOnResources());
+      if (!state.hasExecutedBuy) processBuyBasedOnResources();
+    }
+    if (state.sellModeActive) debouncedUpdateSell();
+  };
+  const setupEvents = () => {
+    const debounceDelay = 300;
+    Object.values(resources).forEach((resource) => {
+      if (resource.config.uiRateInput) {
+        resource.config.uiRateInput.addEventListener("input", _.debounce(() => {
+          processBuyBasedOnResources();
+          if (state.buyModeActive && !state.hasExecutedBuy) processBuyBasedOnResources();
+        }, debounceDelay));
+      }
+      if (resource.config.uiReserveRateInput) {
+        resource.config.uiReserveRateInput.addEventListener("input", _.debounce(updateSell, debounceDelay));
+      }
+    });
+    ui.getElement("buyPerTimeInput").addEventListener("input", _.debounce(updateAll, debounceDelay));
+    ui.getElement("storageLimitInput").addEventListener("input", _.debounce(updateAll, debounceDelay));
+    ui.getElement("maxSpendInput").addEventListener("input", _.debounce(updateAll, debounceDelay));
+    ui.getElement("sellLimitInput").addEventListener("input", _.debounce(updateSell, debounceDelay));
+    ui.getElement("buyModeToggle").addEventListener("click", () => toggleMode("buyModeActive"));
+    ui.getElement("sellModeToggle").addEventListener("click", () => toggleMode("sellModeActive"));
+    ui.getElement("buyPause").addEventListener("click", () => {
+      if (state.buyModeActive) {
+        state.buyModeActive = false;
+        localStorage.setItem("buyModeActive", state.buyModeActive);
+        state.hasExecutedBuy = false;
+        updateUI();
+        notifyUser(i18n.t("deactivated"), "warning");
+      }
+    });
+    ui.getElement("sellPause").addEventListener("click", () => {
+      if (state.sellModeActive) {
+        state.sellModeActive = false;
+        localStorage.setItem("sellModeActive", state.sellModeActive);
+        state.hasExecutedSell = false;
+        updateUI();
+        notifyUser(i18n.t("deactivated"), "warning");
+      }
+    });
+    ui.getElement("sellPause").addEventListener("click", () => { // Duplicate listener? Keeping it as is per request.
+      if (state.sellModeActive) {
+        state.sellModeActive = false;
+        localStorage.setItem("sellModeActive", state.sellModeActive);
+        state.hasExecutedSell = false;
+        updateUI();
+        notifyUser(i18n.t("deactivated"), "warning");
+      }
+    });
+    ui.getElement("saveConfig").addEventListener("click", () => {
+      const configData = {};
+      const inputs = ui.getElement("inputs") || [];
+      inputs.forEach((input) => {
+        if (!input || !input.dataset?.resource) return;
+        const value = input.value.trim();
+        const sanitizedValue = sanitizeNumber(value);
+        const dataResource = input.dataset.resource;
+        if (value && !isNaN(sanitizedValue) && sanitizedValue >= 0) {
+          configData[dataResource] = String(sanitizedValue);
+          // Log removido
+        }
+      });
+      const specialInputs = [
+        { id: "buyPerTimeInput", key: "buy-per-time" },
+        { id: "storageLimitInput", key: "storage-limit" },
+        { id: "maxSpendInput", key: "max-spend" }
+      ];
+      specialInputs.forEach(({ id, key }) => {
+        const input = ui.getElement(id);
+        if (input && input.value.trim()) {
+          const value = sanitizeNumber(input.value.trim());
+          if (!isNaN(value) && value >= 0) {
+            configData[key] = String(value);
+            // Log removido
+          }
+        }
+      });
+      const premiumInput = ui.getElement("premiumPointsInput");
+      if (premiumInput) {
+        const premiumValue = premiumInput.value.trim();
+        if (premiumValue !== "") {
+          const sanitizedValue = sanitizeNumber(premiumValue);
+          if (!isNaN(sanitizedValue)) {
+            configData.premiumPoints = String(Math.max(0, sanitizedValue));
+            // Log removido
+          }
+        }
+      }
+      try {
+        const compressedConfig = LZString.compress(JSON.stringify(configData));
+        localStorage.setItem("compressedConfig", compressedConfig);
+        localStorage.setItem("language", state.language);
+        notifySuccess(i18n.t("saveSuccess"));
+        // Log removido
+      } catch (error) {
+        console.error("[SaveConfig] Erro ao salvar configura\xE7\xE3o:", error);
+        notifyError("Erro ao salvar configura\xE7\xE3o");
+      }
+    });
+    ui.getElement("resetAll").addEventListener("click", () => {
+      ui.getElement("inputs").forEach((input) => {
+        input.value = "";
+        localStorage.removeItem(input.dataset.resource);
+      });
+      state.buyModeActive = state.sellModeActive = state.hasExecutedBuy = state.hasExecutedSell = false;
+      localStorage.setItem("buyModeActive", "false");
+      localStorage.setItem("sellModeActive", "false");
+      updateUI();
+      resetBuyInputs();
+      notifySuccess(i18n.t("saveSuccess"));
+    });
+    ui.getElement("transactionsBtn").addEventListener("click", showTransactions);
+    ui.getElement("languageSelect").addEventListener("change", (e) => {
+      const newLang = e.target.value;
+      if (["pt", "ru", "en"].includes(newLang)) {
+        state.language = newLang;
+        i18n.changeLanguage(newLang);
+        localStorage.setItem("language", state.language);
+        updateUI();
+        if (ui.getElement("transactionsModal").style.display === "flex" && state.transactions) {
+          renderTransactionsModal(mobx.toJS(state.transactions), {}, "date", "desc", 1, 10);
+        }
+      }
+    });
+    ui.getElement("villageSelect").addEventListener("change", (e) => {
+      if (e.target.value === "current") updateVillageInfo();
+    });
+    ui.getElement("aiAssistantBtn").addEventListener("click", () => {
+      ui.getElement("aiModal").style.display = "flex";
+      ui.getElement("aiPrompt").value = "";
+      ui.getElement("aiResponse").innerHTML = "";
+    });
+    ui.getElement("submitAI").addEventListener("click", async () => {
+      const prompt = ui.getElement("aiPrompt").value;
+      if (!prompt.trim()) return;
+      ui.getElement("aiResponse").innerHTML = `<p>${i18n.t("aiLoading")}</p>`;
+      try {
+        const response = await callGeminiAPI(prompt);
+        ui.getElement("aiResponse").innerHTML = `<p>${response}</p>`;
+      } catch (error) {
+        ui.getElement("aiResponse").innerHTML = `<p>${i18n.t("aiError")}: ${error}</p>`;
+      }
+    });
+    ui.getElement("closeAIModal").addEventListener("click", () => {
+      ui.getElement("aiModal").style.display = "none";
+    });
+    ui.getElement("settingsBtn").addEventListener("click", () => {
+      state.isSettingsModalOpen = !state.isSettingsModalOpen;
+      ui.getElement("settingsModal").style.display = state.isSettingsModalOpen ? "flex" : "none";
+    });
+    ui.getElement("closeSettingsModal").addEventListener("click", () => {
+      state.isSettingsModalOpen = false;
+      ui.getElement("settingsModal").style.display = "none";
+    });
+    ui.getElement("minimizeButton").addEventListener("click", () => {
+      state.isMinimized = true;
+      const container = ui.getElement("market-container");
+      const minimizedBox = ui.getElement("minimizedMarketBox");
+      container.style.display = "none";
+      minimizedBox.style.display = "block";
+      localStorage.setItem("isMinimized", true);
+    });
+    ui.getElement("minimizedMarketBox").addEventListener("click", () => {
+      state.isMinimized = false;
+      const container = ui.getElement("market-container");
+      const minimizedBox = ui.getElement("minimizedMarketBox");
+      container.style.display = "block";
+      minimizedBox.style.display = "none";
+      localStorage.setItem("isMinimized", false);
+    });
+    document.querySelectorAll(".rate-input").forEach((input) => {
+      input.addEventListener("mouseenter", (e) => {
+        const tooltipKey = e.target.dataset.tooltip;
+        const resource = e.target.dataset.resource.split("-")[0];
+        const text = i18n.t(tooltipKey, { resource: i18n.t(resource) });
+        showTooltip(e, text);
+      });
+      input.addEventListener("mousemove", (e) => {
+        updateTooltipPosition(e);
+      });
+      input.addEventListener("mouseleave", hideTooltip);
+    });
+  };
+  const updateUI = () => {
+    ui.getElement("buyModeToggle").textContent = i18n.t(state.buyModeActive ? "buyModeToggleOn" : "buyModeToggleOff");
+    ui.getElement("buyModeToggle").className = `black-btn toggle-btn ${state.buyModeActive ? "active" : "inactive"}`;
+    ui.getElement("buyStatus").textContent = i18n.t(state.buyModeActive ? "activated" : "deactivated");
+    ui.getElement("buyStatus").className = `status ${state.buyModeActive ? "green" : "red"}`;
+    ui.getElement("sellModeToggle").textContent = i18n.t(state.sellModeActive ? "sellModeToggleOn" : "sellModeToggleOff");
+    ui.getElement("sellModeToggle").className = `black-btn toggle-btn ${state.sellModeActive ? "active" : "inactive"}`;
+    ui.getElement("sellStatus").textContent = i18n.t(state.sellModeActive ? "activated" : "deactivated");
+    ui.getElement("sellStatus").className = `status ${state.sellModeActive ? "green" : "red"}`;
+    ui.getElement("buyPause").textContent = i18n.t("pause");
+    ui.getElement("sellPause").textContent = i18n.t("pause");
+    ui.getElement("headerTitle").textContent = i18n.t("title");
+    ui.getElement("saveConfig").textContent = i18n.t("saveConfig");
+    ui.getElement("resetAll").textContent = `\u21BB ${i18n.t("resetAll")}`;
+    ui.getElement("transactionsBtn").textContent = i18n.t("transactions");
+    ui.getElement("settingsBtn").innerHTML = `<i class="fa-solid fa-gear"></i>`;
+    ui.getElement("worldProfit").textContent = state.worldProfit;
+    ui.getElement("languageSelect").innerHTML = `
+            <option value="pt" ${state.language === "pt" ? "selected" : ""}>\u{1F1F5}\u{1F1F9} ${i18n.t("portuguese")}</option>
+            <option value="ru" ${state.language === "ru" ? "selected" : ""}>\u{1F1F7}\u{1F1FA} ${i18n.t("russian")}</option>
+            <option value="en" ${state.language === "en" ? "selected" : ""}>\u{1F1EC}\u{1F1E7} ${i18n.t("english")}</option>
+        `;
+    const minimizeButton2 = ui.getElement("minimizeButton");
+    if (minimizeButton2) {
+      minimizeButton2.title = i18n.t("minimize");
+    }
+  };
+  const loadConfig = () => {
+    const compressedConfig = localStorage.getItem("compressedConfig");
+    if (compressedConfig) {
+      try {
+        const decompressedConfig = LZString.decompress(compressedConfig);
+        const configData = JSON.parse(decompressedConfig);
+        // Log removido
+        document.querySelectorAll(".rate-input").forEach((input) => {
+          const dataResource = input.dataset.resource;
+          if (configData[dataResource]) {
+            input.value = configData[dataResource];
+            // Log removido
+          }
+        });
+        if (configData.premiumPoints) {
+          const premiumInput = ui.getElement("premiumPointsInput");
+          if (premiumInput) {
+            premiumInput.value = configData.premiumPoints;
+            // Log removido
+          }
+        }
+        const buyPerTimeInput = ui.getElement("buyPerTimeInput");
+        if (buyPerTimeInput && configData["buy-per-time"]) {
+          buyPerTimeInput.value = configData["buy-per-time"];
+        }
+        const storageLimitInput = ui.getElement("storageLimitInput");
+        if (storageLimitInput && configData["storage-limit"]) {
+          storageLimitInput.value = configData["storage-limit"];
+        }
+        const maxSpendInput = ui.getElement("maxSpendInput");
+        if (maxSpendInput && configData["max-spend"]) {
+          maxSpendInput.value = configData["max-spend"];
+        }
+      } catch (error) {
+        console.error(`[LoadConfig] Erro ao carregar configura\xE7\xE3o:`, error);
+      }
+    } else {
+      // Log removido
+    }
+  };
+  let resources;
+  const resourceObservers = {};
+
+
+
+
+
+
+   // Modifique esta função existente
+  const setupResourceObservers = () => {
+    const resourceIds = ["wood", "stone", "iron"];
+    resourceIds.forEach((resource) => {
+      const element = document.querySelector(`#${resource}`); // Observa o estoque ATUAL do recurso
+      if (element) {
+        const observer = new MutationObserver(() => {
+          const amount = sanitizeNumber(element.textContent);
+          // Compara com o último valor conhecido ANTES de atualizar o estado global
+          if (amount !== currentResources[resource]) {
+            // Log removido
+            currentResources[resource] = amount; // Atualiza o estado global *depois* da comparação
+
+            // --- Disparo Imediato ---
+            if (state.buyModeActive && !isProcessingBuy) { // Se compra ativa e não processando
+                 // Log removido
+                 processBuyBasedOnResources(); // Chama a reavaliação da COMPRA
+            }
+            if (state.sellModeActive && !isProcessingSell) { // Se venda ativa e não processando
+                 // Log removido
+                 updateSell(); // Chama a reavaliação da VENDA (ou debouncedUpdateSell)
+            }
+             // --- Fim do Disparo Imediato ---
+
+          }
+        });
+        observer.observe(element, { childList: true, subtree: true, characterData: true }); // Adicionado characterData
+        resourceObservers[resource] = observer;
+         // Log removido
+      } else {
+         console.warn(`${SCRIPT_NAME}: Elemento de estoque para #${resource} não encontrado.`); // Aviso se faltar elemento
+      }
+    });
+  };
+
+
+
+
+  // Define os elementos que contêm as taxas de mercado
+const exchangeRateElements = {
+    wood: document.querySelector("#premium_exchange_rate_wood .premium-exchange-sep"),
+    stone: document.querySelector("#premium_exchange_rate_stone .premium-exchange-sep"),
+    iron: document.querySelector("#premium_exchange_rate_iron .premium-exchange-sep")
+};
+
+// Armazena os observadores para cada recurso
+const exchangeRateObservers = {};
+
+
+
+// Configura os observadores para monitorar alterações nas taxas de mercado
+function setupExchangeRateObservers() {
+    Object.entries(exchangeRateElements).forEach(([resource, element]) => {
+        // Verifica se o elemento existe
+        if (!element) {
+            console.error(`Elemento para ${resource} não encontrado!`);
+            return;
+        }
+
+        // Cria um observador para o elemento
+        const observer = new MutationObserver((mutations) => {
+            // Extrai a nova taxa de mercado
+            const newRate = sanitizeNumber(
+                element.textContent
+                    .trim()
+                    .replace(/[^0-9.,]/g, "") // Remove caracteres não numéricos (inclui vírgula)
+                    .replace(",", ".") // Converte vírgula para ponto decimal
+            ) || 1;
+
+            // Atualiza o cache da taxa
+            dataCache.set(`exchange_${resource}`, newRate);
+
+            // Dispara a atualização de vendas se o modo estiver ativo
+            if (state.sellModeActive) {
+                debouncedUpdateSell();
+            }
+        });
+
+        // Configura o observador para monitorar alterações no conteúdo do elemento
+        observer.observe(element, {
+            childList: true,
+            subtree: true,
+            characterData: true // Observa mudanças no texto
+        });
+
+        // Armazena o observador
+        exchangeRateObservers[resource] = observer;
+    });
+}
+
+
+
+
+// =======================================================================
+// == INÍCIO DO BLOCO ATUALIZADO (init e checkGameLoaded) - SEM LOGS =====
+// =======================================================================
+
+// --- Constantes de Intervalo Removidas ---
+const GAME_LOAD_TIMEOUT = 5e3; // 5 segundos de timeout para evitar loops infinitos
+
+// Função de inicialização principal - ATUALIZADA (sem setIntervals periódicos e sem logs)
+const init = async () => {
+    try {
+        // Etapa 1: Inicializa UI e verifica elementos essenciais
+        initializeUI();
+        if (!initializeElements()) {
+            throw new Error("Falha ao inicializar elementos da UI do script RAGNAROK.");
+        }
+
+        // Etapa 2: Configura observadores e elementos
+        setupResourceObservers();
+        setupMarketRateObservers();
+        setupExchangeRateObservers();
+        setupMerchantsObserver();
+        setupPremiumObserver();
+        setupStorageObserver();
+
+        updateVillageInfo();
+        applyStyles(); // Aplica CSS
+
+        // Etapa 3: Inicializa recursos e estados do Script
+        resources = initializeResources();
+        updateGameElements();
+        loadConfig();
+        setupEvents();
+        updateTheme();
+        updateUI();
+
+        // Etapa 4: Busca dados críticos INICIAIS do jogo
+        await Promise.all([
+            fetchResources(), // Await para garantir que termine antes de continuar
+            fetchIncomingResources() // Await para garantir que termine antes de continuar
+        ]);
+
+        // Etapa 5: Busca histórico de lucro
+        await fetchAndUpdateProfit();
+
+        // Etapa 6: Configura atualizações periódicas - REMOVIDO
+        // Limpa intervalos antigos se existirem
+        if (state.intervals) {
+             clearInterval(state.intervals.resourceInterval);
+             clearInterval(state.intervals.transportInterval);
+             delete state.intervals;
+        }
+        // --- NENHUM setInterval é configurado aqui ---
+
+        // Etapa final: Executa primeira atualização geral após tudo configurado
+        await updateAll();
+
+    } catch (error) {
+        // Ainda notifica o usuário sobre erros críticos na UI
+        notifyError(i18n.t("initError", { error: error.message || String(error) }) + " Verifique o console (F12).");
+        // O erro ainda será logado no console pelo próprio navegador se não for tratado aqui
+        // scheduleReload(); // Considere se a recarga automática é desejada em caso de erro
+    }
+};
+
+// Verifica se o jogo está carregado e inicia o script - SEM LOGS
+const checkGameLoaded = () => {
+    const timeoutId = setTimeout(() => {
+        // Verifica elementos mesmo após timeout
+        const merchantsElement = document.querySelector("#market_merchant_available_count");
+        const isTribalWarsLoaded = typeof TribalWars !== "undefined" && TribalWars.getGameData;
+        if (merchantsElement && isTribalWarsLoaded) {
+             clearInterval(gameCheckInterval);
+             init().catch(error => {
+                 // Notifica o usuário sobre falha na inicialização pós-timeout
+                 notifyError(i18n.t("initError", { error: error.message }));
+             });
+        } else {
+             // Falha crítica - notifica o usuário
+             clearInterval(gameCheckInterval);
+             alert(`${SCRIPT_NAME}: Não foi possível iniciar. Elementos essenciais do jogo não foram encontrados após ${GAME_LOAD_TIMEOUT/1000} segundos. Recarregue a página ou verifique se há outros scripts conflitando.`);
+        }
+    }, GAME_LOAD_TIMEOUT);
+
+    const gameCheckInterval = setInterval(() => {
+        try {
+            // Verifica condições para iniciar
+            const merchantsElement = document.querySelector("#market_merchant_available_count");
+            const isTribalWarsLoaded = typeof TribalWars !== "undefined" && TribalWars.getGameData;
+            const isSortableLoaded = typeof Sortable !== "undefined";
+            const isMobxLoaded = typeof mobx !== "undefined";
+            const isAxiosLoaded = typeof axios !== "undefined";
+
+            if (merchantsElement && isTribalWarsLoaded && isSortableLoaded && isMobxLoaded && isAxiosLoaded) {
+                // Condições satisfeitas, inicia o script
+                clearInterval(gameCheckInterval);
+                clearTimeout(timeoutId);
+                init().catch(error => {
+                    // Notifica sobre falha crítica durante a inicialização
+                    notifyError(i18n.t("initError", { error: error.message || String(error) }) + " Erro não capturado no init.");
+                });
+            }
+            // Nenhuma ação se as condições não forem satisfeitas (continua verificando)
+        } catch (error) {
+            // Erros durante a verificação podem acontecer, não para o intervalo,
+            // mas pode ser útil logar no console para depuração, se necessário.
+            // console.error(`[${SCRIPT_NAME}] [Init Check] Erro durante a verificação:`, error);
+        }
+    }, 200); // Verifica a cada 200ms
+};
+
+// Inicia o monitoramento do carregamento do jogo
+checkGameLoaded();
+
+// =======================================================================
+// == FIM DO BLOCO ATUALIZADO ============================================
+// =========================================================================================================
+
+
+
+
+  const applyStyles = () => {
+    const link = createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" });
+    document.head.appendChild(link);
+    const style = createElement("style");
+    style.textContent = `
+    * { box-sizing: border-box; }
+    .market-container {
+        padding: 20px;
+        border: 2px solid;
+        border-radius: 15px;
+        width: 900px;
+        max-width: 100%;
+        margin: 0 auto;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        transition: box-shadow 0.3s ease, opacity 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: auto;
+        font-family: 'Roboto', sans-serif;
+    }
+
+    .draggable {
+        user-select: none;
+        touch-action: none;
+        transition: transform 0.1s;
+    }
+
+    .draggable:active {
+        cursor: grabbing !important;
+    }
+
+    .market-container.draggable {
+        cursor: move;
+    }
+
+    .market-container.dark {
+        background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+        color: #ffffff;
+        border-color: #444;
+    }
+    .market-container.light {
+        background: linear-gradient(135deg, #f0f0f0, #ffffff);
+        color: #000000;
+        border-color: #ccc;
+    }
+    .header {
+        text-align: center;
+        margin-bottom: 15px;
+        flex-shrink: 0;
+        position: relative;
+    }
+    .header h2 {
+        text-transform: uppercase;
+        font-weight: 700;
+        margin: 15px 0;
+        font-size: 1.5em;
+    }
+    .market-container.dark .header h2 {
+        color: #ffffff;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    }
+    .market-container.light .header h2 {
+        color: #000000;
+        text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.7);
+    }
+    .dropdowns {
+    display: flex;
+    justify-content: space-between; /* Distribui espa\xE7o entre elementos */
+    width: 100%;
+    align-items: center;
+}
+    .header-buttons {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        position: absolute;
+        top: 0px;
+        left: 0;
+        padding: 0 15px;
+        box-sizing: border-box;
+        align-items: center;
+    }
+
+    .btn-group-left {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .btn-group-right {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .left-btn {
+        position: relative;
+        left: -8px;
+        margin-right: auto;
+    }
+    .profit-info {
+    margin-left: auto; /* Empurra para a direita */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    order: 2; /* Garante que fique \xE0 direita */
+}
+
+
+
+
+
+
+
+
+
+
+
+    .market-container.dark .profit-info {
+        color: #ffd700;
+    }
+    .market-container.light .profit-info {
+        color: #b8860b;
+    }
+    .dropdown {
+        display: flex;
+        align-items: center;
+    }
+    .village-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        margin-right: 8px;
+        transition: transform 0.3s ease;
+    }
+    .village-icon:hover {
+        transform: scale(1.1);
+    }
+    .market-container.dark .village-icon svg path {
+        fill: #ffd700;
+    }
+    .market-container.light .village-icon svg path {
+        fill: #b8860b;
+    }
+    select {
+        border: 1px solid;
+        border-radius: 5px;
+        padding: 5px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+    }
+    .market-container.dark select {
+        background-color: #444;
+        color: #ffffff;
+        border-color: #666;
+    }
+    .market-container.light select {
+        background-color: #e0e0e0;
+        color: #000000;
+        border-color: #999;
+    }
+    select:focus {
+        border-color: #00ff00;
+        outline: none;
+    }
+    .sections {
+        display: flex;
+        justify-content: space-between;
+        align-items: stretch;
+        flex-grow: 1;
+        margin: 15px 0;
+    }
+    .section {
+        width: 48%;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        transition: transform 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+    .market-container.dark .section {
+        background-color: #2a2a2a;
+    }
+    .market-container.light .section {
+        background-color: #d0d0d0;
+    }
+    .section:hover {
+        transform: translateY(-5px);
+    }
+    .section h3 {
+        margin-bottom: 10px;
+        font-size: 16px;
+        font-weight: 700;
+        text-align: left;
+    }
+    .market-container.dark .section h3 {
+        color: #ffffff;
+    }
+    .market-container.light .section h3 {
+        color: #000000;
+    }
+    .status {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        display: inline-block;
+    }
+    .status.green {
+        background-color: #00ff00;
+        color: #000000;
+    }
+    .market-container.dark .status.green {
+        background-color: #006600;
+        color: #ffffff;
+    }
+    .status.red {
+        background-color: #ff0000;
+        color: #000000;
+    }
+    .market-container.dark .status.red {
+        background-color: #990000;
+        color: #ffffff;
+    }
+    .base-card {
+        padding: 8px 15px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        transition: box-shadow 0.3s ease;
+    }
+    .resource-card {
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 5px;
+        flex-wrap: nowrap;
+        cursor: move;
+    }
+    .market-container.dark .resource-card {
+        background-color: #3a3a3a;
+    }
+    .market-container.light .resource-card {
+        background-color: #e0e0e0;
+    }
+    .resource-card:hover {
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    }
+    .resource-card img {
+        width: 24px;
+        height: 24px;
+        margin-right: 3px;
+    }
+    .resource-card input {
+        width: 70px;
+        padding: 4px;
+        border: 1px solid;
+        border-radius: 5px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+        cursor: text;
+    }
+    .market-container.dark .resource-card input {
+        background-color: #555;
+        color: #ffffff;
+        border-color: #777;
+    }
+    .market-container.light .resource-card input {
+        background-color: #f0f0f0;
+        color: #000000;
+        border-color: #999;
+    }
+    .resource-card input:focus {
+        border-color: #00ff00;
+        outline: none;
+    }
+    .resource-card span {
+        margin: 0 5px;
+        font-size: 16px;
+        font-weight: bold;
+        transition: color 0.3s ease;
+    }
+    .market-container.dark .resource-card span {
+        color: #ffd700;
+    }
+    .market-container.light .resource-card span {
+        color: #b8860b;
+    }
+    .resource-card:hover span {
+        color: #00ff00;
+    }
+    .num-input {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        margin-left: 5px;
+        flex-shrink: 0;
+    }
+    .num-input .resource-icon {
+        width: 24px;
+        height: 24px;
+        margin-right: 3px;
+    }
+    .num-input input {
+        width: 70px;
+        padding: 4px;
+        border: 1px solid;
+        border-radius: 5px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+    }
+    .market-container.dark .num-input input {
+        background-color: #555;
+        color: #ffffff;
+        border-color: #777;
+    }
+    .market-container.light .num-input input {
+        background-color: #f0f0f0;
+        color: #000000;
+        border-color: #999;
+    }
+    .num-input input:focus {
+        border-color: #00ff00;
+        outline: none;
+    }
+    .buttons {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+    }
+    .black-btn {
+        padding: 8px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    .market-container.dark .black-btn {
+        background-color: #222;
+        color: #ffffff;
+    }
+    .market-container.light .black-btn {
+        background-color: #d0d0d0;
+        color: #000000;
+    }
+    .black-btn:hover {
+        transform: scale(1.05);
+    }
+    .market-container.dark .black-btn:hover {
+        background-color: #333;
+    }
+    .market-container.light .black-btn:hover {
+        background-color: #b0b0b0;
+    }
+    .toggle-btn {
+        padding: 8px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s ease, transform 0.2s ease;
+    }
+    .toggle-btn.active {
+        background-color: #00ff00;
+        color: #000000;
+    }
+    .market-container.dark .toggle-btn.active {
+        background-color: #006600;
+        color: #ffffff;
+    }
+    .toggle-btn.inactive {
+        background-color: #ff0000;
+        color: #000000;
+    }
+    .market-container.dark .toggle-btn.inactive {
+        background-color: #990000;
+        color: #ffffff;
+    }
+    .footer {
+        display: flex;
+        justify-content: center;
+        margin-top: 15px;
+        flex-shrink: 0;
+        width: 100%;
+    }
+
+    .footer-buttons-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background-color: #3a3a3a;
+        padding: 8px 15px;
+        border-radius: 8px;
+        border: 1px solid #555;
+    }
+
+    .market-container.dark .footer-buttons-row {
+        background-color: #3a3a3a;
+        border-color: #555;
+    }
+
+    .market-container.light .footer-buttons-row {
+        background-color: #e0e0e0;
+        border-color: #999;
+    }
+
+    .premium-input-container {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    #premiumPointsInput {
+        width: 70px;
+        padding: 4px;
+        border: 1px solid;
+        border-radius: 5px;
+        font-size: 14px;
+        transition: border-color 0.3s ease;
+    }
+
+    .market-container.dark #premiumPointsInput {
+        background-color: #555;
+        color: #ffffff;
+        border-color: #777;
+    }
+
+    .market-container.light #premiumPointsInput {
+        background-color: #f0f0f0;
+        color: #000000;
+        border-color: #999;
+    }
+
+    #premiumPointsInput:focus {
+        border-color: #00ff00;
+        outline: none;
+    }
+
+    .spinner {
+        width: 20px;
+        height: 20px;
+        border: 3px solid;
+        border-top: 3px solid #00ff00;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-left: 10px;
+    }
+    .market-container.dark .spinner {
+        border-color: #ffffff;
+    }
+    .market-container.light .spinner {
+        border-color: #000000;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .notification {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-size: 14px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        transition: opacity 0.5s ease;
+    }
+    .market-container.dark .notification {
+        color: #ffffff;
+    }
+    .market-container.light .notification {
+        color: #000000;
+    }
+    .notification.success {
+        background-color: #00ff00;
+    }
+    .notification.error {
+        background-color: #ff0000;
+    }
+    .notification.warning {
+        background-color: #ffa500;
+    }
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .modal-content {
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        width: 800px;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        position: static !important;
+        z-index: auto !important;
+    }
+    .market-container.dark .modal-content {
+        background: #2a2a2a;
+        color: #ffffff;
+    }
+    .market-container.light .modal-content {
+        background: #f0f0f0;
+        color: #000000;
+    }
+    .modal-content h3 {
+        margin-top: 0;
+        text-align: center;
+    }
+    #filterSection {
+        margin-bottom: 15px;
+    }
+    #filterSection label {
+        display: inline-block;
+        margin-right: 10px;
+        margin-bottom: 5px;
+    }
+    #filterSection input {
+        padding: 4px;
+        border: 1px solid;
+        border-radius: 5px;
+        margin-right: 10px;
+    }
+    .market-container.dark #filterSection input {
+        background-color: #555;
+        color: #ffffff;
+        border-color: #777;
+    }
+    .market-container.light #filterSection input {
+        background-color: #f0f0f0;
+        color: #000000;
+        border-color: #999;
+    }
+    #filterSection input:focus {
+        border-color: #00ff00;
+        outline: none;
+    }
+    .transactions-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 15px;
+    }
+    .transactions-table th,
+    .transactions-table td {
+        padding: 8px;
+        border: 1px solid #d4a017;
+        text-align: right;
+    }
+    .market-container.dark .transactions-table th,
+    .market-container.dark .transactions-table td {
+        border-color: #d4a017;
+    }
+    .market-container.light .transactions-table th,
+    .market-container.light .transactions-table td {
+        border-color: #d4a017;
+    }
+    .transactions-table th {
+        background-color: #ffd700;
+        color: #000000;
+        cursor: pointer;
+        text-align: center;
+    }
+    .market-container.dark .transactions-table th {
+        background-color: #ffd700;
+        color: #000000;
+    }
+    .transactions-table th:hover {
+        background-color: #e6c200;
+    }
+    .market-container.dark .transactions-table th:hover {
+        background-color: #e6c200;
+    }
+    #paginationControls {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    #transactionsChart {
+        max-width: 100%;
+    }
+    .ledger-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .ledger-table th,
+    .ledger-table td {
+        border: 1px solid #d4a017;
+        padding: 8px;
+        text-align: right;
+    }
+    .market-container.dark .ledger-table th,
+    .market-container.dark .ledger-table td {
+        border-color: #d4a017;
+    }
+    .market-container.light .ledger-table th,
+    .market-container.light .ledger-table td {
+        border-color: #d4a017;
+    }
+    .ledger-table th {
+        background-color: #ffd700;
+        color: #000000;
+        text-align: center;
+    }
+    .market-container.dark .ledger-table th {
+        background-color: #ffd700;
+        color: #000000;
+    }
+    .ledger-table .section-header {
+        background-color: #b8860b;
+        font-weight: bold;
+        color: #ffffff;
+    }
+    .market-container.dark .ledger-table .section-header {
+        background-color: #b8860b;
+        color: #ffffff;
+    }
+    .market-container.light .ledger-table .section-header {
+        background-color: #b8860b;
+        color: #ffffff;
+    }
+    .icon.header.premium {
+        font-size: 9pt;
+        font-family: Verdana, Arial;
+        direction: ltr;
+        border-collapse: collapse;
+        border-spacing: 0;
+        text-align: right;
+        height: 18px;
+        display: inline-block;
+        margin: auto 2px auto 0;
+        overflow: hidden;
+        background-repeat: no-repeat;
+        vertical-align: -4px;
+        background-image: url('https://dsus.innogamescdn.com/asset/95eda994/graphic/icons/header.png');
+        background-position: -433px 0px;
+        width: 18px;
+    }
+    .modal-content::-webkit-scrollbar {
+        width: 8px;
+    }
+    .modal-content::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .modal-content::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 255, 0, 0.5);
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+    }
+    .modal-content::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 255, 0, 0.7);
+    }
+    .market-container.dark .modal-content::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 153, 0, 0.5);
+    }
+    .market-container.dark .modal-content::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 153, 0, 0.7);
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .market-container > * {
+        animation: fadeIn 0.5s ease forwards;
+    }
+    #aiPrompt {
+        resize: vertical;
+        padding: 8px;
+        border: 1px solid #777;
+        border-radius: 5px;
+    }
+    .market-container.dark #aiPrompt {
+        background-color: #555;
+        color: #ffffff;
+    }
+    .market-container.light #aiPrompt {
+        background-color: #f0f0f0;
+        color: #000000;
+    }
+    #aiResponse {
+        padding: 10px;
+        border: 1px solid #777;
+        border-radius: 5px;
+        min-height: 100px;
+    }
+    .market-container.dark #aiResponse {
+        background-color: #3a3a3a;
+    }
+    .market-container.light #aiResponse {
+        background-color: #e0e0e0;
+    }
+    .sortable-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .minimized-box {
+        position: fixed;
+        right: 15px;
+        top: 2px;
+        width: 40px;
+        height: 40px;
+        background-color: #2a2d32;
+        border: 2px solid #ffd700;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        color: #ffffff;
+        font-family: 'Roboto', sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        cursor: pointer;
+        z-index: 2147483647;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        line-height: 40px;
+        text-align: center;
+    }
+    .minimized-box:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(255, 215, 0, 0.8);
+    }
+    .icon-btn {
+        font-size: 1.2em;
+        padding: 2px !important;
+        border: none !important;
+        border-radius: 8px;
+        background: none !important;
+        transition: transform 0.2s ease-in-out, opacity 0.2s ease-in-out;
+        margin-left: 4px !important;
+        opacity: 0.8;
+        fill: currentColor;
+        color: #bbb;
+    }
+
+    .market-container.light .icon-btn {
+        color: #555;
+    }
+
+    .icon-btn:hover {
+        transform: scale(1.1);
+        opacity: 1;
+        transform: translateY(-2px) scale(1.1);
+    }
+
+    @media (max-width: 768px) {
+        .market-container {
+            width: 90vw;
+            padding: 15px;
+            font-size: 14px;
+        }
+        .modal-content {
+            width: 90vw;
+        }
+        .header h2 {
+            font-size: 1.2em;
+        }
+        .dropdowns {
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-start;
+        }
+        .profit-info {
+            margin-left: 0;
+            margin-top: 5px;
+        }
+        .dropdown {
+            justify-content: center;
+        }
+        .sections {
+            flex-direction: column;
+            gap: 15px;
+        }
+        .section {
+            width: 100%;
+            padding: 10px;
+        }
+        .base-card {
+            padding: 6px 10px;
+        }
+        .resource-card {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .resource-card img {
+            width: 20px;
+            height: 20px;
+        }
+        .resource-card input,
+        .num-input input {
+            width: 60px;
+            font-size: 12px;
+            padding: 3px;
+        }
+        .resource-card span {
+            font-size: 14px;
+        }
+        .num-input .resource-icon {
+            width: 20px;
+            height: 20px;
+        }
+        .buttons {
+            flex-direction: column;
+            gap: 8px;
+        }
+        .black-btn,
+        .toggle-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border-width: 2px;
+        }
+        .notification {
+            font-size: 12px;
+            padding: 8px 15px;
+        }
+        .transactions-table th,
+        .transactions-table td {
+            font-size: 12px;
+            padding: 6px;
+        }
+        .ledger-table th,
+        .ledger-table td {
+            font-size: 12px;
+            padding: 6px;
+        }
+        .footer-buttons-row {
+            gap: 8px;
+            padding: 6px 12px;
+        }
+        #premiumPointsInput {
+            width: 60px;
+            font-size: 12px;
+            padding: 3px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .market-container {
+            width: 95vw;
+            padding: 10px;
+            font-size: 12px;
+        }
+        .modal-content {
+            width: 95vw;
+        }
+        .header h2 {
+            font-size: 1em;
+        }
+        .dropdowns {
+            gap: 8px;
+        }
+        .profit-info {
+            margin-top: 5px;
+        }
+        .section h3 {
+            font-size: 14px;
+        }
+        .base-card {
+            padding: 5px;
+        }
+        .resource-card img {
+            width: 18px;
+            height: 18px;
+        }
+        .resource-card input,
+        .num-input input {
+            width: 50px;
+            font-size: 10px;
+        }
+        .resource-card span {
+            font-size: 12px;
+        }
+        .num-input .resource-icon {
+            width: 18px;
+            height: 18px;
+        }
+        .buttons {
+            flex-direction: column;
+            gap: 8px;
+        }
+        .black-btn,
+        .toggle-btn {
+            padding: 5px 10px;
+            font-size: 10px;
+        }
+        .spinner {
+            width: 14px;
+            height: 14px;
+        }
+        .notification {
+            font-size: 10px;
+            padding: 6px 12px;
+        }
+        .transactions-table th,
+        .transactions-table td {
+            font-size: 10px;
+            padding: 4px;
+        }
+        .ledger-table th,
+        .ledger-table td {
+            font-size: 10px;
+            padding: 4px;
+        }
+        .footer-buttons-row {
+            gap: 6px;
+            padding: 5px 10px;
+            flex-wrap: wrap;
+        }
+        #premiumPointsInput {
+            width: 50px;
+            font-size: 10px;
+            padding: 3px;
+        }
+    }
+    .rate-input {
+        position: relative;
+        cursor: text;
+    }
+    .tooltip {
+        position: fixed;
+        z-index: 2147483647;
+        background: #2a2a2a;
+        color: #e0e0e0;
+        padding: 12px 18px;
+        border-radius: 8px;
+        border: 1px solid rgba(0, 255, 0, 0.3);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(8px);
+        font-family: 'Roboto', sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+        max-width: 280px;
+        min-width: 120px;
+        width: max-content;
+        opacity: 0;
+        transform: translateY(5px);
+        transition: all 0.5s ease;
+        pointer-events: none;
+        user-select: none;
+    }
+    .tooltip.active {
+        display: block;
+        opacity: 1;
+        transform: translateY(0);
+    }
+    .tooltip-arrow {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        background: #2a2a2a;
+        border: 1px solid rgba(0, 255, 0, 0.3);
+        transform: rotate(45deg);
+    }
+    .tooltip[data-popper-placement^='top'] .tooltip-arrow {
+        bottom: -6px;
+    }
+    .tooltip[data-popper-placement^='bottom'] .tooltip-arrow {
+        top: -6px;
+    }
+    .tooltip[data-popper-placement^='left'] .tooltip-arrow {
+        right: -6px;
+    }
+    .tooltip[data-popper-placement^='right'] .tooltip-arrow {
+        left: -6px;
+    }
+    .market-container.light .tooltip {
+        background: #e0e0e0;
+        color: #000000;
+        border-color: #999;
+    }
+    .market-container.light .tooltip-arrow {
+        background: #e0e0e0;
+        border-color: #999;
+    }
+    @keyframes tooltip-entrance {
+        0% { opacity: 0; transform: translateY(5px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    .tooltip {
+        animation: tooltip-entrance 0.5s ease forwards;
+    }
+    @media (max-width: 768px) {
+        .tooltip {
+            max-width: 200px;
+            font-size: 12px;
+            padding: 10px 14px;
+        }
+        .tooltip-arrow {
+            width: 10px;
+            height: 10px;
+        }
+    }
+`;
+    document.head.appendChild(style);
+  };
+})();
