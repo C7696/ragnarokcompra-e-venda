@@ -1,11 +1,14 @@
 // ==UserScript==
-// @name         Ragnarok
+// @name         Aquila Prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.1
+// @version      0.0.2
 // @description  [PT/RU/EN] Enhanced market interface with Firebase authorization, user inputs, save, multi-language, effects, Gemini AI - Workers & LZString. Persists session across reloads.
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.com.br/game.php?t=*&village=*&screen=market&mode=exchange
+// @icon         https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico
+// @downloadURL  https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/main/Aquila-Prime.user.js // <-- URL COMPLETA CORRETA DO SEU ARQUIVO .user.js
+// @updateURL    https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/main/Aquila-Prime.user.js //
 // @connect      firebaseio.com
 // @connect      cloudfunctions.net
 // @connect      googleapis.com
@@ -1132,144 +1135,208 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
 
 
 
-            <!-- Modal de Configurações com data-i18n-key -->
-      <div class="modal" id="settingsModal" style="display: none;">
-          <div class="modal-content settings-content">
-              <div class="settings-header">
-                  <h3 data-i18n-key="settings">${i18n.t("settings")}</h3>
-                  <button id="closeSettingsModal" class="close-btn" data-i18n-key-title="close" title="${i18n.t("close")}">×</button>
+                <!-- ====================================================== -->
+      <!-- Aquila Prime Settings Modal - Estrutura Refinada (v2 - Compatível) -->
+      <!-- ====================================================== -->
+      <div class="modal aquila-modal" id="settingsModal" style="display: none;">
+          <div class="modal-content settings-content aquila-panel"> <!-- Mantido settings-content -->
+              <!-- Cabeçalho Aquila -->
+              <div class="settings-header aquila-header"> <!-- Mantido settings-header -->
+                  <span class="aquila-icon">
+    <img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;">
+</span>
+                  <h3 data-i18n-key="settings">Configurações Aquila</h3>
+                  <button id="closeSettingsModal" class="close-btn aquila-close-btn" data-i18n-key-title="close" title="Fechar">×</button> <!-- Mantido id e close-btn -->
               </div>
 
-              <div class="settings-body">
-                  <div class="settings-section user-info-section">
-                      <h4 data-i18n-key="settingsSectionAccount">${i18n.t("settingsSectionAccount")}</h4>
-                      <div class="info-row">
-                          <span class="info-label" data-i18n-key="settingsLabelPlayer"><i class="fas fa-user"></i> ${i18n.t("settingsLabelPlayer")}</span>
-                          <span class="info-value" id="settingsPlayerName">Carregando...</span>
+              <!-- Corpo Scrollável Aquila -->
+              <div class="settings-body aquila-body"> <!-- Mantido settings-body -->
+
+                  <!-- Seção: Status Operacional (Info Conta) -->
+                  <div class="settings-section aquila-section user-info-section"> <!-- Mantido settings-section e user-info-section -->
+                      <h4 data-i18n-key="settingsSectionAccount"><i class="fas fa-user-astronaut"></i> Status Operacional</h4>
+                      <!-- Mantendo info-row para possível compatibilidade JS, mas usando labels/values Aquila -->
+                      <div class="info-row aquila-info-item">
+                          <span class="info-label aquila-label" data-i18n-key="settingsLabelPlayer"><i class="fas fa-user-circle"></i> Operador:</span>
+                          <span class="info-value aquila-value" id="settingsPlayerName">--</span> <!-- ID Mantido -->
                       </div>
-                      <div class="info-row">
-                          <span class="info-label" data-i18n-key="settingsLabelLicense"><i class="fas fa-calendar-alt"></i> ${i18n.t("settingsLabelLicense")}</span>
-                          <span class="info-value" id="settingsLicenseExpiry">Carregando...</span>
+                      <div class="info-row aquila-info-item">
+                          <span class="info-label aquila-label" data-i18n-key="settingsLabelLicense"><i class="fas fa-calendar-check"></i> Validade da Licença:</span>
+                          <span class="info-value aquila-value" id="settingsLicenseExpiry">--</span> <!-- ID Mantido -->
                       </div>
-                      <div class="info-row">
-                          <span class="info-label" data-i18n-key="settingsLabelVersion"><i class="fas fa-code-branch"></i> ${i18n.t("settingsLabelVersion")}</span>
-                          <span class="info-value" id="settingsScriptVersion">Carregando...</span>
+                       <div class="info-row aquila-info-item">
+                          <span class="info-label aquila-label" data-i18n-key="settingsLabelVersion"><i class="fas fa-code-branch"></i> Versão do Protocolo:</span>
+                          <span class="info-value aquila-value" id="settingsScriptVersion">--</span> <!-- ID Mantido -->
                       </div>
                   </div>
 
-                  <div class="settings-section language-settings">
-                      <h4 data-i18n-key="settingsSectionLanguage">${i18n.t("settingsSectionLanguage")}</h4>
-                      <div class="setting-item">
-                           <label for="languageSelect" data-i18n-key="settingsLabelInterfaceLang"><i class="fas fa-language"></i> ${i18n.t("settingsLabelInterfaceLang")}</label>
-                           <select id="languageSelect">
-                                <!-- As opções são geradas dinamicamente em updateUI -->
+                  <!-- Seção: Interface e Comportamento -->
+                   <div class="settings-section aquila-section language-settings"> <!-- Mantido settings-section e language-settings -->
+                      <h4 data-i18n-key="settingsSectionLanguage"><i class="fas fa-globe-americas"></i> Interface & Idioma</h4> <!-- Ícone e texto atualizados -->
+                      <div class="setting-item aquila-setting-item"> <!-- Mantido setting-item -->
+                           <label for="languageSelect" class="aquila-label" data-i18n-key="settingsLabelInterfaceLang"><i class="fas fa-language"></i> Idioma Tático:</label>
+                           <select id="languageSelect" class="aquila-select"> <!-- ID Mantido, classe aquila adicionada -->
+                               <!-- Opções geradas dinamicamente -->
                            </select>
+                           <span class="tooltip-icon" data-tooltip-key="tooltipInterfaceLang" title="Seleciona o idioma para a interface Aquila Prime."><i class="fas fa-info-circle"></i></span>
                       </div>
                   </div>
 
-                   <div class="settings-section general-settings">
-                       <h4 data-i18n-key="settingsSectionGeneral">${i18n.t("settingsSectionGeneral")}</h4>
-                       <div class="setting-item">
-                           <label for="checkIntervalInput" data-i18n-key="settingsLabelCheckInterval"><i class="fas fa-sync-alt"></i> ${i18n.t("settingsLabelCheckInterval")}</label>
-                           <input type="number" class="settings-input" id="checkIntervalInput" min="5" step="1" placeholder="30">
+                   <div class="settings-section aquila-section general-settings"> <!-- Mantido settings-section e general-settings -->
+                       <h4 data-i18n-key="settingsSectionGeneral"><i class="fas fa-sliders-h"></i> Parâmetros Gerais</h4> <!-- Ícone e texto atualizados -->
+                       <div class="setting-item aquila-setting-item"> <!-- Mantido setting-item -->
+                           <label for="checkIntervalInput" class="aquila-label" data-i18n-key="settingsLabelCheckInterval"><i class="fas fa-sync-alt"></i> Frequência de Varredura (s):</label>
+                           <input type="number" class="settings-input aquila-input number-input" id="checkIntervalInput" min="5" step="1" placeholder="30"> <!-- ID Mantido, settings-input mantido, aquila adicionado -->
+                           <span class="tooltip-icon" data-tooltip-key="tooltipCheckInterval" title="Intervalo em segundos para verificar o mercado e executar ações."><i class="fas fa-info-circle"></i></span>
                        </div>
-                        <div class="setting-item checkbox-item">
-                          <input type="checkbox" class="settings-checkbox" id="autoReloadOnErrorInput" checked>
-                          <label for="autoReloadOnErrorInput" data-i18n-key="settingsLabelAutoReload"><i class="fas fa-redo"></i> ${i18n.t("settingsLabelAutoReload")}</label>
+                       <div class="setting-item aquila-setting-item checkbox-item"> <!-- Mantido setting-item e checkbox-item -->
+                           <input type="checkbox" class="settings-checkbox aquila-checkbox" id="autoReloadOnErrorInput" checked> <!-- ID Mantido, settings-checkbox mantido, aquila adicionado -->
+                           <label for="autoReloadOnErrorInput" class="aquila-label checkbox-label" data-i18n-key="settingsLabelAutoReload"><i class="fas fa-redo"></i> Recuperação Automática:</label>
+                           <span class="tooltip-icon" data-tooltip-key="tooltipAutoReload" title="Recarrega a página automaticamente em caso de erro na confirmação de transação."><i class="fas fa-info-circle"></i></span>
+                       </div>
+                  </div>
+
+                   <!-- Seção: Protocolos de Venda -->
+                   <div class="settings-section aquila-section sell-settings"> <!-- Mantido settings-section e sell-settings -->
+                       <h4 data-i18n-key="settingsSectionSell"><i class="fas fa-chart-line"></i> Protocolos de Dispersão (Venda)</h4>
+                       <div class="setting-item aquila-setting-item"> <!-- Mantido setting-item -->
+                           <label for="sellCooldownInput" class="aquila-label" data-i18n-key="settingsLabelSellCooldown"><i class="fas fa-stopwatch"></i> Intervalo Pós-Dispersão (s):</label>
+                           <input type="number" class="settings-input aquila-input number-input" id="sellCooldownInput" min="1" step="1" placeholder="6"> <!-- ID Mantido, settings-input mantido, aquila adicionado -->
+                           <span class="tooltip-icon" data-tooltip-key="tooltipSellCooldown" title="Tempo mínimo de espera em segundos após uma venda bem-sucedida."><i class="fas fa-info-circle"></i></span>
+                       </div>
+                       <div class="setting-item aquila-setting-item"> <!-- Mantido setting-item -->
+                           <label for="merchantReserveInput" class="aquila-label" data-i18n-key="settingsLabelMerchantReserve"><i class="fas fa-truck-loading"></i> Reserva de Logística:</label>
+                           <input type="number" class="settings-input aquila-input number-input" id="merchantReserveInput" min="0" step="1" placeholder="0"> <!-- ID Mantido, settings-input mantido, aquila adicionado -->
+                           <span class="tooltip-icon" data-tooltip-key="tooltipMerchantReserve" title="Número de unidades de transporte (mercadores) a manter sempre disponíveis."><i class="fas fa-info-circle"></i></span>
                        </div>
                    </div>
 
-                   <div class="settings-section sell-settings">
-                       <h4 data-i18n-key="settingsSectionSell">${i18n.t("settingsSectionSell")}</h4>
-                        <div class="setting-item">
-                           <label for="sellCooldownInput" data-i18n-key="settingsLabelSellCooldown"><i class="fas fa-stopwatch"></i> ${i18n.t("settingsLabelSellCooldown")}</label>
-                           <input type="number" class="settings-input" id="sellCooldownInput" min="1" step="1" placeholder="6">
-                        </div>
-                        <div class="setting-item">
-                           <label for="merchantReserveInput" data-i18n-key="settingsLabelMerchantReserve"><i class="fas fa-truck"></i> ${i18n.t("settingsLabelMerchantReserve")}</label>
-                           <input type="number" class="settings-input" id="merchantReserveInput" min="0" step="1" placeholder="0">
-                        </div>
-                   </div>
+                   <!-- Adicionar mais seções aqui se necessário -->
+
+              </div> <!-- Fim Aquila Body -->
+
+              <!-- Rodapé Aquila -->
+              <div class="settings-footer aquila-footer"> <!-- Mantido settings-footer -->
+                   <!-- O botão Salvar foi movido para o rodapé principal -->
+                    <span class="aquila-motto">Ex Caelo Vis</span> <!-- Lema -->
               </div>
 
-              <div class="settings-footer">
-                   <!-- Botão Salvar (se necessário) pode ser adicionado aqui -->
-              </div>
-          </div>
-      </div>
+          </div> <!-- Fim Aquila Panel (modal-content) -->
+      </div> <!-- Fim Aquila Modal -->
+      <!-- ====================================================== -->
 `;
     document.body.appendChild(container);
+
+
+      // --- INÍCIO DO BLOCO ATUALIZADO (v2 - Sem redeclaração de container) ---
+
+    // 1. Cria a caixa minimizada SEM estilos inline. O CSS cuidará da aparência.
     const minimizedBox = createElement("div", {
       id: "minimizedMarketBox",
-      className: "minimized-box",
-      style: `
-      position: fixed;
-      right: 10px;
-      top: 10px;
-      width: 40px;
-      height: 40px;
-      background-color: #2a2d32;
-      border: 2px solid #ffd700;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-      color: #ffffff;
-      font-family: 'Roboto', sans-serif;
-      font-size: 20px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 8px;
-      cursor: pointer;
-      z-index: 2147483647;
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-  `
+      className: "minimized-box" // Classe para aplicar estilos Aquila via CSS
     });
     document.body.appendChild(minimizedBox);
-    const fetchPlayerInitial = () => {
-      if (typeof TribalWars === "undefined" || !TribalWars.getGameData) return "?";
-      const player = TribalWars.getGameData().player;
-      return player?.name?.charAt(0).toUpperCase() || "?";
-    };
-    const updateMinimizedBox = () => {
-      const initial = fetchPlayerInitial();
-      minimizedBox.textContent = initial;
-      const colors = ["#FF5733", "#33FF57", "#3357FF", "#F3FF33", "#FF33F3"];
-      const colorIndex = initial.charCodeAt(0) % colors.length;
-      minimizedBox.style.backgroundColor = "#b8860b";
-      minimizedBox.style.color = "#000000";
-    };
-    updateMinimizedBox();
-    setInterval(updateMinimizedBox, 6e4);
+
+    // 2. Define o ÍCONE como conteúdo ESTÁTICO (NÃO será mais atualizado)
+    //minimizedBox.innerHTML = '<i class="fas fa-shield-alt"></i>';
+
+    // 3. REMOVIDO: Funções fetchPlayerInitial e updateMinimizedBox, e suas chamadas (incluindo setInterval)
+
+    // 4. Listeners de Mouse: Mantidos para interatividade, mas SEM alterações de estilo inline.
     minimizedBox.addEventListener("mouseenter", () => {
-      minimizedBox.style.transform = "scale(1.1)";
-      minimizedBox.style.boxShadow = "0 6px 20px rgba(255, 215, 0, 0.8)";
+      // Nenhuma alteração de estilo inline aqui (CSS controla)
     });
     minimizedBox.addEventListener("mouseleave", () => {
-      minimizedBox.style.transform = "scale(1)";
-      minimizedBox.style.boxShadow = "0 4px 15px rgba(0, 0, 0, 0.5)";
+      // Nenhuma alteração de estilo inline aqui (CSS controla)
     });
+
+    // 5. Lógica para Gerenciar Estado Minimizado (Mantida e com verificação)
     const isMinimized = localStorage.getItem("isMinimized") === "true";
-    state.isMinimized = isMinimized;
-    minimizeButton.addEventListener("click", () => {
-      state.isMinimized = true;
-      container.style.display = "none";
-      minimizedBox.style.display = "block";
-      localStorage.setItem("isMinimized", "true");
-    });
+    // Verifica se 'state' existe antes de acessá-lo
+    if (typeof state !== 'undefined') {
+       state.isMinimized = isMinimized;
+    } else {
+       console.warn("Aquila Prime: Objeto 'state' não encontrado ao definir isMinimized.");
+    }
+
+    // Inicializa o estado visual inicial da caixa e do container
+    // !!! ASSUMINDO que 'container' foi declarado ANTES deste bloco e está acessível !!!
+    if (container) { // Verifica se a variável 'container' (declarada antes) existe
+        if (isMinimized) {
+            container.style.display = "none";
+            minimizedBox.style.display = "flex"; // Usa 'flex' para centralizar ícone via CSS
+        } else {
+            container.style.display = "block"; // Ou "flex" se for o caso do container principal
+            minimizedBox.style.display = "none";
+        }
+    } else {
+        console.error("Aquila Prime: Container principal (declarado anteriormente) não encontrado para definir estado inicial.");
+        // Tenta definir display da caixa mesmo sem container (se aplicável)
+         minimizedBox.style.display = isMinimized ? "flex" : "none";
+    }
+
+
+    // 6. Listeners para Botões de Minimizar/Restaurar (Mantidos e com verificação)
+    const minimizeButton = ui.getElement("minimizeButton"); // Assume que 'ui.getElement' funciona
+
+    // Usa a variável 'container' que deve ter sido declarada antes
+    if (minimizeButton && container) {
+        minimizeButton.addEventListener("click", () => {
+          if (typeof state !== 'undefined') state.isMinimized = true;
+          container.style.display = "none";
+          minimizedBox.style.display = "flex"; // Usa 'flex' para o CSS centralizar o ícone
+          localStorage.setItem("isMinimized", "true");
+        });
+    } else {
+        // Log mais específico
+        if (!minimizeButton) console.error("Aquila Prime: Botão de minimizar não encontrado para configurar evento de clique.");
+        if (!container) console.error("Aquila Prime: Container principal (declarado anteriormente) não encontrado para configurar evento de clique do botão minimizar.");
+    }
+
+    // Usa a variável 'container' que deve ter sido declarada antes
     minimizedBox.addEventListener("click", () => {
-      state.isMinimized = false;
-      container.style.display = "block";
+      if (typeof state !== 'undefined') state.isMinimized = false;
+      if (container) container.style.display = "block"; // Ou "flex" se apropriado
       minimizedBox.style.display = "none";
       localStorage.setItem("isMinimized", "false");
     });
-    addDragAndDropListeners(container);
-    initializeSortable();
-    const savedPos = JSON.parse(localStorage.getItem("marketContainerPosition"));
-    if (savedPos) {
-      container.style.left = savedPos.left;
-      container.style.top = savedPos.top;
+
+    // 7. Lógica de Drag/Drop e Posição Salva para o Container Principal (Mantida e com verificação)
+    // Usa a variável 'container' que deve ter sido declarada antes
+    if (container) {
+        // Chama as funções SE o container existir
+        if (typeof addDragAndDropListeners === 'function') {
+             addDragAndDropListeners(container);
+        } else {
+            console.warn("Aquila Prime: Função addDragAndDropListeners não encontrada.");
+        }
+        if (typeof initializeSortable === 'function') {
+             initializeSortable();
+        } else {
+             console.warn("Aquila Prime: Função initializeSortable não encontrada.");
+        }
+
+        // Restaura posição salva
+        try {
+            const savedPos = JSON.parse(localStorage.getItem("marketContainerPosition"));
+            if (savedPos && savedPos.left && savedPos.top) {
+              container.style.left = savedPos.left;
+              container.style.top = savedPos.top;
+            }
+        } catch (e) {
+            console.error("Aquila Prime: Erro ao parsear posição salva do container.", e);
+            localStorage.removeItem("marketContainerPosition");
+        }
     }
-  };
+    // NOTA: A chave '};' que fecha a função onde este código está inserido deve vir DEPOIS deste bloco.
+
+  // --- FIM DO BLOCO ATUALIZADO (v2 - Sem redeclaração de container) ---
+};
+
+
+
+
+
   const addDragAndDropListeners = (element) => {
     let isDragging = false;
     let offsetX, offsetY;
@@ -1329,6 +1396,14 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
       }
     });
   };
+
+
+
+
+
+
+
+
   const initializeSortable = () => {
     if (typeof Sortable === "undefined") {
       return;
@@ -3946,8 +4021,6 @@ function populateUserInfo() {
 
  const GAME_LOAD_TIMEOUT = 5e3;
 
-
-
   const init = async () => {
     try {
       initializeUI();
@@ -4037,582 +4110,729 @@ function populateUserInfo() {
     const link = createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" });
     document.head.appendChild(link);
     const style = createElement("style");
+    // SUBSTITUA TODO O CONTEÚDO ABAIXO DENTRO DAS CRASES
     style.textContent = `
-    /* --- Estilos Gerais do Script --- */
-    * { box-sizing: border-box; }
-    .market-container {
-        padding: 20px;
-        border: 2px solid;
-        border-radius: 15px;
-        width: 900px;
-        max-width: 100%;
-        margin: 0 auto;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-        transition: box-shadow 0.3s ease, opacity 0.3s ease;
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: auto;
-        font-family: 'Roboto', sans-serif;
-    }
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Poppins:wght@400;500;700&display=swap');
 
-    .draggable {
-        user-select: none;
-        touch-action: none;
-        transition: transform 0.1s;
-    }
+* { box-sizing: border-box; }
 
-    .draggable:active {
-        cursor: grabbing !important;
-    }
+/* ========================================================================== */
+/* === ESTILOS GLOBAIS E DO CONTAINER PRINCIPAL (SEU CÓDIGO ORIGINAL) === */
+/* ========================================================================== */
 
-    .market-container.draggable {
-        cursor: move;
-    }
+/* Estilos para elementos que ficam FORA do contêiner principal no DOM */
 
-    .market-container.dark {
-        background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
-        color: #ffffff;
-        border-color: #444;
-    }
-    .market-container.light {
-        background: linear-gradient(135deg, #f0f0f0, #ffffff);
-        color: #000000;
-        border-color: #ccc;
-    }
+/* === Modal Base (Estilos Gerais para TODAS as modals) === */
+.modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 2147483646; display: flex; justify-content: center; align-items: center;
+    backdrop-filter: blur(4px);
+    opacity: 0; visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s linear 0.3s;
+}
+.modal[style*="display: flex"] {
+     opacity: 1; visibility: visible;
+     transition: opacity 0.3s ease, visibility 0s linear 0s;
+}
+
+/* === Contêiner Genérico da Modal (modal-content) === */
+.modal-content {
+    background: linear-gradient(145deg, #1a1f2e, #111522);
+    color: #e0e0e0;
+    border: 1px solid #303848;
+    border-radius: 8px;
+    width: 650px;
+    max-width: 90vw;
+    max-height: 80vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
+    overflow: hidden;
+    transform: scale(0.95) translateY(-10px);
+    transition: transform 0.3s ease;
+}
+.modal[style*="display: flex"] .modal-content {
+     transform: scale(1) translateY(0);
+}
+
+/* === Scrollbar Genérica da Modal === */
+.modal-content::-webkit-scrollbar, .settings-body::-webkit-scrollbar { width: 8px; height: 8px; }
+.modal-content::-webkit-scrollbar-track, .settings-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px;}
+.modal-content::-webkit-scrollbar-thumb, .settings-body::-webkit-scrollbar-thumb { background-color: rgba(112, 122, 138, 0.5); border-radius: 4px; transition: background-color 0.3s ease; border: 1px solid rgba(0,0,0,0.3); }
+.modal-content::-webkit-scrollbar-thumb:hover, .settings-body::-webkit-scrollbar-thumb:hover { background-color: rgba(112, 122, 138, 0.8); }
+
+/* === Cabeçalho Genérico da Modal de Configurações === */
+.settings-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid #303848;
+    flex-shrink: 0;
+    background-color: rgba(30, 40, 65, 0.3);
+}
+.settings-header h3 {
+    margin: 0; font-size: 1.3em; font-weight: 700;
+    color: #D4AF37;
+    text-shadow: 1px 1px 3px rgba(0,0,0,0.6);
+}
+.settings-header .close-btn {
+    background: none; border: none;
+    color: #A0AAB8;
+    font-size: 2.0em; font-weight: bold;
+    line-height: 1; cursor: pointer; padding: 0 5px;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+.settings-header .close-btn:hover {
+    color: #ff9999;
+    transform: scale(1.1);
+}
+
+/* === Corpo Genérico da Modal de Configurações === */
+.settings-body {
+    padding: 20px; overflow-y: auto; flex-grow: 1;
+    background-color: rgba(20, 25, 40, 0.3);
+}
+
+/* === Seções e Itens Genéricos === */
+.settings-section { margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px dashed rgba(184, 134, 11, 0.3); }
+.settings-section:last-of-type { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.settings-section h4 { font-size: 1.1em; margin-top: 0; margin-bottom: 15px; color: #EAEAEA; border-left: 3px solid #B8860B; padding-left: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
+.user-info-section .info-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 0.95em; padding: 8px 5px; border-bottom: 1px solid #383838; transition: background-color 0.2s ease; }
+.user-info-section .info-row:last-child { border-bottom: none; margin-bottom: 0;}
+.user-info-section .info-row:hover { background-color: rgba(184, 134, 11, 0.08); }
+.user-info-section .info-label { color: #bbb; display: flex; align-items: center; gap: 8px; }
+.user-info-section .info-label i.fas { font-size: 1em; width: 20px; text-align: center; color: #B8860B; opacity: 0.8; }
+.user-info-section .info-value { font-weight: bold; color: #E0E0E0; text-align: right; }
+#settingsLicenseExpiry.expired { color: #ff4d4d !important; font-weight: bold; }
+#settingsLicenseExpiry.soon { color: #ffc107 !important; font-weight: bold; }
+.setting-item { display: flex; align-items: center; flex-wrap: wrap; margin-bottom: 15px; gap: 10px; padding: 5px 0; }
+.setting-item label { flex-basis: 220px; flex-shrink: 0; text-align: right; color: #ccc; font-size: 0.9em; display: flex; align-items: center; gap: 6px; padding-right: 5px; }
+ .setting-item label i.fas { width: 16px; text-align: center; color: #bbb; opacity: 0.7; }
+.settings-input, #settingsModal select { flex-grow: 1; min-width: 100px; padding: 7px 10px; border: 1px solid #3A4558; background-color: #0E1525; color: #e0e0e0; border-radius: 4px; font-size: 0.9em; box-sizing: border-box; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
+.settings-input:focus, #settingsModal select:focus { border-color: #B8860B; outline: none; box-shadow: 0 0 5px rgba(184, 134, 11, 0.5); background-color: #141D30; }
+.settings-input[type="number"] { width: 80px; flex-grow: 0; text-align: right; }
+.checkbox-item { justify-content: flex-start; }
+.checkbox-item label { flex-basis: auto; text-align: left; cursor: pointer; order: 2; }
+.settings-checkbox { margin: 0; cursor: pointer; order: 1; width: 16px; height: 16px; accent-color: #B8860B; }
+.tooltip-icon { color: #aaa; cursor: help; font-size: 1.1em; transition: color 0.2s ease; margin-left: 5px; }
+.tooltip-icon:hover { color: #D4AF37; }
+.settings-footer { padding: 15px 20px; border-top: 1px solid #303848; text-align: right; flex-shrink: 0; background-color: rgba(14, 21, 37, 0.7); }
+.settings-footer .save-settings-btn { padding: 8px 20px; background-color: #B8860B; color: #0A0F1A; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: background-color 0.2s ease, transform 0.2s ease; }
+.settings-footer .save-settings-btn:hover { background-color: #D4AF37; transform: scale(1.03) translateY(-1px); }
+
+/* Estilos específicos para modals de Transações e IA */
+#transactionsModal .modal-content h3, #aiModal .modal-content h3 { padding: 15px 20px; margin:0; text-align: center; border-bottom: 1px solid #303848; font-size: 1.3em; color: #D4AF37; }
+#transactionsModal .modal-content > div:not(#paginationControls):not(#transactionsChart), #aiModal .modal-content > div:not(:last-child) { padding: 20px; overflow-y: auto; flex-grow: 1; background-color: rgba(8, 15, 33, 0.5); }
+#transactionsModal .modal-content > div#paginationControls, #aiModal .modal-content > div:last-child { padding: 15px 20px; border-top: 1px solid #303848; text-align: center; flex-shrink: 0; background-color: rgba(14, 21, 37, 0.5); }
+#filterSection { margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;}
+#filterSection label { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em; color: #ccc; }
+#filterSection input { padding: 6px 8px; border: 1px solid #3A4558; border-radius: 4px; background: #0E1525; color: #e0e0e0; margin: 0; font-size: 0.9em; }
+#filterSection input:focus { border-color: #B8860B; outline: none; box-shadow: 0 0 5px rgba(184, 134, 11, 0.5); background-color: #141D30; }
+.transactions-table, .ledger-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 0.9em; }
+.transactions-table th, .transactions-table td, .ledger-table th, .ledger-table td { padding: 8px 10px; border: 1px solid #303848; text-align: right; }
+.transactions-table th, .ledger-table th { background-color: #141D30; color: #B8860B; cursor: pointer; text-align: center; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;}
+.transactions-table th:hover, .ledger-table th:hover { background-color: #202A3C; }
+.ledger-table .section-header { background-color: rgba(184, 134, 11, 0.2); font-weight: bold; color: #D4AF37; text-align: center; font-size: 1.1em; border: 1px solid rgba(184, 134, 11, 0.4); }
+ .ledger-table td:nth-child(3) { font-weight: bold; }
+ .ledger-table td:nth-child(3) .icon.header.premium { vertical-align: -3px;}
+#paginationControls { display: flex; justify-content: center; gap: 10px; margin-top: 10px;}
+#transactionsChart { max-width: 100%; margin-top: 15px; display: block; background: rgba(0,0,0,0.1); border-radius: 5px; padding: 10px;}
+#aiPrompt { resize: vertical; padding: 10px; border: 1px solid #3A4558; border-radius: 5px; width: 100%; margin-bottom: 10px; min-height: 70px; background: #0E1525; color: #e0e0e0; font-size: 0.95em; }
+#aiResponse { padding: 15px; border: 1px solid #303848; border-radius: 5px; min-height: 120px; margin-bottom: 15px; background: rgba(0,0,0,0.2); font-size: 0.95em; line-height: 1.6; overflow-y: auto; max-height: 300px;}
+#aiModal .black-btn { margin: 0 5px; }
+
+/* Ícone Premium */
+.icon.header.premium { height: 18px; display: inline-block; margin: auto 2px auto 0; overflow: hidden; background-repeat: no-repeat; vertical-align: -4px; background-image: url('https://dsus.innogamescdn.com/asset/95eda994/graphic/icons/header.png'); background-position: -433px 0px; width: 18px; filter: brightness(1.2) saturate(0.8) hue-rotate(-10deg); }
+
+/* Notificações */
+.notification { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(10px); padding: 12px 25px; border-radius: 8px; font-size: 14px; font-weight: bold; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6); transition: opacity 0.4s ease, transform 0.4s ease; z-index: 2147483647; backdrop-filter: blur(5px); opacity: 0; pointer-events: none; color: #FFFFFF; border: 1px solid transparent; }
+.notification.success { background-color: rgba(26, 93, 42, 0.85); border-color: rgba(42, 141, 58, 1); }
+.notification.error { background-color: rgba(123, 28, 28, 0.85); border-color: rgba(176, 44, 44, 1); }
+.notification.warning { background-color: rgba(184, 134, 11, 0.85); border-color: rgba(212, 175, 55, 1); color: #0A0F1A; }
+.notification.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+
+/* Tooltip */
+.tooltip { position: fixed; z-index: 2147483647; background: rgba(8, 15, 33, 0.95); color: #E0E0E0; padding: 10px 15px; border-radius: 6px; border: 1px solid rgba(184, 134, 11, 0.5); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); font-family: 'Roboto', sans-serif; font-size: 13px; line-height: 1.5; max-width: 280px; width: max-content; transition: opacity 0.3s ease; pointer-events: none; user-select: none; }
+
+/* Caixa Minimizada */
+/* ====================================================== */
+/* === Aquila Prime Minimized Box Styles - ATUALIZADO === */
+/* ====================================================== */
+
+/* ====================================================== */
+/* === Aquila Prime Minimized Box Styles - TAMANHO AJUSTADO === */
+/* ====================================================== */
+
+.minimized-box {
+    position: fixed;
+    right: 15px;
+    top: 4px;      /* << AJUSTADO: Diminuído para subir a caixa */
+    width: 34px;   /* << AJUSTADO: Diminuído */
+    height: 34px;  /* << AJUSTADO: Diminuído */
+    background-color: #0a0d14;
+    border: 1px solid #4d3f1a;
+    border-top: 2px solid #b8860b; /* Mantém destaque superior */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 0 6px rgba(184, 134, 11, 0.1); /* Sombra um pouco menor */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 5px; /* << AJUSTADO: Raio um pouco menor */
+    cursor: pointer;
+    z-index: 2147483647;
+    transition: all 0.25s ease; /* Transição um pouco mais rápida */
+
+    /* --- Aplica o Ícone como Background --- */
+    background-image: url('https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico');
+    background-size: 70% 70%; /* << AJUSTADO: % ligeiramente menor para o novo tamanho */
+    background-repeat: no-repeat;
+    background-position: center center;
+
+    /* Propriedades de texto removidas anteriormente devem continuar removidas */
+}
+
+.minimized-box:hover {
+    transform: scale(1.08) translateY(-1px); /* << AJUSTADO: Efeito de hover mais sutil */
+    border-color: #d4af37;
+    background-color: #111522;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.7), 0 0 10px rgba(212, 175, 55, 0.25); /* Sombra de hover ajustada */
+}
+
+/* ====================================================== */
+/* ====================================================== */
+/* Animação Spin */
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Media Queries Globais */
+@media (max-width: 768px) {
+    /* ... (seu media query original para 768px aqui) ... */
+    .modal-content { width: 95vw; max-height: 90vh; }
+    .notification { font-size: 12px; padding: 8px 15px; max-width: 90%; }
+    .transactions-table th, .transactions-table td, .ledger-table th, .ledger-table td { font-size: 11px; padding: 5px; }
+    .settings-header { padding: 10px 15px; }
+    .settings-header h3 { font-size: 1.15em;}
+    .settings-header .close-btn { font-size: 2em; }
+    .settings-body { padding: 15px; }
+    .setting-item { flex-direction: column; align-items: stretch; gap: 5px;}
+    .setting-item label { text-align: left; flex-basis: auto; margin-bottom: 3px; padding-right: 0;}
+    .settings-input, #settingsModal select { width: 100%; min-width: none; }
+    .settings-input[type="number"] { width: 100px; }
+    .user-info-section .info-row { flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 0;}
+    .user-info-section .info-value { text-align: left; }
+    #filterSection { gap: 10px; }
+    #filterSection label { flex-basis: 100%; }
+    #filterSection input { width: 100%; }
+}
+@media (max-width: 480px) {
+    /* ... (seu media query original para 480px aqui) ... */
+    .modal-content { width: 98vw; }
+    .notification { font-size: 11px; padding: 7px 13px; }
+    .transactions-table th, .transactions-table td, .ledger-table th, .ledger-table td { font-size: 10px; padding: 4px; }
+     .settings-header h3 { font-size: 1.1em;}
+     .settings-body { padding: 10px; }
+     .settings-section { margin-bottom: 20px; }
+     .settings-section h4 { font-size: 1em; }
+}
+
+
+/* ========================================================================== */
+/* === INVÓLUCRO PRINCIPAL PARA ESTILOS DO SCRIPT (SEU CÓDIGO ORIGINAL) === */
+/* ========================================================================== */
+.market-container {
+    padding: 20px; border-radius: 15px; width: 900px; max-width: 100%; margin: 0 auto;
+    transition: box-shadow 0.3s ease, opacity 0.3s ease; display: flex; flex-direction: column;
+    justify-content: space-between; height: auto; font-family: 'Roboto', sans-serif;
+    box-sizing: border-box; background: linear-gradient(145deg, #080F21, #0D1732);
+    color: #D0D5DB; border: 2px solid #B8860B; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
+
+    &.draggable { cursor: move; } /* Estilo para arrastar */
+
     .header {
-        text-align: center;
-        margin-bottom: 15px;
-        flex-shrink: 0;
-        position: relative;
+        text-align: center; margin-bottom: 15px; padding-bottom: 15px; flex-shrink: 0;
+        position: relative; border-bottom: 1px solid rgba(184, 134, 11, 0.3);
     }
     .header h2 {
-        text-transform: uppercase;
-        font-weight: 700;
-        margin: 15px 0;
-        font-size: 1.5em;
+        text-transform: uppercase; font-weight: 700; margin: 5px 0 10px 0; font-size: 1.6em;
+        color: #D4AF37; text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
     }
-    .market-container.dark .header h2 {
-        color: #ffffff;
-        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
-    }
-    .market-container.light .header h2 {
-        color: #000000;
-        text-shadow: 1px 1px 3px rgba(255, 255, 255, 0.7);
-    }
+
     .dropdowns {
-        display: flex;
-        justify-content: space-between;
-        width: 100%;
-        align-items: center;
+        display: flex; justify-content: space-between; width: 100%; align-items: center;
+        margin-top: 10px;
     }
     .header-buttons {
-        display: flex;
-        justify-content: space-between;
-        width: 100%;
-        position: absolute;
-        top: 0px;
-        left: 0;
-        padding: 0 15px;
-        box-sizing: border-box;
-        align-items: center;
+        display: flex; justify-content: space-between; width: 100%; position: absolute;
+        top: 8px; left: 0; padding: 0 15px; box-sizing: border-box; align-items: center;
     }
-    .btn-group-left {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-    }
-    .btn-group-right {
-        display: flex;
-        gap: 6px;
-        align-items: center;
-    }
-    .left-btn {
-        position: relative;
-        left: -8px;
-        margin-right: auto;
-    }
+    .btn-group-left { display: flex; gap: 6px; align-items: center; }
+    .btn-group-right { display: flex; gap: 6px; align-items: center; }
+
     .profit-info {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        order: 2;
+        margin-left: auto; display: flex; align-items: center; gap: 6px; order: 2;
+        color: #D4AF37; font-weight: bold; font-size: 1.05em;
+        background-color: rgba(5, 8, 15, 0.5);
+        padding: 4px 10px; border-radius: 4px; border: 1px solid #202A3C;
     }
-    .market-container.dark .profit-info {
-        color: #ffd700;
+    .profit-info .icon.header.premium { /* Note: A regra global para este ícone está fora do invólucro */
+         vertical-align: -3px;
     }
-    .market-container.light .profit-info {
-        color: #b8860b;
-    }
+
     .dropdown {
-        display: flex;
-        align-items: center;
+        display: flex; align-items: center;
+        background-color: rgba(14, 21, 37, 0.5);
+        padding: 4px 8px 4px 6px;
+        border-radius: 5px;
+        border: 1px solid #202A3C;
     }
     .village-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 24px;
-        height: 24px;
-        margin-right: 8px;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 20px; height: 20px; margin-right: 6px;
         transition: transform 0.3s ease;
     }
-    .village-icon:hover {
-        transform: scale(1.1);
+    .village-icon:hover { transform: scale(1.1); }
+    .village-icon svg path {
+        fill: #B8860B;
     }
-    .market-container.dark .village-icon svg path {
-        fill: #ffd700;
-    }
-    .market-container.light .village-icon svg path {
-        fill: #b8860b;
-    }
-    select { /* Estilo base para selects */
-        border: 1px solid;
-        border-radius: 5px;
-        padding: 5px;
-        font-size: 14px;
-        transition: border-color 0.3s ease;
+
+    .header .dropdown select { /* Select específico do header */
+        padding: 5px 8px; border: 1px solid #202A3C; border-radius: 4px; font-size: 14px;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        background-color: #0E1525; color: #D0D5DB; appearance: none; -webkit-appearance: none; -moz-appearance: none;
+        background-image: url('data:image/svg+xml;utf8,<svg fill="%23808A98" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+        background-repeat: no-repeat; background-position: right 8px center; background-size: 18px 18px;
+        padding-right: 30px; cursor: pointer;
+        height: 30px;
         box-sizing: border-box;
     }
-    .market-container.dark select {
-        background-color: #444;
-        color: #ffffff;
-        border-color: #666;
+    .header .dropdown select:focus {
+        border-color: #B8860B; outline: none; box-shadow: 0 0 5px rgba(184, 134, 11, 0.4);
+        background-color: #0A0F1A; color: #FFF;
     }
-    .market-container.light select {
-        background-color: #e0e0e0;
-        color: #000000;
-        border-color: #999;
+    .header .dropdown select:hover {
+         border-color: #3A4C6A;
     }
-    select:focus {
-        border-color: #ffd700; /* Cor alterada para combinar com o tema */
-        outline: none;
+
+    .icon-btn { /* Botões de ícone no header */
+        font-size: 1.2em; padding: 5px !important; border: none !important; border-radius: 5px;
+        background: rgba(14, 21, 37, 0.6);
+        transition: transform 0.2s ease-in-out, opacity 0.2s ease-in-out, background-color 0.2s ease, color 0.2s ease;
+        opacity: 0.8; color: #A0AAB8; cursor: pointer; line-height: 1; display: inline-flex;
+        align-items: center; justify-content: center;
     }
-     .market-container.light select:focus {
-         border-color: #b8860b;
-     }
+    .icon-btn:hover {
+        transform: scale(1.1) translateY(-1px); opacity: 1; color: #D4AF37;
+        background-color: rgba(30, 40, 65, 0.8);
+    }
 
     .sections { display: flex; justify-content: space-between; align-items: stretch; flex-grow: 1; margin: 15px 0; }
-    .section { width: 48%; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); transition: transform 0.3s ease; display: flex; flex-direction: column; justify-content: space-between; }
-    .market-container.dark .section { background-color: #2a2a2a; }
-    .market-container.light .section { background-color: #d0d0d0; }
-    .section:hover { transform: translateY(-5px); }
-    .section h3 { margin-bottom: 10px; font-size: 16px; font-weight: 700; text-align: left; }
-    .market-container.dark .section h3 { color: #ffffff; }
-    .market-container.light .section h3 { color: #000000; }
-    .status { padding: 2px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
-    .status.green { background-color: #1f7a1f; color: #ffffff; } /* Verde mais escuro */
-    .market-container.light .status.green { background-color: #28a745; color: #ffffff; }
-    .status.red { background-color: #a32424; color: #ffffff; } /* Vermelho mais escuro */
-     .market-container.light .status.red { background-color: #dc3545; color: #ffffff; }
-    .base-card { padding: 8px 15px; border-radius: 8px; margin-bottom: 8px; transition: box-shadow 0.3s ease; }
-    .resource-card { display: flex; align-items: center; justify-content: flex-start; gap: 5px; flex-wrap: nowrap; cursor: move; }
-    .market-container.dark .resource-card { background-color: #3a3a3a; }
-    .market-container.light .resource-card { background-color: #e0e0e0; }
-    .resource-card:hover { box-shadow: 0 0 10px rgba(255, 215, 0, 0.6); } /* Sombra dourada */
-    .resource-card img { width: 24px; height: 24px; margin-right: 3px; }
-    .resource-card input { width: 70px; padding: 4px; border: 1px solid; border-radius: 5px; font-size: 14px; transition: border-color 0.3s ease; cursor: text; }
-    .market-container.dark .resource-card input { background-color: #555; color: #ffffff; border-color: #777; }
-    .market-container.light .resource-card input { background-color: #f0f0f0; color: #000000; border-color: #999; }
-    .resource-card input:focus { border-color: #ffd700; outline: none; }
-    .market-container.light .resource-card input:focus { border-color: #b8860b; }
-    .resource-card span { margin: 0 5px; font-size: 16px; font-weight: bold; transition: color 0.3s ease; }
-    .market-container.dark .resource-card span { color: #ffd700; }
-    .market-container.light .resource-card span { color: #b8860b; }
-    .resource-card:hover span { color: #ffdf80; } /* Dourado mais claro no hover */
-    .market-container.light .resource-card:hover span { color: #d4a017; }
-    .num-input { display: flex; align-items: center; gap: 3px; margin-left: 5px; flex-shrink: 0; }
-    .num-input .resource-icon { width: 24px; height: 24px; margin-right: 3px; }
-    .num-input input { width: 70px; padding: 4px; border: 1px solid; border-radius: 5px; font-size: 14px; transition: border-color 0.3s ease; }
-    .market-container.dark .num-input input { background-color: #555; color: #ffffff; border-color: #777; }
-    .market-container.light .num-input input { background-color: #f0f0f0; color: #000000; border-color: #999; }
-    .num-input input:focus { border-color: #ffd700; outline: none; }
-    .market-container.light .num-input input:focus { border-color: #b8860b; }
-    .buttons { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 5px; /* Adiciona pequeno espaço */}
-    .black-btn { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.3s ease, transform 0.2s ease; font-weight: bold; }
-    .market-container.dark .black-btn { background-color: #333; color: #ffffff; } /* Cor um pouco mais escura */
-    .market-container.light .black-btn { background-color: #e0e0e0; color: #000000; border: 1px solid #bbb; }
-    .black-btn:hover { transform: scale(1.03) translateY(-1px); } /* Efeito sutil de levantar */
-    .market-container.dark .black-btn:hover { background-color: #444; }
-    .market-container.light .black-btn:hover { background-color: #d0d0d0; }
-    .toggle-btn { padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease; font-weight: bold; }
-    .toggle-btn.active { background-color: #1f7a1f; color: #ffffff; box-shadow: 0 0 5px rgba(40, 167, 69, 0.7); } /* Verde mais escuro e sombra */
-    .market-container.dark .toggle-btn.active { background-color: #28a745; box-shadow: 0 0 8px rgba(40, 167, 69, 0.9); }
-    .toggle-btn.inactive { background-color: #a32424; color: #ffffff; box-shadow: 0 0 5px rgba(220, 53, 69, 0.7); } /* Vermelho mais escuro e sombra */
-    .market-container.dark .toggle-btn.inactive { background-color: #dc3545; box-shadow: 0 0 8px rgba(220, 53, 69, 0.9); }
-    .toggle-btn:hover { transform: scale(1.03) translateY(-1px); }
-    .premium-input-wrapper { display: flex; align-items: center; gap: 5px; } /* Wrapper para o input de PP */
-    #premiumPointsInput { width: 70px; padding: 4px; border: 1px solid; border-radius: 5px; font-size: 14px; transition: border-color 0.3s ease; text-align: right; }
-    .market-container.dark #premiumPointsInput { background-color: #555; color: #ffffff; border-color: #777; }
-    .market-container.light #premiumPointsInput { background-color: #f0f0f0; color: #000000; border-color: #999; }
-    #premiumPointsInput:focus { border-color: #ffd700; outline: none; }
-    .market-container.light #premiumPointsInput:focus { border-color: #b8860b; }
+    .section { width: 48%; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); transition: transform 0.3s ease; display: flex; flex-direction: column; justify-content: space-between; background-color: rgba(8, 15, 33, 0.4); border: 1px solid rgba(184, 134, 11, 0.15); }
+    .section:hover { transform: translateY(-5px); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8); border-color: rgba(184, 134, 11, 0.4); }
+    .section h3 { margin-bottom: 10px; font-size: 16px; font-weight: 700; text-align: left; color: #EAEAEA; border-bottom: 1px solid rgba(184, 134, 11, 0.2); padding-bottom: 5px; }
+    .status { padding: 3px 8px; border-radius: 4px; font-weight: bold; display: inline-block; border: 1px solid transparent; }
+    .status.green { background-color: rgba(26, 93, 42, 0.8); color: #E8F5E9; border-color: #2A8D3A; text-shadow: 0 1px 1px rgba(0,0,0,0.5); }
+    .status.red { background-color: rgba(123, 28, 28, 0.8); color: #FFEBEE; border-color: #B02C2C; text-shadow: 0 1px 1px rgba(0,0,0,0.5); }
+    .base-card { padding: 8px 15px; border-radius: 8px; margin-bottom: 8px; transition: box-shadow 0.3s ease, background-color 0.2s ease; }
+    .resource-card { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; cursor: move; background-color: rgba(14, 21, 37, 0.7); border: 1px solid #202A3C; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; transition: box-shadow 0.3s ease, background-color 0.2s ease, border-color 0.2s ease; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4); }
+    .resource-card:hover { background-color: rgba(24, 31, 47, 0.8); border-color: #3A4C6A; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 12px rgba(184, 134, 11, 0.3); }
+    .resource-card img { width: 22px; height: 22px; opacity: 0.9; margin-right: 5px; vertical-align: middle; }
+    .resource-card input { width: 70px; padding: 5px 8px; border: 1px solid #182030; border-radius: 4px; font-size: 14px; transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease; cursor: text; background-color: #05080F; color: #D0D5DB; text-align: right; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5); line-height: 1.3; height: 30px; box-sizing: border-box; }
+     .resource-card input:focus { background-color: #0A0F1A; border-color: #B8860B; color: #FFF; outline: none; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5), 0 0 6px rgba(184, 134, 11, 0.5); }
+    .resource-card span { margin: 0 4px; font-size: 18px; font-weight: normal; transition: color 0.3s ease, text-shadow 0.3s ease; color: #808A98; text-shadow: 0 0 3px rgba(128, 138, 152, 0.5); line-height: 30px; vertical-align: middle; display: inline-block; height: 30px; }
+    .resource-card:hover span { color: #B8860B; text-shadow: 0 0 5px rgba(184, 134, 11, 0.7); }
+    .num-input { display: flex; align-items: center; gap: 5px; flex-shrink: 0; background-color: rgba(5, 8, 15, 0.6); padding: 3px 5px; border-radius: 4px; border: 1px solid #182030; height: 30px; box-sizing: border-box; }
+     .num-input .resource-icon { width: 18px; height: 18px; opacity: 0.8; vertical-align: middle; }
+     .num-input input { height: 100%; padding: 4px 6px; }
+    .buttons { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 8px; }
+    .black-btn { padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; font-weight: bold; border: 1px solid transparent; background-color: transparent; color: #B0B5BB; }
+    .black-btn:hover:not(.toggle-btn):not(.footer-buttons-row .black-btn) { transform: scale(1.03) translateY(-1px); border-color: #4A5568; color: #EAEAEA; background-color: rgba(30, 40, 65, 0.3); }
+    .toggle-btn { padding: 8px 15px; border: 1px solid transparent; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease, border-color 0.3s ease, color 0.3s ease; font-weight: bold; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4); }
+    .toggle-btn.active { background: linear-gradient(135deg, #B8860B, #D4AF37); color: #1A1A1A; border-color: #A0740A; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 230, 150, 0.3); }
+    .toggle-btn.inactive { background: linear-gradient(135deg, #141D30, #2A3548); color: #808A98; border-color: #3A4558; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3); }
+    .toggle-btn:hover { transform: scale(1.02) translateY(-1px); filter: brightness(1.15); box-shadow: 0 3px 7px rgba(0, 0, 0, 0.5); }
+     .toggle-btn.inactive:hover { color: #A0AAB8; border-color: #5A6578; filter: brightness(1.1); }
+    .section .buttons .black-btn:not(.toggle-btn) { padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 14px; transition: background-color 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease; font-weight: bold; background-color: #303848; border: 1px solid #5A6578; color: #A0AAB8; }
+    .section .buttons .black-btn:not(.toggle-btn):hover { background-color: #4A5568; border-color: #808A98; color: #D0D5DB; transform: scale(1.03) translateY(-1px); box-shadow: 0 0 6px rgba(128, 138, 152, 0.3); }
+    .premium-input-wrapper { display: flex; align-items: center; gap: 5px; }
+    #premiumPointsInput { width: 70px; padding: 5px; border-radius: 5px; font-size: 14px; transition: border-color 0.2s ease, box-shadow 0.2s ease; text-align: right; border: 1px solid #4A5568; background-color: #0E1525; color: #D4AF37; font-weight: bold; }
+    #premiumPointsInput:focus { border-color: #B8860B; outline: none; box-shadow: 0 0 5px rgba(184, 134, 11, 0.4); }
     .footer { display: flex; justify-content: center; margin-top: 15px; flex-shrink: 0; width: 100%; }
-    .footer-buttons-row { display: flex; align-items: center; gap: 10px; background-color: rgba(58, 58, 58, 0.5); padding: 8px 15px; border-radius: 8px; border: 1px solid #555; backdrop-filter: blur(2px); } /* Efeito vidro fosco */
-    .market-container.dark .footer-buttons-row { background-color: rgba(58, 58, 58, 0.7); border-color: #555; }
-    .market-container.light .footer-buttons-row { background-color: rgba(224, 224, 224, 0.7); border-color: #ccc; }
-    .footer-buttons-row .black-btn i { margin-right: 5px; } /* Espaço para ícones nos botões do footer */
-    .spinner { width: 20px; height: 20px; border: 3px solid rgba(255, 255, 255, 0.3); border-top: 3px solid #ffd700; border-radius: 50%; animation: spin 1s linear infinite; margin-left: 10px; }
-    .market-container.light .spinner { border-color: rgba(0,0,0, 0.2); border-top-color: #b8860b; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .notification { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(10px); padding: 12px 25px; border-radius: 8px; font-size: 14px; font-weight: bold; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6); transition: opacity 0.4s ease, transform 0.4s ease; z-index: 2147483647; backdrop-filter: blur(5px); opacity: 0; pointer-events: none; }
-    .notification.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-    .market-container.dark .notification { color: #ffffff; }
-    .market-container.light .notification { color: #000000; }
-    .notification.success { background-color: rgba(40, 167, 69, 0.85); border: 1px solid rgba(40, 167, 69, 1); }
-    .notification.error { background-color: rgba(220, 53, 69, 0.85); border: 1px solid rgba(220, 53, 69, 1); }
-    .notification.warning { background-color: rgba(255, 193, 7, 0.85); border: 1px solid rgba(255, 193, 7, 1); color: #000; } /* Warning com texto preto */
-
-    /* --- Estilos das Modals (Geral) --- */
-    .modal {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 2147483646; /* Um pouco abaixo do container principal se ele for arrastável */
-        display: flex; justify-content: center; align-items: center;
-        backdrop-filter: blur(3px);
-        /* Animação de entrada da modal */
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease, visibility 0s linear 0.3s;
-    }
-    .modal[style*="display: flex"] { /* Aplica animação quando a modal é mostrada */
-         opacity: 1;
-         visibility: visible;
-         transition: opacity 0.3s ease, visibility 0s linear 0s;
-    }
-
-    .modal-content { /* Estilo Base para conteúdo das modals */
-        border-radius: 10px;
-        width: 800px; max-width: 95vw; /* Limita largura */
-        max-height: 85vh; /* Limita altura */
-        display: flex; flex-direction: column; /* Permite header/body/footer */
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
-        overflow: hidden; /* Controla overflow no container */
-        border: 1px solid #444;
-        /* Animação de entrada do conteúdo */
-        transform: scale(0.95) translateY(-10px);
-        transition: transform 0.3s ease;
-    }
-    .modal[style*="display: flex"] .modal-content {
-         transform: scale(1) translateY(0);
-    }
-
-    /* Cores da Modal Base */
-    .market-container.dark .modal-content { background: #2a2d32; color: #e0e0e0; border-color: #555; }
-    .market-container.light .modal-content { background: #f0f0f0; color: #1a1a1a; border-color: #ccc; }
-
-    /* Scrollbar para conteúdo das modals */
-    .modal-content::-webkit-scrollbar, .settings-body::-webkit-scrollbar { width: 8px; height: 8px; }
-    .modal-content::-webkit-scrollbar-track, .settings-body::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px;}
-    .modal-content::-webkit-scrollbar-thumb, .settings-body::-webkit-scrollbar-thumb { background-color: rgba(255, 215, 0, 0.6); border-radius: 4px; transition: background-color 0.3s ease; border: 1px solid rgba(0,0,0,0.2); }
-    .modal-content::-webkit-scrollbar-thumb:hover, .settings-body::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 215, 0, 0.8); }
-    .market-container.light .modal-content::-webkit-scrollbar-thumb, .market-container.light .settings-body::-webkit-scrollbar-thumb { background-color: rgba(184, 134, 11, 0.6); border-color: rgba(255,255,255,0.2); }
-    .market-container.light .modal-content::-webkit-scrollbar-thumb:hover, .market-container.light .settings-body::-webkit-scrollbar-thumb:hover { background-color: rgba(184, 134, 11, 0.8); }
+    .footer-buttons-row { display: flex; align-items: center; gap: 10px; background-color: rgba(8, 15, 33, 0.3); padding: 8px 15px; border-radius: 8px; border: none; backdrop-filter: blur(3px); }
+    .footer-buttons-row .black-btn { background-color: rgba(8, 15, 33, 0.6); border: 1px solid #4A5568; color: #D0D5DB; backdrop-filter: blur(2px); }
+    .footer-buttons-row .black-btn:hover { background-color: rgba(184, 134, 11, 0.2); border-color: #B8860B; color: #F0E68C; transform: scale(1.03) translateY(-1px); box-shadow: 0 0 8px rgba(184, 134, 11, 0.3); }
+    .footer-buttons-row .black-btn i { margin-right: 5px; }
+    .spinner { width: 20px; height: 20px; border: 3px solid rgba(184, 134, 11, 0.2); border-top: 3px solid #D4AF37; border-radius: 50%; animation: spin 1s linear infinite; margin-left: 10px; }
+    .draggable { user-select: none; touch-action: none; transition: transform 0.1s; } /* Estilo Draggable (Mantido) */
+    .draggable:active { cursor: grabbing !important; }
+    .sortable-container { display: flex; flex-direction: column; gap: 10px; } /* Estilo Sortable (Mantido) */
 
 
-    /* --- Estilos Específicos para a Modal de CONFIGURAÇÕES --- */
-    /* Header da Modal de Configurações */
-    .settings-header {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 15px 20px;
-        border-bottom: 1px solid #444;
-        flex-shrink: 0; /* Não encolhe */
-    }
-    .market-container.light .settings-header { border-bottom-color: #ccc; }
-    .settings-header h3 { margin: 0; font-size: 1.3em; font-weight: 700; color: #ffd700; }
-    .market-container.light .settings-header h3 { color: #b8860b; }
-    .settings-header .close-btn { /* Botão Fechar específico do Header */
-        background: none; border: none; color: #aaa; font-size: 2.2em;
-        line-height: 1; cursor: pointer; padding: 0 5px; transition: color 0.2s ease;
-    }
-    .settings-header .close-btn:hover { color: #ff4d4d; }
-    .market-container.light .settings-header .close-btn { color: #555; }
-    .market-container.light .settings-header .close-btn:hover { color: #cc0000; }
-
-    /* Corpo da Modal de Configurações (Scrollável) */
-    .settings-body {
-        padding: 20px;
-        overflow-y: auto; /* Habilita scroll se necessário */
-        flex-grow: 1; /* Ocupa o espaço vertical disponível */
-    }
-
-    /* Seções dentro do Corpo */
-    .settings-section {
-        margin-bottom: 25px; padding-bottom: 15px;
-        border-bottom: 1px dashed rgba(255, 215, 0, 0.2); /* Divisor dourado transparente */
-    }
-    .settings-section:last-of-type { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
-    .market-container.light .settings-section { border-bottom-color: rgba(184, 134, 11, 0.2); }
-
-    .settings-section h4 { /* Título da Seção */
-        font-size: 1.1em; margin-top: 0; margin-bottom: 15px;
-        color: #eee; /* Cor mais clara para subtítulos */
-        border-left: 3px solid #ffd700; padding-left: 10px;
-        font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;
-    }
-    .market-container.light .settings-section h4 { color: #333; border-left-color: #b8860b; }
-
-    /* Seção de Informações do Usuário/Licença */
-    .user-info-section .info-row {
-        display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 12px; font-size: 0.95em; padding: 8px 5px;
-        border-bottom: 1px solid #383838; /* Linha sutil abaixo de cada info */
-        transition: background-color 0.2s ease;
-    }
-    .user-info-section .info-row:last-child { border-bottom: none; margin-bottom: 0;}
-    .market-container.light .user-info-section .info-row { border-bottom-color: #e0e0e0; }
-    .user-info-section .info-row:hover {
-         background-color: rgba(255, 215, 0, 0.05); /* Leve destaque dourado no hover */
-    }
-    .market-container.light .user-info-section .info-row:hover {
-         background-color: rgba(184, 134, 11, 0.05);
-    }
-
-    .user-info-section .info-label {
-        color: #bbb; display: flex; align-items: center; gap: 8px; /* Mais espaço para ícone */
-    }
-    .market-container.light .user-info-section .info-label { color: #555; }
-    .user-info-section .info-label i.fas { /* Estilo do Ícone FontAwesome */
-         font-size: 1em; width: 20px; text-align: center; color: #ffd700; opacity: 0.8;
-    }
-     .market-container.light .user-info-section .info-label i.fas { color: #b8860b; }
-
-    .user-info-section .info-value {
-        font-weight: bold; color: #ffffff; text-align: right;
-    }
-    .market-container.light .user-info-section .info-value { color: #000000; }
-     #settingsLicenseExpiry.expired { /* Classe para expiração */
-        color: #ff4d4d !important; font-weight: bold;
-    }
-     #settingsLicenseExpiry.soon { /* Classe para expirar em breve */
-        color: #ffc107 !important; font-weight: bold;
-    }
-
-    /* Itens de Configuração Genéricos (Label + Input/Select/Checkbox) */
-    .setting-item {
-        display: flex; align-items: center; flex-wrap: wrap; /* Permite quebrar linha */
-        margin-bottom: 15px; gap: 10px;
-        padding: 5px 0; /* Pequeno padding vertical */
-    }
-    .setting-item label {
-        flex-basis: 220px; /* Largura base para o label */
-        flex-shrink: 0; /* Não encolhe */
-        text-align: right; color: #ccc; font-size: 0.9em;
-        display: flex; align-items: center; gap: 6px; /* Ícone dentro do label */
-        padding-right: 5px; /* Espacinho antes do input */
-    }
-     .setting-item label i.fas { /* Ícones nos labels */
-         width: 16px; text-align: center; color: #bbb; opacity: 0.7;
-     }
-    .market-container.light .setting-item label { color: #333; }
-     .market-container.light .setting-item label i.fas { color: #666; }
-
-    /* Inputs e Selects dentro das configurações */
-    .settings-input,
-    #settingsModal select { /* Aplica a ambos */
-        flex-grow: 1; min-width: 100px; /* Largura mínima */
-        padding: 7px 10px; /* Mais padding */
-        border: 1px solid #555; background-color: #3a3a3a;
-        color: #e0e0e0; border-radius: 4px; font-size: 0.9em;
-        box-sizing: border-box; transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }
-    .market-container.light .settings-input,
-    .market-container.light #settingsModal select {
-        border-color: #aaa; background-color: #fff; color: #1a1a1a;
-    }
-    .settings-input:focus,
-    #settingsModal select:focus {
-        border-color: #ffd700; outline: none;
-        box-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
-    }
-    .market-container.light .settings-input:focus,
-    .market-container.light #settingsModal select:focus {
-         border-color: #b8860b; box-shadow: 0 0 5px rgba(184, 134, 11, 0.5);
-    }
-    /* Input Numérico pequeno */
-    .settings-input[type="number"] {
-        width: 80px; /* Tamanho menor para números */
-        flex-grow: 0; /* Não expande tanto */
-        text-align: right;
-    }
-
-    /* Checkboxes */
-    .checkbox-item { justify-content: flex-start; }
-    .checkbox-item label { flex-basis: auto; text-align: left; cursor: pointer; order: 2; }
-    .settings-checkbox { margin: 0; cursor: pointer; order: 1; width: 16px; height: 16px; accent-color: #ffd700; }
-    .market-container.light .settings-checkbox { accent-color: #b8860b; }
-
-    /* Ícone de Tooltip (?) */
-    .tooltip-icon {
-        color: #aaa; cursor: help; font-size: 1.1em;
-        transition: color 0.2s ease; margin-left: 5px; /* Espaço após input */
-    }
-    .tooltip-icon:hover { color: #ffd700; }
-    .market-container.light .tooltip-icon { color: #666; }
-    .market-container.light .tooltip-icon:hover { color: #b8860b; }
-
-    /* Rodapé da Modal de Configurações */
-    .settings-footer {
-        padding: 15px 20px;
-        border-top: 1px solid #444;
-        text-align: right; /* Alinha botões à direita */
-        flex-shrink: 0; /* Não encolhe */
-        background-color: rgba(30,30,30, 0.5); /* Fundo sutil para o rodapé */
-    }
-    .market-container.light .settings-footer { border-top-color: #ccc; background-color: rgba(230,230,230, 0.5); }
-    /* Botão Salvar dentro da modal (se decidir colocar) */
-    .settings-footer .save-settings-btn { /* Usa .black-btn como base */
-       /* Estilos específicos se necessário */
-       padding: 8px 20px; /* Um pouco maior */
-       background-color: #ffd700; /* Dourado para salvar */
-       color: #1a1a1a; /* Texto escuro */
-       font-weight: bold;
-       border: none;
-    }
-     .settings-footer .save-settings-btn:hover {
-         background-color: #e6c200;
-         transform: scale(1.03) translateY(-1px);
-     }
-    .market-container.light .settings-footer .save-settings-btn {
-        background-color: #b8860b;
-        color: #ffffff;
-    }
-     .market-container.light .settings-footer .save-settings-btn:hover {
-         background-color: #a0740a;
-     }
-
-
-    /* --- Estilos das Outras Modals (Transações, AI) --- */
-    /* Estilos para a modal de transações */
-    #transactionsModal .modal-content h3, #aiModal .modal-content h3 { /* Título das outras modals */
-         padding: 15px 20px; margin:0; text-align: center; border-bottom: 1px solid #444;
-         font-size: 1.3em; color: #ffd700;
-    }
-     .market-container.light #transactionsModal .modal-content h3, .market-container.light #aiModal .modal-content h3 {
-         border-bottom-color: #ccc; color: #b8860b;
-     }
-    #transactionsModal .modal-content > div:not(#paginationControls):not(#transactionsChart), /* Conteúdo da modal de transações */
-    #aiModal .modal-content > div:not(:last-child) { /* Conteúdo da modal AI */
-         padding: 20px;
-         overflow-y: auto;
-         flex-grow: 1;
-    }
-     #transactionsModal .modal-content > div#paginationControls, /* Paginação */
-     #aiModal .modal-content > div:last-child { /* Botões AI */
-        padding: 15px 20px; border-top: 1px solid #444; text-align: center; flex-shrink: 0;
-     }
-     .market-container.light #transactionsModal .modal-content > div#paginationControls,
-     .market-container.light #aiModal .modal-content > div:last-child {
-          border-top-color: #ccc;
-     }
-
-
-    #filterSection { margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;}
-    #filterSection label { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 0.9em; color: #ccc; }
-     .market-container.light #filterSection label { color: #333; }
-    #filterSection input { padding: 6px 8px; border: 1px solid #555; border-radius: 4px; background: #3a3a3a; color: #e0e0e0; margin: 0; font-size: 0.9em; }
-    .market-container.light #filterSection input { border-color: #aaa; background: #fff; color: #1a1a1a; }
-    #filterSection input:focus { border-color: #ffd700; outline: none; box-shadow: 0 0 5px rgba(255, 215, 0, 0.5); }
-    .market-container.light #filterSection input:focus { border-color: #b8860b; box-shadow: 0 0 5px rgba(184, 134, 11, 0.5); }
-
-    .transactions-table, .ledger-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 0.9em; }
-    .transactions-table th, .transactions-table td,
-    .ledger-table th, .ledger-table td { padding: 8px 10px; border: 1px solid #444; text-align: right; } /* Borda mais escura */
-    .market-container.light .transactions-table th, .market-container.light .transactions-table td,
-    .market-container.light .ledger-table th, .market-container.light .ledger-table td { border-color: #ddd; }
-    .transactions-table th, .ledger-table th { background-color: #333; color: #ffd700; cursor: pointer; text-align: center; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;} /* Cabeçalho escuro com texto dourado */
-     .market-container.light .transactions-table th, .market-container.light .ledger-table th { background-color: #eee; color: #b8860b; }
-    .transactions-table th:hover, .ledger-table th:hover { background-color: #444; }
-    .market-container.light .transactions-table th:hover, .market-container.light .ledger-table th:hover { background-color: #ddd; }
-    .ledger-table .section-header { background-color: #4d3804; font-weight: bold; color: #ffd700; text-align: center; font-size: 1.1em; } /* Dourado escuro */
-    .market-container.light .ledger-table .section-header { background-color: #f0e68c; color: #3b2a03; } /* Khaki claro */
-     .ledger-table td:nth-child(3) { font-weight: bold; } /* Destaca coluna de mudança */
-     .ledger-table td:nth-child(3) .icon.header.premium { vertical-align: -3px;} /* Ajuste fino ícone */
-
-    #paginationControls { display: flex; justify-content: center; gap: 10px; margin-top: 10px;}
-    #transactionsChart { max-width: 100%; margin-top: 15px; display: block; background: rgba(255,255,255,0.05); border-radius: 5px; padding: 10px;}
-    .market-container.light #transactionsChart { background: rgba(0,0,0,0.03); }
-
-    /* AI Modal */
-    #aiPrompt { resize: vertical; padding: 10px; border: 1px solid #555; border-radius: 5px; width: 100%; margin-bottom: 10px; min-height: 70px; background: #3a3a3a; color: #e0e0e0; font-size: 0.95em; }
-    .market-container.light #aiPrompt { border-color: #aaa; background: #fff; color: #1a1a1a; }
-    #aiResponse { padding: 15px; border: 1px solid #444; border-radius: 5px; min-height: 120px; margin-bottom: 15px; background: rgba(0,0,0,0.1); font-size: 0.95em; line-height: 1.6; overflow-y: auto; max-height: 300px;}
-    .market-container.light #aiResponse { border-color: #ccc; background: rgba(0,0,0,0.03); }
-    #aiModal .black-btn { margin: 0 5px; } /* Espaço entre botões AI */
-
-
-    /* --- Outros Estilos (Sortable, Minimizar, Tooltip, Ícones, Responsivo) --- */
-    .icon.header.premium { /* Estilo mantido */ height: 18px; display: inline-block; margin: auto 2px auto 0; overflow: hidden; background-repeat: no-repeat; vertical-align: -4px; background-image: url('https://dsus.innogamescdn.com/asset/95eda994/graphic/icons/header.png'); background-position: -433px 0px; width: 18px; }
-    .sortable-container { display: flex; flex-direction: column; gap: 8px; }
-    .minimized-box { /* Estilo mantido */ position: fixed; right: 15px; top: 2px; width: 40px; height: 40px; background-color: #2a2d32; border: 2px solid #ffd700; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5); color: #ffffff; font-family: 'Roboto', sans-serif; font-size: 20px; font-weight: 700; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; z-index: 2147483647; transition: transform 0.3s ease, box-shadow 0.3s ease; line-height: 40px; text-align: center; }
-    .minimized-box:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(255, 215, 0, 0.8); }
-    .icon-btn { /* Estilo mantido */ font-size: 1.2em; padding: 2px !important; border: none !important; border-radius: 8px; background: none !important; transition: transform 0.2s ease-in-out, opacity 0.2s ease-in-out; margin-left: 4px !important; opacity: 0.8; fill: currentColor; color: #bbb; }
-    .market-container.light .icon-btn { color: #555; }
-    .icon-btn:hover { transform: scale(1.1); opacity: 1; transform: translateY(-2px) scale(1.1); }
-    .tooltip { /* Estilo mantido */ position: fixed; z-index: 2147483647; background: rgba(42, 42, 50, 0.9); color: #e0e0e0; padding: 10px 15px; border-radius: 6px; border: 1px solid rgba(255, 215, 0, 0.3); box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4); backdrop-filter: blur(5px); font-family: 'Roboto', sans-serif; font-size: 13px; line-height: 1.5; max-width: 280px; width: max-content; transition: opacity 0.3s ease; pointer-events: none; user-select: none; }
-    .market-container.light .tooltip { background: rgba(240, 240, 240, 0.9); color: #000000; border-color: rgba(184, 134, 11, 0.4); }
-
-    /* --- Media Queries Responsivas (Mantidas e talvez ajustadas para nova modal) --- */
+    /* Media Queries para o container principal (Mantido) */
     @media (max-width: 768px) {
         .market-container { width: 95vw; padding: 15px; font-size: 14px; }
-        .modal-content { width: 95vw; max-height: 90vh; } /* Aumenta altura max */
-        .header h2 { font-size: 1.2em; margin: 10px 0; }
-        .dropdowns { flex-direction: column; gap: 8px; align-items: flex-start; }
-        .profit-info { margin-left: 0; margin-top: 5px; }
-        .sections { flex-direction: column; gap: 15px; }
-        .section { width: 100%; padding: 10px; }
-        .base-card { padding: 6px 10px; }
-        .resource-card { flex-wrap: wrap; gap: 6px; }
-        .resource-card img { width: 20px; height: 20px; }
-        .resource-card input, .num-input input { width: 55px; font-size: 12px; padding: 3px; }
-        .resource-card span { font-size: 14px; }
-        .num-input .resource-icon { width: 20px; height: 20px; }
-        .buttons { flex-direction: row; gap: 8px; flex-wrap: wrap; justify-content: center;} /* Botões lado a lado se couber */
-        .black-btn, .toggle-btn { padding: 7px 12px; font-size: 12px; }
-        .spinner { width: 16px; height: 16px; border-width: 2px; }
-        .notification { font-size: 12px; padding: 8px 15px; max-width: 90%; }
-        .transactions-table th, .transactions-table td, .ledger-table th, .ledger-table td { font-size: 11px; padding: 5px; }
-        .footer-buttons-row { gap: 8px; padding: 6px 12px; }
-        #premiumPointsInput { width: 60px; font-size: 12px; padding: 3px; }
-        /* Ajustes na modal de settings responsiva */
-        .settings-header { padding: 10px 15px; }
-        .settings-header h3 { font-size: 1.15em;}
-        .settings-header .close-btn { font-size: 2em; }
-        .settings-body { padding: 15px; }
-        .setting-item { flex-direction: column; align-items: stretch; gap: 5px;} /* Alinha esticado */
-        .setting-item label { text-align: left; flex-basis: auto; margin-bottom: 3px; padding-right: 0;}
-        .settings-input, #settingsModal select { width: 100%; min-width: none; }
-        .settings-input[type="number"] { width: 100px; /* Um pouco maior no mobile */ }
-        .user-info-section .info-row { flex-direction: column; align-items: flex-start; gap: 3px; padding: 8px 0;}
-        .user-info-section .info-value { text-align: left; }
-        #filterSection { gap: 10px; }
-        #filterSection label { flex-basis: 100%; } /* Label ocupa linha */
-        #filterSection input { width: 100%; }
+        .market-container .header h2 { font-size: 1.2em; margin: 10px 0; }
+        .market-container .dropdowns { flex-direction: column; gap: 8px; align-items: flex-start; }
+        .market-container .profit-info { margin-left: 0; margin-top: 5px; }
+        .market-container .sections { flex-direction: column; gap: 15px; }
+        .market-container .section { width: 100%; padding: 10px; }
+        .market-container .base-card { padding: 6px 10px; }
+        .market-container .resource-card { flex-wrap: wrap; gap: 6px; }
+        .market-container .resource-card img { width: 20px; height: 20px; }
+        .market-container .resource-card input, .market-container .num-input input { width: 55px; font-size: 12px; padding: 3px; height: 28px; line-height: 1.2; }
+        .market-container .resource-card span { font-size: 14px; height: 28px; line-height: 28px; }
+        .market-container .num-input .resource-icon { width: 16px; height: 16px; }
+        .market-container .num-input { height: 28px; padding: 2px 4px; gap: 3px; }
+        .market-container .buttons { flex-direction: row; gap: 8px; flex-wrap: wrap; justify-content: center;}
+        .market-container .black-btn, .market-container .toggle-btn { padding: 7px 12px; font-size: 12px; }
+        .market-container .spinner { width: 16px; height: 16px; border-width: 2px; }
+        .market-container .footer-buttons-row { gap: 8px; padding: 6px 12px; }
+        .market-container #premiumPointsInput { width: 60px; font-size: 12px; padding: 3px; height: 28px; }
     }
     @media (max-width: 480px) {
         .market-container { width: 98vw; padding: 10px; font-size: 12px; }
-        .modal-content { width: 98vw; }
-        .header h2 { font-size: 1.1em; }
-        .section h3 { font-size: 14px; }
-        .resource-card input, .num-input input { width: 50px; font-size: 11px; }
-        .resource-card span { font-size: 13px; }
-        .buttons { gap: 6px; }
-        .black-btn, .toggle-btn { padding: 6px 10px; font-size: 11px; }
-        .spinner { width: 14px; height: 14px; }
-        .notification { font-size: 11px; padding: 7px 13px; }
-        .transactions-table th, .transactions-table td, .ledger-table th, .ledger-table td { font-size: 10px; padding: 4px; }
-        .footer-buttons-row { gap: 6px; padding: 5px 10px; flex-wrap: wrap; }
-        #premiumPointsInput { width: 50px; font-size: 11px; padding: 3px; }
-         /* Ajustes na modal de settings responsiva */
-         .settings-header h3 { font-size: 1.1em;}
-         .settings-body { padding: 10px; }
-         .settings-section { margin-bottom: 20px; }
-         .settings-section h4 { font-size: 1em; }
+         .market-container .header h2 { font-size: 1.1em; }
+         .market-container .section h3 { font-size: 14px; }
+         .market-container .resource-card input, .market-container .num-input input { width: 50px; font-size: 11px; height: 26px; }
+         .market-container .resource-card span { font-size: 13px; height: 26px; line-height: 26px; }
+         .market-container .buttons { gap: 6px; }
+         .market-container .black-btn, .market-container .toggle-btn { padding: 6px 10px; font-size: 11px; }
+         .market-container .spinner { width: 14px; height: 14px; }
+         .market-container .footer-buttons-row { gap: 6px; padding: 5px 10px; flex-wrap: wrap; }
+         .market-container #premiumPointsInput { width: 50px; font-size: 11px; padding: 3px; height: 26px; }
     }
 
-`; // Fim da string do style.textContent
+
+/* ====================================================== */
+/* === Aquila Prime Settings Modal Styles (NOVO BLOCO) === */
+/* ====================================================== */
+
+/* Fundo e Estrutura Geral da Modal Aquila (#settingsModal) */
+.modal#settingsModal .modal-content.aquila-panel { /* Mais específico */
+    background: linear-gradient(155deg, #060913 5%, #0d111f 50%, #04070e 95%);
+    border: 1px solid #4d3f1a;
+    border-top: 2px solid #b8860b;
+    color: #c0c5ce;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(184, 134, 11, 0.1);
+    border-radius: 6px;
+    width: 700px;
+}
+
+/* Cabeçalho Aquila */
+.modal#settingsModal .aquila-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    background: linear-gradient(to bottom, rgba(14, 21, 37, 0.8), rgba(8, 12, 22, 0.95));
+    border-bottom: 1px solid #3a301b;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+}
+
+.modal#settingsModal .aquila-header .aquila-icon {
+    font-size: 1.6em;
+    color: #b8860b;
+    text-shadow: 0 0 8px rgba(184, 134, 11, 0.5);
+    margin-right: 10px;
+}
+
+.modal#settingsModal .aquila-header h3 {
+    flex-grow: 1;
+    text-align: center;
+    margin: 0;
+    font-family: 'Cinzel', serif;
+    font-size: 1.4em;
+    font-weight: 700;
+    color: #d4af37;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.7), 0 0 5px rgba(212, 175, 55, 0.3);
+}
+
+.modal#settingsModal .aquila-header .aquila-close-btn {
+    background: none;
+    border: none;
+    color: #707a88;
+    font-size: 2.4em;
+    font-weight: 300;
+    line-height: 1;
+    padding: 0 0 5px 10px;
+    cursor: pointer;
+    transition: color 0.3s ease, transform 0.3s ease;
+}
+.modal#settingsModal .aquila-header .aquila-close-btn:hover {
+    color: #e88080;
+    transform: rotate(90deg);
+}
+
+/* Corpo da Modal Aquila */
+.modal#settingsModal .aquila-body {
+    padding: 20px 25px;
+    background-color: rgba(6, 9, 19, 0.7);
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+/* Estilo das Seções Aquila */
+.modal#settingsModal .aquila-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(184, 134, 11, 0.2);
+}
+.modal#settingsModal .aquila-section:last-of-type {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 5px;
+}
+
+.modal#settingsModal .aquila-section h4 {
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.05em;
+    font-weight: 500;
+    margin-top: 0;
+    margin-bottom: 18px; /* << AJUSTE AQUI (era 18px) */
+    color: #b8860b;
+    border-left: 4px solid #d4af37;
+    padding-left: 15px; /* << AJUSTE AQUI (era 12px) */
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.modal#settingsModal .aquila-section h4 i.fas {
+    font-size: 1.1em;
+    opacity: 0.9;
+}
+
+/* Layout e Estilo dos Itens de Informação (Seção Status Operacional) */
+.modal#settingsModal .aquila-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline; /* << AJUSTE AQUI (para alinhar melhor textos de tamanhos diferentes) */
+    padding: 12px 5px; /* << AJUSTE AQUI (aumentar padding vertical) */
+    margin-bottom: 8px;
+    border-bottom: 1px solid rgba(58, 48, 27, 0.5);
+    transition: background-color 0.3s ease;
+    font-size: 1.05em; /* << AJUSTE AQUI (aumentar tamanho da fonte base da linha) */
+}
+.modal#settingsModal .aquila-info-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+.modal#settingsModal .aquila-info-item:hover {
+    background-color: rgba(184, 134, 11, 0.05);
+}
+
+.modal#settingsModal .aquila-info-item .aquila-label { /* Especificidade para label DENTRO do info item */
+    color: #9aa4b1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400; /* << AJUSTE AQUI (Garante peso normal) */
+    font-size: 0.95em; /* << AJUSTE AQUI (Opcional: Deixar o label um pouco menor que o valor) */
+    padding-top: 1px; /* Leve ajuste vertical */
+}
+.modal#settingsModal .aquila-label i.fas {
+    color: #707a88;
+    width: 18px;
+    text-align: center;
+    font-size: 1.1em;
+    opacity: 0.8;
+}
+
+.modal#settingsModal .aquila-info-item .aquila-value { /* Especificidade para value DENTRO do info item */
+    font-weight: 700; /* << AJUSTE AQUI (Bold para destaque) */
+    color: #D4AF37; /* << AJUSTE AQUI (Cor bronze/dourado para destaque) */
+    text-align: right;
+    text-shadow: 0 0 4px rgba(212, 175, 55, 0.2); /* << AJUSTE AQUI (Sombra sutil) */
+}
+
+/* Ajuste para licença expirada */
+.modal#settingsModal #settingsLicenseExpiry.expired {
+    color: #ff7b7b !important; /* << AJUSTE AQUI (Vermelho mais vivo) */
+    font-weight: 700 !important; /* << AJUSTE AQUI (Garante Bold) */
+    text-shadow: 0 0 5px rgba(255, 123, 123, 0.6); /* << AJUSTE AQUI (Sombra mais forte) */
+}
+
+/* Layout e Estilo dos Itens de Configuração (Geral, Venda, etc.) */
+.modal#settingsModal .aquila-setting-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 15px;
+    margin-bottom: 15px;
+    padding: 8px 0;
+    position: relative;
+}
+.modal#settingsModal .aquila-setting-item .aquila-label { /* Label dentro de um item de configuração */
+    flex-basis: 240px; /* << AJUSTE AQUI (Mais espaço) */
+    flex-shrink: 0;
+    text-align: right;
+    padding-right: 10px;
+    font-size: 0.9em; /* Mantém menor que as info-items */
+    color: #9aa4b1; /* Cor padrão para estes labels */
+}
+.modal#settingsModal .aquila-setting-item .aquila-label.checkbox-label {
+    flex-basis: auto;
+    text-align: left;
+    padding-right: 0;
+    cursor: pointer;
+    order: 2;
+}
+
+/* Inputs e Select Aquila */
+.modal#settingsModal .aquila-input,
+.modal#settingsModal .aquila-select {
+    flex-grow: 1;
+    min-width: 120px;
+    padding: 8px 12px;
+    border: 1px solid #252a3a;
+    background-color: #0a0d14;
+    color: #d0d5db;
+    border-radius: 4px;
+    font-size: 0.9em;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+}
+.modal#settingsModal .aquila-input:focus,
+.modal#settingsModal .aquila-select:focus {
+    border-color: #b8860b;
+    background-color: #101420;
+    outline: none;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6), 0 0 8px rgba(184, 134, 11, 0.4);
+    color: #ffffff;
+}
+
+.modal#settingsModal .aquila-input.number-input {
+    width: 80px;
+    flex-grow: 0;
+    text-align: center;
+}
+
+.modal#settingsModal .aquila-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23707a88" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 18px 18px;
+    padding-right: 35px;
+    cursor: pointer;
+}
+
+/* Checkbox Aquila */
+.modal#settingsModal .checkbox-item {
+    justify-content: flex-start;
+    align-items: center;
+}
+.modal#settingsModal .aquila-checkbox {
+    order: 1;
+    margin: 0 8px 0 0;
+    width: 15px;
+    height: 15px;
+    accent-color: #b8860b;
+    background-color: #0a0d14;
+    border: 1px solid #252a3a;
+    border-radius: 3px;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-block;
+    position: relative;
+    vertical-align: middle;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.modal#settingsModal .aquila-checkbox:checked {
+    background-color: #b8860b;
+    border-color: #8b6f3a;
+}
+.modal#settingsModal .aquila-checkbox:checked::before {
+    content: '';
+    display: block;
+    width: 4px;
+    height: 8px;
+    border: solid #0a0d14;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    position: absolute;
+    left: 4px;
+    top: 1px;
+}
+.modal#settingsModal .aquila-checkbox:focus {
+    outline: none;
+    box-shadow: 0 0 5px rgba(184, 134, 11, 0.5);
+}
+
+/* Ícone de Tooltip Aquila */
+.modal#settingsModal .tooltip-icon {
+    color: #788292; /* << AJUSTE AQUI (um pouco mais claro) */
+    cursor: help;
+    font-size: 1.15em; /* << AJUSTE AQUI (um pouco maior) */
+    transition: color 0.3s ease, transform 0.2s ease;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+.modal#settingsModal .tooltip-icon:hover {
+    color: #d4af37;
+    transform: scale(1.1);
+}
+
+/* Rodapé Aquila */
+.modal#settingsModal .aquila-footer {
+    padding: 12px 20px;
+    border-top: 1px solid #3a301b;
+    text-align: right;
+    flex-shrink: 0;
+    background: linear-gradient(to top, rgba(14, 21, 37, 0.8), rgba(8, 12, 22, 0.95));
+}
+
+.modal#settingsModal .aquila-motto {
+    font-family: 'Times New Roman', Times, serif;
+    font-style: italic;
+    font-size: 0.95em;
+    color: #707a88;
+    opacity: 0.8;
+}
+
+/* Fallbacks (Mantidos por segurança) */
+.modal#settingsModal .settings-input:not(.aquila-input),
+.modal#settingsModal select:not(.aquila-select) {
+    padding: 8px 12px !important;
+    border: 1px solid #252a3a !important;
+    background-color: #0a0d14 !important;
+    color: #d0d5db !important;
+    border-radius: 4px !important;
+    font-size: 0.9em !important;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease !important;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6) !important;
+}
+.modal#settingsModal .settings-input:not(.aquila-input):focus,
+.modal#settingsModal select:not(.aquila-select):focus {
+    border-color: #b8860b !important;
+    background-color: #101420 !important;
+    outline: none !important;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6), 0 0 8px rgba(184, 134, 11, 0.4) !important;
+    color: #ffffff !important;
+}
+.modal#settingsModal select:not(.aquila-select) {
+     appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23707a88" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/><path d="M0 0h24v24H0z" fill="none"/></svg>') !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 18px 18px !important;
+    padding-right: 35px !important;
+    cursor: pointer !important;
+}
+
+
+/* ====================================================== */
+
+    `; // Fim da crase do style.textContent
     document.head.appendChild(style);
-};
+  }; // Fim da função applyStyles
+
+
+
+
+
 })();
