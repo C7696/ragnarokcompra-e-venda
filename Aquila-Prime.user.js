@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila Prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.1
+// @version      0.0.2
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
