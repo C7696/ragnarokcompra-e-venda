@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Aquila Prime
+// @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.2
+// @version      0.0.1
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -55,36 +55,1401 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-!async function(){"use strict";let e={apiKey:"AIzaSyAnDVwYDWa_JZj6uApXv6o9_d66JUZwF9o",authDomain:"compra-e-venda-ragnarok.firebaseapp.com",projectId:"compra-e-venda-ragnarok",storageBucket:"compra-e-venda-ragnarok.appspot.com",messagingSenderId:"896525993752",appId:"1:896525993752:web:1f99c76f66e16669f3c06d",measurementId:"G-1B10ECJN01"},t="RAGNAROK_AUTH_SESSION",a=`${t}_session_`,o=`${t}_expiration_`,r=!1,n=null,i=null,s=null,u=null,l=!1;function $(){try{return firebase.apps.length||firebase.initializeApp(e),firebase.firestore()}catch(a){return alert(`${t}: Falha cr\xedtica ao inicializar o sistema de verifica\xe7\xE3o. O script n\xe3o pode continuar.`),null}}function c(){return Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15)}async function d(){return new Promise(e=>{GM_xmlhttpRequest({method:"GET",url:"http://ip-api.com/json/?fields=status,message,query,city,country",timeout:5e3,onload:function(t){if(t.status>=200&&t.status<300)try{let a=JSON.parse(t.responseText);"success"===a.status?e({ip:a.query,city:a.city,country:a.country}):e({ip:"Erro API",city:"Erro API",country:"Erro API"})}catch(o){e({ip:"Erro Parse",city:"Erro Parse",country:"Erro Parse"})}else e({ip:`Erro HTTP ${t.status}`,city:`Erro HTTP ${t.status}`,country:`Erro HTTP ${t.status}`})},onerror:function(t){e({ip:"Erro Rede",city:"Erro Rede",country:"Erro Rede"})},ontimeout:function(){e({ip:"Timeout",city:"Timeout",country:"Timeout"})}})})}async function p(e){if(!e)return{authorized:!1,reason:"Nickname inv\xe1lido fornecido."};let t=$();if(!t)return{authorized:!1,reason:"Firestore n\xe3o inicializado."};let a=c(),o=t.collection("jogadores_permitidos").doc(e),r=o.collection("sessoes_ativas"),n={authorized:!1,reason:"Falha desconhecida na verifica\xe7\xe3o.",sessionId:null},i=firebase.firestore.Timestamp;try{let s=null;await t.runTransaction(async e=>{let t=await e.get(o);if(!t.exists)throw Error("Nickname n\xe3o encontrado na lista de permiss\xf5es.");let n=t.data();if(!n||!n.data_expiracao||"function"!=typeof n.data_expiracao.toDate)throw Error("Formato da data de expira\xe7\xe3o inv\xe1lido no banco de dados.");s=n.data_expiracao.toDate();let u=new Date;if(u>=s)throw Error(`Licen\xe7a expirada em ${s.toLocaleString()}.`);let l=r.doc(a),$=i.now();e.set(l,{timestamp_criacao:$,timestamp_heartbeat:$})});try{let u=await d(),l=r.doc(a);await l.update({ip_registrado:u.ip||"N/A",cidade_registrada:u.city||"N/A",pais_registrado:u.country||"N/A",info_navegador:navigator.userAgent||"N/A"})}catch(p){}n={authorized:!0,reason:"Licen\xe7a OK, Sess\xe3o Registrada.",sessionId:a,expirationDate:s}}catch(m){n={authorized:!1,reason:`Falha na verifica\xe7\xE3o: ${m.message}`||"Erro desconhecido na verifica\xe7\xe3o.",sessionId:null}}return n}async function m(e,t){if(!e||!t)return!1;let a=$();if(!a)return!1;let o=a.collection("jogadores_permitidos").doc(e).collection("sessoes_ativas").doc(t);try{return await o.update({timestamp_heartbeat:firebase.firestore.FieldValue.serverTimestamp()}),!0}catch(r){if("not-found"===r.code)return!1;throw r}}async function g(e,t){if(l||!e||!t)return;l=!0;try{GM_deleteValue(a+e)}catch(o){}let r=$();if(!r)return;let n=r.collection("jogadores_permitidos").doc(e).collection("sessoes_ativas").doc(t);try{n.delete()}catch(i){}}function f(e){if(!r&&null===n&&null===i)return;let t=r;if(r=!1,n){try{n()}catch(o){}n=null}if(i&&(clearInterval(i),i=null),t&&u){let l=a+u;try{GM_deleteValue(l)}catch(c){}}if(u&&s){let d=$();d&&d.collection("jogadores_permitidos").doc(u).collection("sessoes_ativas").doc(s).delete().catch(e=>{})}s=null,alert(`RAGNAROK: O script foi desativado.
-Motivo: ${e}
 
-Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySelector(".market-container");if(p){p.querySelectorAll("button, input, select, textarea").forEach(e=>e.disabled=!0);let m=p.querySelector(".ragnarok-disabled-overlay");m||((m=document.createElement("div")).className="ragnarok-disabled-overlay",m.style.position="absolute",m.style.top="0",m.style.left="0",m.style.width="100%",m.style.height="100%",m.style.background="rgba(100, 100, 100, 0.7)",m.style.color="white",m.style.zIndex="1000",m.style.display="flex",m.style.flexDirection="column",m.style.justifyContent="center",m.style.alignItems="center",m.style.fontSize="18px",m.style.textAlign="center",m.style.backdropFilter="blur(2px)",m.style.borderRadius="15px",m.innerHTML=`Script RAGNAROK Desativado<br><small style="font-size: 12px;">(${e})</small>`,p.style.position="relative",p.appendChild(m))}}catch(g){}}async function h(e,t){if(!e||!t){f("Erro interno: Falta de dados para iniciar monitoramento.");return}let a=$();if(!a){f("Erro cr\xedtico: Firestore indispon\xedvel.");return}let o=a.collection("jogadores_permitidos").doc(e);n=o.onSnapshot(e=>{if(!r)return;if(!e.exists||!e.data()?.data_expiracao?.toDate()){f("Licen\xe7a revogada ou inv\xe1lida.");return}let t=e.data().data_expiracao.toDate();new Date>=t&&f(`Licen\xe7a expirou em ${t.toLocaleString()}.`)},e=>f(`Erro de conex\xe3o no monitoramento (${e.code}).`)),i=setInterval(async()=>{try{let a=await m(e,t);if(!a&&r){let o=await p(e);o.authorized&&o.sessionId?s=o.sessionId:f(o.reason||"Falha ao recriar sess\xe3o.")}}catch(n){f(`Erro de comunica\xe7\xE3o com o servidor (${n.code||"desconhecido"}).`)}},18e4),window.addEventListener("beforeunload",()=>g(e,t))}function b(e){let t=GM_getValue(o+e);if(t){let a=new Date(t);if(!isNaN(a.getTime()))return a}return null}async function x(){if(!(u=function e(){try{let t=TribalWars.getGameData().player.name.toString();if(!t||""===t.trim())throw Error("Nickname do jogador vazio ou inv\xe1lido.");return t}catch(a){return null}}()))return f("N\xe3o foi poss\xedvel identificar o Nickname."),!1;let e=b(u),t=new Date;if(e&&t<e)return s=GM_getValue(a+u)?.sessionId||c(),!0;let r=await p(u);if(!r.authorized||!r.sessionId||!r.expirationDate)return f(r.reason||"Falha na verifica\xe7\xe3o da licen\xe7a."),!1;{var n,i;n=u,GM_setValue(o+n,(i=r.expirationDate).toISOString()),s=r.sessionId;let l=a+u;return GM_setValue(l,{sessionId:s,timestamp:Date.now(),expirationDate:r.expirationDate.toISOString()}),!0}}if("undefined"==typeof firebase||void 0===firebase.firestore){alert(`${t}: Erro cr\xedtico - Componentes de verifica\xe7\xE3o n\xe3o encontrados.`);return}let _=await x();if(!_)return;r=!0,h(u,s);let y=!1,v=window._,E=luxon.DateTime,A=window.mobx,k={cache:{},cacheLimit:100,cacheKeys:[],get:function(e){if(this.cache[e])return this.cacheKeys=v.filter(this.cacheKeys,t=>t!==e),this.cacheKeys.push(e),this.cache[e].data},set:function(e,t){if(this.cache[e])this.cache[e].data=t,this.cacheKeys=v.filter(this.cacheKeys,t=>t!==e),this.cacheKeys.push(e);else{if(this.cacheKeys.length>=this.cacheLimit){let a=this.cacheKeys.shift();delete this.cache[a]}this.cache[e]={data:t},this.cacheKeys.push(e)}}};async function C(e){let t=k.get(e);return t||new Promise((t,a)=>{GM_xmlhttpRequest({method:"GET",url:e,headers:{"X-Requested-With":"XMLHttpRequest"},timeout:7e3,onload:function(o){if(o.status>=200&&o.status<300)try{let r=o.responseText;k.set(e,r),t(r)}catch(n){console.error(`[GM_XHR Parse Error] Erro ao processar resposta de ${e}:`,n),a(Error("Erro ao processar resposta do servidor"))}else console.error(`[GM_XHR HTTP Error] Status ${o.status} para ${e}`),a(Error(`Erro HTTP ${o.status}`))},onerror:function(t){console.error(`[GM_XHR Network Error] Erro de rede para ${e}:`,t),a(Error("Erro de rede ao buscar dados"))},ontimeout:function(){console.error(`[GM_XHR Timeout] Timeout para ${e}`),a(Error("Timeout ao buscar dados"))}})})}let w={resources:{pt:{translation:{title:"RAGNAROK COMPRA E VENDA DE RECURSOS",buyModeToggleOn:"Desativar Compra",buyModeToggleOff:"Habilitar Compra",sellModeToggleOn:"Desativar Venda",sellModeToggleOff:"Habilitar Venda",saveConfig:"Salvar",resetAll:"Resetar Tudo",pause:"Pausar",transactions:"Transa\xe7\xf5es",aiAssistant:"Assistente IA Ragnarok",settings:"Configura\xe7\xf5es",saveSuccess:"Configura\xe7\xe3o salva com sucesso!",portuguese:"Portugu\xeas",russian:"Russo",english:"Ingl\xeas",activated:"Ativado",deactivated:"Deativado",transactionInProgress:"Processando transa\xe7\xe3o...",transactionSuccess:"Transa\xe7\xe3o conclu\xedda com sucesso!",transactionError:"Erro na transa\xe7\xe3o. Tente novamente.",domError:"Erro ao acessar elementos do jogo. Atualizando...",noTransactions:"Nenhuma transa\xe7\xe3o encontrada.",transactionsHeader:"Hist\xf3rico de Transa\xe7\xf5es",transaction:"Transa\xe7\xe3o",date:"Data",type:"Tipo",change:"Mudan\xe7a",world:"Mundo",newPremiumPoints:"Novos Pontos Premium",close:"Fechar",filters:"Filtros",dateFrom:"Data Inicial",dateTo:"Data Final",worldFilter:"Filtro por Mundo",sortAsc:"Ordenar Ascendente",sortDesc:"Ordenar Descendente",page:"P\xe1gina",next:"Pr\xf3ximo",previous:"Anterior",chartTitle:"Mudan\xe7as ao Longo do Tempo",expenses:"Despesas",sales:"Lucros",profit:"Lucro",filteredPeriodProfitLabel:"Lucro L\xedquido (Per\xedodo)",aiPrompt:"Digite sua pergunta para o Assistente IA",aiLoading:"Carregando resposta...",aiError:"Erro ao obter resposta do AI",tooltipMinimize:"Minimizar Janela",tooltipSettings:"Abrir Configura\xe7\xf5es",tooltipAIAssistant:"Abrir Assistente IA",stockDesiredTooltip:"Define a quantidade m\xe1xima de {{resource}}, considerando a soma dos recursos dispon\xedveis na aldeia e os recursos em tr\xe2nsito.",userRateTooltip:"Taxa m\xednima (pontos premium por unidade) para comprar {{resource}}. O script s\xf3 compra se o mercado for igual ou maior.",buyPerTimeTooltip:"Quantidade m\xe1xima por compra/transa\xe7\xe3o. O script n\xe3o excede este valor.",reserveAmountTooltip:"Quantidade m\xednima de {{resource}} a manter. O script n\xe3o vende se o estoque for igual ou menor.",reserveRateTooltip:"Taxa m\xe1xima (pontos premium por unidade) para vender {{resource}}. O script s\xf3 vende se o mercado for igual ou menor.",sellLimitTooltip:"Quantidade m\xe1xima por venda/transa\xe7\xe3o. O script n\xe3o excede este valor.",tooltipVillageSelect:"Exibe a aldeia ativa e coordenadas.",tooltipPauseBuy:"Pausar Compra pelo tempo definido nas Configura\xe7\xf5es.",tooltipPauseSell:"Pausar Venda pelo tempo definido nas Configura\xe7\xf5es.",clickToResumeTooltip:"Clique para retomar",tooltipSaveConfig:"Salva as configura\xe7\xf5es atuais no armazenamento local do navegador.",tooltipTransactions:"Abre o hist\xf3rico de transa\xe7\xf5es de Pontos Premium.",tooltipPremiumLimit:"Limite M\xc1XIMO de PP que o script pode GASTAR em compras.",tooltipWorldProfit:"Exibe o saldo L\xcdQUIDO de Pontos Premium obtido neste mundo (Lucro Total - Custo Total, baseado no hist\xf3rico).",resourceNames:{wood:"madeira",stone:"argila",iron:"ferro"},settingsSectionAccount:"Informa\xe7\xf5es da Conta",settingsSectionLanguage:"Idioma",settingsSectionGeneral:"Geral",settingsSectionPause:"Configura\xe7\xf5es de Pausa",settingsLabelBuyPauseDuration:"Dura\xe7\xe3o Pausa Compra (min):",settingsLabelSellPauseDuration:"Dura\xe7\xe3o Pausa Venda (min):",settingsLabelPlayer:"Jogador:",settingsLabelLicense:"Licen\xe7a Expira em:",settingsLabelVersion:"Vers\xe3o do Script:",settingsLabelInterfaceLang:"Idioma da Interface:",settingsLabelCloseOnHCaptcha:"Fechar Aba no hCaptcha:",hCaptchaDetectedLog:"hCaptcha detectado!",attemptingTabCloseLog:"Configura\xe7\xe3o ativa - Tentando fechar a aba...",tabCloseErrorLog:"Erro ao tentar fechar a aba (pode ser bloqueado pelo navegador):",tooltipInterfaceLang:"Seleciona o idioma para a interface Aquila Prime.",tooltipBuyPauseDuration:"Tempo (em minutos) que o modo de compra ficar\xe1 pausado ao clicar no bot\xe3o 'Pausar'. A fun\xe7\xe3o ser\xe1 reativada automaticamente ap\xf3s este per\xedodo.",tooltipSellPauseDuration:"Tempo (em minutos) que o modo de venda ficar\xe1 pausado ao clicar no bot\xe3o 'Pausar'. A fun\xe7\xe3o ser\xe1 reativada automaticamente ap\xf3s este per\xedodo.",tooltipCloseOnHCaptcha:"Se marcado, o script tentar\xe1 fechar automaticamente a aba do navegador se um desafio hCaptcha for detectado nesta p\xe1gina.",statusLabel:"Status:",premiumExchange:"Troca Premium",pausedUntil:"Pausado at\xe9 {{time}}",pauseDurationSet:"Pausa de {{mode}} definida por {{duration}} minuto(s).",pauseExpired:"Pausa de {{mode}} expirou. Funcionalidade reativada.",statusResumedManually:"{{mode}} retomado manualmente.",setPauseDurationError:"Defina uma dura\xe7\xe3o de pausa (> 0) nas configura\xe7\xf5es.",buy:"Compra",sell:"Venda"}},ru:{translation:{title:"РАГНАРОК ПОКУПКА И ПРОДАЖА РЕСУРСОВ",buyModeToggleOn:"Отключить покупку",buyModeToggleOff:"Включить покупку",sellModeToggleOn:"Отключить продажу",sellModeToggleOff:"Включить продажу",saveConfig:"Сохранить",resetAll:"Сбросить всё",pause:"Пауза",transactions:"Транзакции",aiAssistant:"ИИ-Ассистент Рагнарок",settings:"Настройки",saveSuccess:"Конфигурация успешно сохранена!",portuguese:"Португальский",russian:"Русский",english:"Английский",activated:"Активировано",deactivated:"Деактивировано",transactionInProgress:"Обработка транзакции...",transactionSuccess:"Транзакция успешно завершена!",transactionError:"Ошибка транзакции. Попробуйте снова.",domError:"Ошибка доступа к элементам игры. Обновление...",noTransactions:"Транзакций не найдено.",transactionsHeader:"История транзакций",transaction:"Транзакция",date:"Дата",type:"Тип",change:"Изменение",world:"Мир",newPremiumPoints:"Новые премиум-очки",close:"Закрыть",filters:"Фильтры",dateFrom:"Дата начала",dateTo:"Дата окончания",worldFilter:"Фильтр по миру",sortAsc:"Сортировать по возрастанию",sortDesc:"Сортировать по убыванию",page:"Страница",next:"Следующая",previous:"Предыдущая",chartTitle:"Изменения с течением времени",expenses:"Расходы",sales:"Прибыль",profit:"Доход",filteredPeriodProfitLabel:"Чистая прибыль (Период)",aiPrompt:"Введите ваш вопрос для ИИ-помощника",aiLoading:"Загрузка ответа...",aiError:"Ошибка получения ответа от ИИ",tooltipMinimize:"Свернуть окно",tooltipSettings:"Открыть настройки",tooltipAIAssistant:"Открыть ИИ-ассистента",stockDesiredTooltip:"Устанавливает максимальное количество {{resource}}, учитывая сумму ресурсов в деревне и находящихся в пути.",userRateTooltip:"Минимальная ставка (премиум-очки за единицу) для покупки {{resource}}. Скрипт покупает только если рыночная ставка равна или выше.",buyPerTimeTooltip:"Максимальное количество за покупку/транзакцию. Скрипт не превышает это значение.",reserveAmountTooltip:"Минимальное количество {{resource}} для хранения. Скрипт не продает, если запас равен или меньше.",reserveRateTooltip:"Максимальная ставка (премиум-очки за единицу) для продажи {{resource}}. Скрипт продает только если рыночная ставка равна или ниже.",sellLimitTooltip:"Максимальное количество за продажу/транзакцию. Скрипт не превышает это значение.",tooltipVillageSelect:"Отображает активную деревню и координаты.",tooltipPauseBuy:"Приостановить покупку на время, указанное в настройках.",tooltipPauseSell:"Приостановить продажу на время, указанное в настройках.",clickToResumeTooltip:"Нажмите, чтобы возобновить",tooltipSaveConfig:"Сохраняет текущие настройки в локальном хранилище браузера.",tooltipTransactions:"Открывает историю транзакций Премиум-очков.",tooltipPremiumLimit:"МАКСИМАЛЬНЫЙ лимит ПП, который скрипт может ПОТРАТИТЬ на покупки.",tooltipWorldProfit:"Отображает ЧИСТУЮ прибыль в Премиум-очках, полученную в этом мире (Общий доход - Общие расходы, на основе истории).",resourceNames:{wood:"дерево",stone:"глина",iron:"железо"},settingsSectionAccount:"Информация об аккаунте",settingsSectionLanguage:"Язык",settingsSectionGeneral:"Общие",settingsSectionPause:"Настройки паузы",settingsLabelBuyPauseDuration:"Длит. паузы покупки (мин):",settingsLabelSellPauseDuration:"Длит. паузы продажи (мин):",settingsLabelPlayer:"Игрок:",settingsLabelLicense:"Лицензия действует до:",settingsLabelVersion:"Версия скрипта:",settingsLabelInterfaceLang:"Язык интерфейса:",settingsLabelCloseOnHCaptcha:"Закрывать вкладку при hCaptcha:",hCaptchaDetectedLog:"hCaptcha обнаружен!",attemptingTabCloseLog:"Настройка активна - Попытка закрытия вкладки...",tabCloseErrorLog:"Ошибка при попытке закрытия вкладки (может быть заблокировано браузером):",tooltipInterfaceLang:"Выберите язык для интерфейса Aquila Prime.",tooltipBuyPauseDuration:"Время (в минутах), на которое режим покупки будет приостановлен при нажатии кнопки 'Пауза'. Функция будет автоматически возобновлена после этого периода.",tooltipSellPauseDuration:"Время (в минутах), на которое режим продажи будет приостановлен при нажатии кнопки 'Пауза'. Функция будет автоматически возобновлена после этого периода.",tooltipCloseOnHCaptcha:"Если отмечено, скрипт попытается автоматически закрыть вкладку браузера, если на этой странице обнаружена проверка hCaptcha.",statusLabel:"Статус:",premiumExchange:"Премиум-обмен",pausedUntil:"Пауза до {{time}}",pauseDurationSet:"Пауза (Режим: {{mode}}) установлена на {{duration}} мин.",pauseExpired:"Пауза (Режим: {{mode}}) истекла. Функция возобновлена.",statusResumedManually:"Режим {{mode}} возобновлен вручную.",setPauseDurationError:"Укажите длительность паузы (> 0) в настройках.",buy:"Покупка",sell:"Продажа"}},en:{translation:{title:"RAGNAROK RESOURCE TRADING",buyModeToggleOn:"Turn Off Buying",buyModeToggleOff:"Turn On Buying",sellModeToggleOn:"Turn Off Selling",sellModeToggleOff:"Turn On Selling",saveConfig:"Save",resetAll:"Reset Everything",pause:"Pause",transactions:"Transactions",aiAssistant:"Ragnarok AI Assistant",settings:"Settings",saveSuccess:"Settings saved successfully!",portuguese:"Portuguese",russian:"Russian",english:"English",activated:"Activated",deactivated:"Deactivated",transactionInProgress:"Processing transaction...",transactionSuccess:"Transaction completed successfully!",transactionError:"Transaction failed. Please try again.",domError:"Error accessing game elements. Refreshing...",noTransactions:"No transactions found.",transactionsHeader:"Transaction History",transaction:"Transaction",date:"Date",type:"Type",change:"Change",world:"World",newPremiumPoints:"New Premium Points",close:"Close",filters:"Filters",dateFrom:"Start Date",dateTo:"End Date",worldFilter:"Filter by World",sortAsc:"Sort Ascending",sortDesc:"Sort Descending",page:"Page",next:"Next",previous:"Previous",chartTitle:"Changes Over Time",expenses:"Costs",sales:"Revenue",profit:"Profit",filteredPeriodProfitLabel:"Net Profit (Period)",aiPrompt:"Type your question for the AI Assistant",aiLoading:"Loading response...",aiError:"Error retrieving AI response",tooltipMinimize:"Minimize Window",tooltipSettings:"Open Settings",tooltipAIAssistant:"Open AI Assistant",stockDesiredTooltip:"Sets the maximum amount of {{resource}}, taking into account the sum of resources available in the village and those in transit.",userRateTooltip:"Minimum rate (premium points per unit) to buy {{resource}}. The script only buys if the market rate is at or above this.",buyPerTimeTooltip:"Maximum amount per purchase/transaction. The script won't exceed this value.",reserveAmountTooltip:"Minimum amount of {{resource}} to keep. The script won't sell if stock is at or below this.",reserveRateTooltip:"Maximum rate (premium points per unit) to sell {{resource}}. The script only sells if the market rate is at or below this.",sellLimitTooltip:"Maximum amount per sale/transaction. The script won't exceed this value.",tooltipVillageSelect:"Displays the active village and coordinates.",tooltipPauseBuy:"Pause Buying for the duration set in Settings.",tooltipPauseSell:"Pause Selling for the duration set in Settings.",clickToResumeTooltip:"Click to resume",tooltipSaveConfig:"Saves the current settings to the browser's local storage.",tooltipTransactions:"Opens the Premium Points transaction history.",tooltipPremiumLimit:"MAXIMUM PP limit the script can SPEND on purchases.",tooltipWorldProfit:"Displays the NET Premium Points balance obtained in this world (Total Income - Total Cost, based on history).",resourceNames:{wood:"wood",stone:"clay",iron:"iron"},settingsSectionAccount:"Account Information",settingsSectionLanguage:"Language",settingsSectionGeneral:"General",settingsSectionPause:"Pause Settings",settingsLabelBuyPauseDuration:"Buy Pause Duration (min):",settingsLabelSellPauseDuration:"Sell Pause Duration (min):",settingsLabelPlayer:"Player:",settingsLabelLicense:"License Expires:",settingsLabelVersion:"Script Version:",settingsLabelInterfaceLang:"Interface Language:",settingsLabelCloseOnHCaptcha:"Close Tab on hCaptcha:",hCaptchaDetectedLog:"hCaptcha detected!",attemptingTabCloseLog:"Setting enabled - Attempting to close tab...",tabCloseErrorLog:"Error attempting to close tab (may be blocked by browser):",tooltipInterfaceLang:"Select the language for the Aquila Prime interface.",tooltipBuyPauseDuration:"Time (in minutes) the buying mode will be paused when clicking the 'Pause' button. Functionality will automatically resume after this period.",tooltipSellPauseDuration:"Time (in minutes) the selling mode will be paused when clicking the 'Pause' button. Functionality will automatically resume after this period.",tooltipCloseOnHCaptcha:"If checked, the script will attempt to automatically close the browser tab if an hCaptcha challenge is detected on this page.",statusLabel:"Status:",premiumExchange:"Premium Exchange",pausedUntil:"Paused until {{time}}",pauseDurationSet:"{{mode}} Pause set for {{duration}} minute(s).",pauseExpired:"{{mode}} Pause expired. Functionality reactivated.",statusResumedManually:"{{mode}} manually resumed.",setPauseDurationError:"Set a pause duration (> 0) in settings.",buy:"Buying",sell:"Selling"}}}},T=window.i18next;if(T.isInitialized){T.addResourceBundle("pt","translation",w.resources.pt.translation,!0,!0),T.addResourceBundle("ru","translation",w.resources.ru.translation,!0,!0),T.addResourceBundle("en","translation",w.resources.en.translation,!0,!0);let P=localStorage.getItem("language")||"pt";T.language!==P&&T.changeLanguage(P).catch(e=>console.error("Erro ao mudar l\xedngua no i18next j\xe1 inicializado:",e))}else T.init({lng:localStorage.getItem("language")||"pt",fallbackLng:"en",resources:w.resources,debug:!1,interpolation:{escapeValue:!1}}).then(()=>{}).catch(e=>{console.error("Erro ao inicializar i18next:",e)});T.init({lng:localStorage.getItem("language")||"pt",fallbackLng:"en",resources:w.resources,debug:!1});let S=new Map,D={wood:0,stone:0,iron:0};function I(e,t){let a=`#${t}.res`;"stone"===t&&(a="#stone");let o=e.querySelector(a);if(!o)return 0;{let r=o.textContent,n=r.trim(),i=v.parseInt(n.replace(/\D/g,""),10);return i||0}}function F(){if("undefined"!=typeof TribalWars&&TribalWars.getGameData){let e=TribalWars.getGameData().village,t=e.storage_max||1e3;return t}let a=document.querySelector("#storage");if(!a)return 1e3;let o=a.textContent.trim(),r=o.split("/");if(r.length>=2){let n=W(r[1]);return n}return 1e3}async function M(){let e=TribalWars.getGameData().village.id,t=`https://${window.location.host}/game.php?village=${e}&screen=overview`,a=await C(t);if(a){let o=new DOMParser,r=o.parseFromString(a,"text/html");D.wood=I(r,"wood"),D.stone=I(r,"stone"),D.iron=I(r,"iron")}q.storageCapacity=F()}class R{constructor(e,t){this.name=e,this.config=t,this.elementCache=new Map}getDomElement(e){if(!this.elementCache.has(e)){let t=document.querySelector(e);return this.elementCache.set(e,t),t}return this.elementCache.get(e)}sanitizeNumber(e){return v.parseInt(e,10)||0}getStock(){return this.sanitizeNumber(this.getDomElement(this.config.stockSelector)?.textContent.trim())}getGameRate(){return this.sanitizeNumber(this.getDomElement(this.config.rateSelector)?.textContent.trim().replace(/\D/g,""))}getUserRate(){return this.sanitizeNumber(this.config.uiRateInput?.value)}getTotal(){return D[this.name]}getReserved(){return this.sanitizeNumber(this.config.uiReserveInput?.value)}getMarketValue(){let e=this.getDomElement(this.config.marketImg);if(!e)return 0;let t=e.parentElement?.textContent.trim();return t&&this.sanitizeNumber(t.replace(/[^0-9]/g,""))||0}getReserveRate(){return this.sanitizeNumber(this.config.uiReserveRateInput?.value)}getBuyInput(){return this.getDomElement(this.config.buyInputSelector)}getSellInput(){return this.getDomElement(this.config.sellInputSelector)}}let B=(e,t)=>({stockSelector:`#premium_exchange_stock_${e}`,rateSelector:`#premium_exchange_rate_${e} > div:nth-child(1)`,buyInputSelector:`input.premium-exchange-input[data-resource="${e}"][data-type="buy"]`,sellInputSelector:`input.premium-exchange-input[data-resource="${e}"][data-type="sell"]`,totalSelector:`#${e}.res`,marketImg:`.premium-exchange-sep img[src*="${e}_18x16"]`,outputDefault:t}),L={wood:B("wood",39),stone:B("stone",46),iron:B("iron",63)},q=A.observable({resources:{storageCapacity:1e3,wood:0,stone:0,iron:0},incomingResources:{wood:0,stone:0,iron:0},marketRates:{},transactions:[],buyModeActive:"true"===localStorage.getItem("buyModeActive"),sellModeActive:"true"===localStorage.getItem("sellModeActive"),buyPausedUntil:null,sellPausedUntil:null,buyPauseDurationMinutes:5,sellPauseDurationMinutes:5,hasExecutedBuy:!1,hasExecutedSell:!1,reloadPending:!1,autoReloadOnError:!0,closeTabOnHCaptcha:!1,isDarkMode:window.matchMedia("(prefers-color-scheme: dark)").matches,currentVillage:null,worldProfit:0,language:localStorage.getItem("language")||"pt",optimizedRates:A.computed(function(){return this.marketRates||{}}),rateHistory:{wood:[],stone:[],iron:[]},marketTrends:{wood:"neutral",stone:"neutral",iron:"neutral"},marketVolatility:{wood:0,stone:0,iron:0},lastUpdate:{wood:null,stone:null,iron:null},marketConditions:A.computed(function(){return{wood:{trend:this.marketTrends.wood,volatility:this.marketVolatility.wood,lastUpdate:this.lastUpdate.wood},stone:{trend:this.marketTrends.stone,volatility:this.marketVolatility.stone,lastUpdate:this.lastUpdate.stone},iron:{trend:this.marketTrends.iron,volatility:this.marketVolatility.iron,lastUpdate:this.lastUpdate.iron}}}),allTransactionsFetched:!1,isUpdating:!1,isSettingsModalOpen:!1,isMinimized:!1}),z=null,U=null,O={elements:new Map,buyInputs:new Map,sellInputs:new Map,gameElements:new Map,getElement(e){if(!this.elements.has(e)){let t=S.get(e);if(t)return this.elements.set(e,t),t;let a=document.querySelector(`#${e}`);return a&&(this.elements.set(e,a),S.set(e,a)),a}return this.elements.get(e)}},N=(e,t={})=>{let a=Object.assign(document.createElement(e),t);return t.id&&S.set(t.id,a),a};function G(){let e=document.getElementById("transactionsModal"),t=document.getElementById("aiModal"),a=document.getElementById("settingsModal");return e&&"flex"===e.style.display||t&&"flex"===t.style.display||a&&"flex"===a.style.display}let H=e=>{let t=O.elements.get("tooltip");if(!t){console.error("[Tooltip] Elemento tooltip n\xe3o encontrado!");return}let a=O.elements.get("market-container");if(!a){console.error("[Tooltip] Container principal n\xe3o encontrado!");return}let o=e.target,r=o.dataset.tooltipKey,n=o.dataset.tooltip,i="",s={};if(r)i=T.t(r,{defaultValue:`Tooltip: ${r}`});else{if(!(n&&o.classList.contains("rate-input")))return;i=T.t(n,{defaultValue:`Tooltip base: ${n}`});let u=o.dataset.resource||"",l="resource",$=u.match(/(wood|stone|iron)/);$&&$[1]&&(l=$[1]);let c=T.t(`resourceNames.${l}`,{defaultValue:l});s={resource:c}}let d=i;if(Object.keys(s).length>0&&i.includes("{{"))try{d=T.t(i,s)}catch(p){console.error(`[Tooltip] Erro na interpola\xe7\xe3o manual de '${i}' com`,s,p),d=i}!d||d.startsWith("Tooltip:")||d.startsWith("Tooltip base:"),t.innerHTML=d,t.style.display="block";let m=o.getBoundingClientRect(),g=a.getBoundingClientRect(),f=t.offsetWidth,h=t.offsetHeight,b=m.top-g.top,x=m.left-g.left,_=x+5,y=b+m.height+5;_+f>a.clientWidth-10&&(_=a.clientWidth-f-10),_<10&&(_=10),y+h>a.clientHeight-10&&(y=b-h-5),y<10&&(y=10),t.style.left=`${Math.max(0,_)}px`,t.style.top=`${Math.max(0,y)}px`},V=e=>{let t=O.elements.get("tooltip");if(!t||!t.style.display||"none"===t.style.display)return;let a=O.elements.get("market-container");if(!a)return;let o=e.target,r=o.getBoundingClientRect(),n=a.getBoundingClientRect(),i=t.offsetWidth,s=t.offsetHeight,u=r.top-n.top,l=r.left-n.left,$=l+5,c=u+r.height+5;$+i>a.clientWidth-10&&($=a.clientWidth-i-10),$<10&&($=10),c+s>a.clientHeight-10&&(c=u-s-5),c<10&&(c=10),t.style.left=`${Math.max(0,$)}px`,t.style.top=`${Math.max(0,c)}px`},j=()=>{let e=O.elements.get("tooltip");e&&(e.style.display="none")},W=e=>v.parseInt(e,10)||0,X=(e,t,a,o)=>{let r={"wood-stock":"stockDesiredTooltip","stone-stock":"stockDesiredTooltip","iron-stock":"stockDesiredTooltip",wood:"userRateTooltip",stone:"userRateTooltip",iron:"userRateTooltip","buy-per-time":"buyPerTimeTooltip","storage-limit":"buyPerTimeTooltip","max-spend":"buyPerTimeTooltip","reserve-wood":"reserveAmountTooltip","reserve-stone":"reserveAmountTooltip","reserve-iron":"reserveAmountTooltip","reserve-wood-rate":"reserveRateTooltip","reserve-stone-rate":"reserveRateTooltip","reserve-iron-rate":"reserveRateTooltip","sell-limit":"sellLimitTooltip","sell-limit-stone":"sellLimitTooltip","sell-limit-iron":"sellLimitTooltip"},n=(e,a)=>{if("buy"===t){if(0===a)return r[`${e}-stock`];if(1===a)return r[e];if(2===a&&"buy-per-time"===o[2].key)return r["buy-per-time"];if(2===a&&"storage-limit"===o[2].key)return r["storage-limit"];if(2===a&&"max-spend"===o[2].key)return r["max-spend"]}else if("sell"===t){if(0===a)return r[`reserve-${e}`];if(1===a)return r[`reserve-${e}-rate`];if(2===a&&"sell-limit"===o[2].key)return r["sell-limit"];if(2===a&&"sell-limit-stone"===o[2].key)return r["sell-limit-stone"];if(2===a&&"sell-limit-iron"===o[2].key)return r["sell-limit-iron"]}};return`
-    <div class="resource-card base-card" data-resource="${e}">
-        <img src="${a}" alt="${e}" />
+(async function() {
+  "use strict";
+  const firebaseConfig = {
+    apiKey: "AIzaSyAnDVwYDWa_JZj6uApXv6o9_d66JUZwF9o",
+    authDomain: "compra-e-venda-ragnarok.firebaseapp.com",
+    projectId: "compra-e-venda-ragnarok",
+    storageBucket: "compra-e-venda-ragnarok.appspot.com",
+    messagingSenderId: "896525993752",
+    appId: "1:896525993752:web:1f99c76f66e16669f3c06d",
+    measurementId: "G-1B10ECJN01"
+  };
+  const SCRIPT_NAME = "RAGNAROK_AUTH_SESSION";
+  const SESSION_HEARTBEAT_MINUTES = 3;
+  const SESSION_VALIDITY_MINUTES = 7;
+  const IP_API_URL = "http://ip-api.com/json/?fields=status,message,query,city,country";
+  const GM_SESSION_KEY_PREFIX = `${SCRIPT_NAME}_session_`;
+  const GM_EXPIRATION_KEY_PREFIX = `${SCRIPT_NAME}_expiration_`;
+  let isScriptActive = false;
+  let firestoreListenerUnsubscribe = null;
+  let sessionHeartbeatTimer = null;
+  let currentSessionId = null;
+  let currentPlayerNickname = null;
+  let cleanupAttempted = false;
+  function initializeFirebase() {
+    try {
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      return firebase.firestore();
+    } catch (error) {
+      alert(`${SCRIPT_NAME}: Falha cr\xEDtica ao inicializar o sistema de verifica\xE7\xE3o. O script n\xE3o pode continuar.`);
+      return null;
+    }
+  }
+  function getPlayerNickname() {
+    try {
+      const nick = TribalWars.getGameData().player.name.toString();
+      if (!nick || nick.trim() === "") {
+        throw new Error("Nickname do jogador vazio ou inv\xE1lido.");
+      }
+      return nick;
+    } catch (e) {
+      return null;
+    }
+  }
+  function generateSessionId() {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  }
+  async function fetchGeoInfo() {
+    return new Promise((resolve) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: IP_API_URL,
+        timeout: 5e3,
+        onload: function(response) {
+          if (response.status >= 200 && response.status < 300) {
+            try {
+              const data = JSON.parse(response.responseText);
+              if (data.status === "success") {
+                resolve({ ip: data.query, city: data.city, country: data.country });
+              } else {
+                resolve({ ip: "Erro API", city: "Erro API", country: "Erro API" });
+              }
+            } catch (e) {
+              resolve({ ip: "Erro Parse", city: "Erro Parse", country: "Erro Parse" });
+            }
+          } else {
+            resolve({ ip: `Erro HTTP ${response.status}`, city: `Erro HTTP ${response.status}`, country: `Erro HTTP ${response.status}` });
+          }
+        },
+        onerror: function(error) {
+          resolve({ ip: "Erro Rede", city: "Erro Rede", country: "Erro Rede" });
+        },
+        ontimeout: function() {
+          resolve({ ip: "Timeout", city: "Timeout", country: "Timeout" });
+        }
+      });
+    });
+  }
+  async function checkLicenseAndRegisterSession(playerNickname) {
+    if (!playerNickname) {
+      return { authorized: false, reason: "Nickname inv\xE1lido fornecido." };
+    }
+    const db = initializeFirebase();
+    if (!db) {
+      return { authorized: false, reason: "Firestore n\xE3o inicializado." };
+    }
+    const newSessionId = generateSessionId();
+    const playerDocRef = db.collection("jogadores_permitidos").doc(playerNickname);
+    const sessionsColRef = playerDocRef.collection("sessoes_ativas");
+    let finalResult = { authorized: false, reason: "Falha desconhecida na verifica\xE7\xE3o.", sessionId: null };
+    const FirestoreTimestamp = firebase.firestore.Timestamp;
+    try {
+      let expirationDate = null;
+      await db.runTransaction(async (transaction) => {
+        const playerDocSnap = await transaction.get(playerDocRef);
+        if (!playerDocSnap.exists) {
+          throw new Error("Nickname n\xE3o encontrado na lista de permiss\xF5es.");
+        }
+        const playerData = playerDocSnap.data();
+        if (!playerData || !playerData.data_expiracao || typeof playerData.data_expiracao.toDate !== "function") {
+          throw new Error("Formato da data de expira\xE7\xE3o inv\xE1lido no banco de dados.");
+        }
+        expirationDate = playerData.data_expiracao.toDate();
+        const currentDate = /* @__PURE__ */ new Date();
+        if (currentDate >= expirationDate) {
+          throw new Error(`Licen\xE7a expirada em ${expirationDate.toLocaleString()}.`);
+        }
+        const newSessionRef = sessionsColRef.doc(newSessionId);
+        const nowTimestamp = FirestoreTimestamp.now();
+        const sessionData = {
+          timestamp_criacao: nowTimestamp,
+          timestamp_heartbeat: nowTimestamp
+        };
+        transaction.set(newSessionRef, sessionData);
+      });
+      try {
+        const geoInfo = await fetchGeoInfo();
+        const sessionRef = sessionsColRef.doc(newSessionId);
+        await sessionRef.update({
+          ip_registrado: geoInfo.ip || "N/A",
+          cidade_registrada: geoInfo.city || "N/A",
+          pais_registrado: geoInfo.country || "N/A",
+          info_navegador: navigator.userAgent || "N/A"
+        });
+      } catch (updateError) {
+      }
+      finalResult = {
+        authorized: true,
+        reason: "Licen\xE7a OK, Sess\xE3o Registrada.",
+        sessionId: newSessionId,
+        expirationDate
+      };
+    } catch (error) {
+      finalResult = {
+        authorized: false,
+        reason: `Falha na verifica\xE7\xE3o: ${error.message}` || "Erro desconhecido na verifica\xE7\xE3o.",
+        sessionId: null
+      };
+    }
+    return finalResult;
+  }
+  async function sendHeartbeat(playerNickname, sessionId) {
+    if (!playerNickname || !sessionId) return false;
+    const db = initializeFirebase();
+    if (!db) return false;
+    const sessionRef = db.collection("jogadores_permitidos").doc(playerNickname).collection("sessoes_ativas").doc(sessionId);
+    try {
+      await sessionRef.update({
+        timestamp_heartbeat: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      return true;
+    } catch (error) {
+      if (error.code === "not-found") {
+        return false;
+      }
+      throw error;
+    }
+  }
+  async function cleanupSessionOnUnload(playerNick, sessId) {
+    if (cleanupAttempted || !playerNick || !sessId) return;
+    cleanupAttempted = true;
+    const storageKey = GM_SESSION_KEY_PREFIX + playerNick;
+    try {
+      GM_deleteValue(storageKey);
+    } catch (e) {
+    }
+    const db = initializeFirebase();
+    if (!db) return;
+    const sessionRef = db.collection("jogadores_permitidos").doc(playerNick).collection("sessoes_ativas").doc(sessId);
+    try {
+      sessionRef.delete();
+    } catch (e) {
+    }
+  }
+  function desativarScript(motivo) {
+    if (!isScriptActive && firestoreListenerUnsubscribe === null && sessionHeartbeatTimer === null) {
+      return;
+    }
+    const wasActive = isScriptActive;
+    isScriptActive = false;
+    if (firestoreListenerUnsubscribe) {
+      try {
+        firestoreListenerUnsubscribe();
+      } catch (e) {
+      }
+      firestoreListenerUnsubscribe = null;
+    }
+    if (sessionHeartbeatTimer) {
+      clearInterval(sessionHeartbeatTimer);
+      sessionHeartbeatTimer = null;
+    }
+    if (wasActive && currentPlayerNickname) {
+      const storageKey = GM_SESSION_KEY_PREFIX + currentPlayerNickname;
+      try {
+        GM_deleteValue(storageKey);
+      } catch (e) {
+      }
+    }
+    if (currentPlayerNickname && currentSessionId) {
+      const db = initializeFirebase();
+      if (db) {
+        db.collection("jogadores_permitidos").doc(currentPlayerNickname).collection("sessoes_ativas").doc(currentSessionId).delete().catch((err) => {
+        });
+      }
+    }
+    currentSessionId = null;
+    alert(`RAGNAROK: O script foi desativado.
+Motivo: ${motivo}
+
+Recarregue a p\xE1gina se o problema for resolvido.`);
+    try {
+      const container = document.querySelector(".market-container");
+      if (container) {
+        container.querySelectorAll("button, input, select, textarea").forEach((el) => el.disabled = true);
+        let overlay = container.querySelector(".ragnarok-disabled-overlay");
+        if (!overlay) {
+          overlay = document.createElement("div");
+          overlay.className = "ragnarok-disabled-overlay";
+          overlay.style.position = "absolute";
+          overlay.style.top = "0";
+          overlay.style.left = "0";
+          overlay.style.width = "100%";
+          overlay.style.height = "100%";
+          overlay.style.background = "rgba(100, 100, 100, 0.7)";
+          overlay.style.color = "white";
+          overlay.style.zIndex = "1000";
+          overlay.style.display = "flex";
+          overlay.style.flexDirection = "column";
+          overlay.style.justifyContent = "center";
+          overlay.style.alignItems = "center";
+          overlay.style.fontSize = "18px";
+          overlay.style.textAlign = "center";
+          overlay.style.backdropFilter = "blur(2px)";
+          overlay.style.borderRadius = "15px";
+          overlay.innerHTML = `Script RAGNAROK Desativado<br><small style="font-size: 12px;">(${motivo})</small>`;
+          container.style.position = "relative";
+          container.appendChild(overlay);
+        }
+      }
+    } catch (e) {
+    }
+  }
+  async function iniciarMonitoramentoRealtimeEHeartbeat(playerNickname, sessionId) {
+    if (!playerNickname || !sessionId) {
+      desativarScript("Erro interno: Falta de dados para iniciar monitoramento.");
+      return;
+    }
+    const db = initializeFirebase();
+    if (!db) {
+      desativarScript("Erro cr\xEDtico: Firestore indispon\xEDvel.");
+      return;
+    }
+    const playerDocRef = db.collection("jogadores_permitidos").doc(playerNickname);
+    firestoreListenerUnsubscribe = playerDocRef.onSnapshot(
+      (docSnap) => {
+        if (!isScriptActive) return;
+        if (!docSnap.exists || !docSnap.data()?.data_expiracao?.toDate()) {
+          desativarScript("Licen\xE7a revogada ou inv\xE1lida.");
+          return;
+        }
+        const expirationDate = docSnap.data().data_expiracao.toDate();
+        if (/* @__PURE__ */ new Date() >= expirationDate) {
+          desativarScript(`Licen\xE7a expirou em ${expirationDate.toLocaleString()}.`);
+        }
+      },
+      (error) => desativarScript(`Erro de conex\xE3o no monitoramento (${error.code}).`)
+    );
+    sessionHeartbeatTimer = setInterval(async () => {
+      try {
+        const success = await sendHeartbeat(playerNickname, sessionId);
+        if (!success && isScriptActive) {
+          const checkResult = await checkLicenseAndRegisterSession(playerNickname);
+          if (checkResult.authorized && checkResult.sessionId) {
+            currentSessionId = checkResult.sessionId;
+          } else {
+            desativarScript(checkResult.reason || "Falha ao recriar sess\xE3o.");
+          }
+        }
+      } catch (error) {
+        desativarScript(`Erro de comunica\xE7\xE3o com o servidor (${error.code || "desconhecido"}).`);
+      }
+    }, SESSION_HEARTBEAT_MINUTES * 60 * 1e3);
+    window.addEventListener("beforeunload", () => cleanupSessionOnUnload(playerNickname, sessionId));
+  }
+  function getStoredExpiration(nickname) {
+    const key = GM_EXPIRATION_KEY_PREFIX + nickname;
+    const storedExpiration = GM_getValue(key);
+    if (storedExpiration) {
+      const expirationDate = new Date(storedExpiration);
+      if (!isNaN(expirationDate.getTime())) {
+        return expirationDate;
+      }
+    }
+    return null;
+  }
+  function storeExpiration(nickname, expirationDate) {
+    const key = GM_EXPIRATION_KEY_PREFIX + nickname;
+    GM_setValue(key, expirationDate.toISOString());
+  }
+  async function verificarLicenca() {
+    currentPlayerNickname = getPlayerNickname();
+    if (!currentPlayerNickname) {
+      desativarScript("N\xE3o foi poss\xEDvel identificar o Nickname.");
+      return false;
+    }
+    const storedExpiration = getStoredExpiration(currentPlayerNickname);
+    const currentDate = /* @__PURE__ */ new Date();
+    if (storedExpiration && currentDate < storedExpiration) {
+      currentSessionId = GM_getValue(GM_SESSION_KEY_PREFIX + currentPlayerNickname)?.sessionId || generateSessionId();
+      return true;
+    }
+    const checkResult = await checkLicenseAndRegisterSession(currentPlayerNickname);
+    if (checkResult.authorized && checkResult.sessionId && checkResult.expirationDate) {
+      storeExpiration(currentPlayerNickname, checkResult.expirationDate);
+      currentSessionId = checkResult.sessionId;
+      const storageKey = GM_SESSION_KEY_PREFIX + currentPlayerNickname;
+      GM_setValue(storageKey, { sessionId: currentSessionId, timestamp: Date.now(), expirationDate: checkResult.expirationDate.toISOString() });
+      return true;
+    } else {
+      desativarScript(checkResult.reason || "Falha na verifica\xE7\xE3o da licen\xE7a.");
+      return false;
+    }
+  }
+  if (typeof firebase === "undefined" || typeof firebase.firestore === "undefined") {
+    alert(`${SCRIPT_NAME}: Erro cr\xEDtico - Componentes de verifica\xE7\xE3o n\xE3o encontrados.`);
+    return;
+  }
+  const licencaValida = await verificarLicenca();
+  if (!licencaValida) {
+    return;
+  }
+  isScriptActive = true;
+  iniciarMonitoramentoRealtimeEHeartbeat(currentPlayerNickname, currentSessionId);
+  let isSellCooldownActive = false;
+  const SELL_COOLDOWN_MS = 6e3;
+  const VOLATILITY_WINDOW = 5;
+  const TREND_SENSITIVITY = 0.05;
+  const _ = window._;
+  const DateTime = luxon.DateTime;
+
+  const mobx = window.mobx;
+  const GEMINI_API_KEY = "";
+  const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  const requestCache = {
+    cache: {},
+    cacheLimit: 100,
+    cacheKeys: [],
+    get: function(url) {
+      if (this.cache[url]) {
+        this.cacheKeys = _.filter(this.cacheKeys, (key) => key !== url);
+        this.cacheKeys.push(url);
+        return this.cache[url].data;
+      }
+      return void 0;
+    },
+    set: function(url, data) {
+      if (this.cache[url]) {
+        this.cache[url].data = data;
+        this.cacheKeys = _.filter(this.cacheKeys, (key) => key !== url);
+        this.cacheKeys.push(url);
+      } else {
+        if (this.cacheKeys.length >= this.cacheLimit) {
+          const oldestKey = this.cacheKeys.shift();
+          delete this.cache[oldestKey];
+        }
+        this.cache[url] = { data };
+        this.cacheKeys.push(url);
+      }
+    }
+  };
+
+
+
+
+
+
+  // Função fetchMarketData ATUALIZADA para usar GM_xmlhttpRequest
+async function fetchMarketData(url) {
+    const cachedData = requestCache.get(url);
+    if (cachedData) {
+        // //console.log(`[Cache HIT] Usando dados cacheados para: ${url}`); // Log opcional
+        return cachedData;
+    }
+
+    // console.log(`[GM_XHR Request] Buscando dados de: ${url}`); // Log opcional
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: url,
+            headers: {
+                "X-Requested-With": "XMLHttpRequest",
+                // Adicione outros cabeçalhos se forem necessários para o Tribal Wars
+            },
+            timeout: 7000, // Aumentei um pouco o timeout para segurança
+            onload: function(response) {
+                if (response.status >= 200 && response.status < 300) {
+                    try {
+                        // Para Tribal Wars, a resposta geralmente é HTML, não JSON
+                        // Mas se alguma URL retornar JSON, precisaríamos parsear
+                        // Vamos assumir que a resposta é texto/html e quem chama vai parsear
+                        const responseData = response.responseText;
+                        requestCache.set(url, responseData); // Salva a resposta (texto) no cache
+                        // console.log(`[GM_XHR Success] Dados recebidos e cacheados para: ${url}`); // Log opcional
+                        resolve(responseData); // Resolve a Promise com o texto da resposta
+                    } catch (e) {
+                        console.error(`[GM_XHR Parse Error] Erro ao processar resposta de ${url}:`, e);
+                        reject(new Error("Erro ao processar resposta do servidor"));
+                    }
+                } else {
+                    console.error(`[GM_XHR HTTP Error] Status ${response.status} para ${url}`);
+                    reject(new Error(`Erro HTTP ${response.status}`));
+                }
+            },
+            onerror: function(error) {
+                console.error(`[GM_XHR Network Error] Erro de rede para ${url}:`, error);
+                reject(new Error("Erro de rede ao buscar dados"));
+            },
+            ontimeout: function() {
+                console.error(`[GM_XHR Timeout] Timeout para ${url}`);
+                reject(new Error("Timeout ao buscar dados"));
+            }
+        });
+    });
+}
+
+
+
+
+
+
+
+
+
+// ================================================================
+// ===      Objeto translations ATUALIZADO (v1.1 - Add Buy/Sell Keys) ===
+// ================================================================
+const translations = {
+    resources: {
+      pt: {
+        translation: {
+          // --- Textos Gerais da UI ---
+          title: "RAGNAROK COMPRA E VENDA DE RECURSOS",
+          buyModeToggleOn: "Desativar Compra",
+          buyModeToggleOff: "Habilitar Compra",
+          sellModeToggleOn: "Desativar Venda",
+          sellModeToggleOff: "Habilitar Venda",
+          saveConfig: "Salvar",
+          resetAll: "Resetar Tudo",
+          pause: "Pausar",
+          transactions: "Transa\xE7\xF5es",
+          aiAssistant: "Assistente IA Ragnarok",
+          settings: "Configura\xE7\xF5es",
+          saveSuccess: "Configura\xE7\xE3o salva com sucesso!",
+          portuguese: "Portugu\xEAs",
+          russian: "Russo",
+          english: "Ingl\xEAs",
+          activated: "Ativado",
+          deactivated: "Deativado",
+          transactionInProgress: "Processando transa\xE7\xE3o...",
+          transactionSuccess: "Transa\xE7\xE3o conclu\xEDda com sucesso!",
+          transactionError: "Erro na transa\xE7\xE3o. Tente novamente.",
+          domError: "Erro ao acessar elementos do jogo. Atualizando...",
+          noTransactions: "Nenhuma transa\xE7\xE3o encontrada.",
+          // --- Modal de Transações ---
+          transactionsHeader: "Hist\xF3rico de Transa\xE7\xF5es",
+          transaction: "Transa\xE7\xE3o",
+          date: "Data",
+          type: "Tipo",
+          change: "Mudan\xE7a",
+          world: "Mundo",
+          newPremiumPoints: "Novos Pontos Premium",
+          close: "Fechar",
+          filters: "Filtros",
+          dateFrom: "Data Inicial",
+          dateTo: "Data Final",
+          worldFilter: "Filtro por Mundo",
+          sortAsc: "Ordenar Ascendente",
+          sortDesc: "Ordenar Descendente",
+          page: "P\xE1gina",
+          next: "Pr\xF3ximo",
+          previous: "Anterior",
+          chartTitle: "Mudan\xE7as ao Longo do Tempo",
+          expenses: "Despesas",
+          sales: "Lucros",
+          profit: "Lucro",
+          filteredPeriodProfitLabel: "Lucro L\xEDquido (Per\xEDodo)",
+          // --- Modal IA ---
+          aiPrompt: "Digite sua pergunta para o Assistente IA",
+          aiLoading: "Carregando resposta...",
+          aiError: "Erro ao obter resposta do AI",
+          // --- Tooltips ---
+          tooltipMinimize: "Minimizar Janela",
+          tooltipSettings: "Abrir Configura\xE7\xF5es",
+          tooltipAIAssistant: "Abrir Assistente IA",
+          stockDesiredTooltip: "Define a quantidade m\xE1xima de {{resource}}, considerando a soma dos recursos dispon\xEDveis na aldeia e os recursos em tr\xE2nsito.",
+          userRateTooltip: "Taxa m\xEDnima (pontos premium por unidade) para comprar {{resource}}. O script s\xF3 compra se o mercado for igual ou maior.",
+          buyPerTimeTooltip: "Quantidade m\xE1xima por compra/transação. O script não excede este valor.",
+          reserveAmountTooltip: "Quantidade m\xEDnima de {{resource}} a manter. O script n\xE3o vende se o estoque for igual ou menor.",
+          reserveRateTooltip: "Taxa m\xE1xima (pontos premium por unidade) para vender {{resource}}. O script s\xF3 vende se o mercado for igual ou menor.",
+          sellLimitTooltip: "Quantidade m\xE1xima por venda/transação. O script não excede este valor.",
+          tooltipVillageSelect: "Exibe a aldeia ativa e coordenadas.",
+          tooltipPauseBuy: "Pausar Compra pelo tempo definido nas Configurações.",
+          tooltipPauseSell: "Pausar Venda pelo tempo definido nas Configurações.",
+          clickToResumeTooltip: "Clique para retomar",
+          tooltipSaveConfig: "Salva as configurações atuais no armazenamento local do navegador.",
+          tooltipTransactions: "Abre o histórico de transações de Pontos Premium.",
+          tooltipPremiumLimit: "Limite MÁXIMO de PP que o script pode GASTAR em compras.",
+          tooltipWorldProfit: "Exibe o saldo LÍQUIDO de Pontos Premium obtido neste mundo (Lucro Total - Custo Total, baseado no histórico).",
+          resourceNames: {
+            wood: "madeira",
+            stone: "argila",
+            iron: "ferro"
+          },
+          // --- Seções e Labels Configurações ---
+          settingsSectionAccount: "Informa\xE7\xF5es da Conta",
+          settingsSectionLanguage: "Idioma",
+          settingsSectionGeneral: "Geral",
+          settingsSectionPause: "Configurações de Pausa",
+          settingsLabelBuyPauseDuration: "Duração Pausa Compra (min):",
+          settingsLabelSellPauseDuration: "Duração Pausa Venda (min):",
+          settingsLabelPlayer: "Jogador:",
+          settingsLabelLicense: "Licen\xE7a Expira em:",
+          settingsLabelVersion: "Vers\xE3o do Script:",
+          settingsLabelInterfaceLang: "Idioma da Interface:",
+          settingsLabelCloseOnHCaptcha: "Fechar Aba no hCaptcha:",
+          hCaptchaDetectedLog: "hCaptcha detectado!",
+          attemptingTabCloseLog: "Configura\xE7\xE3o ativa - Tentando fechar a aba...",
+          tabCloseErrorLog: "Erro ao tentar fechar a aba (pode ser bloqueado pelo navegador):",
+          // --- Tooltips Configurações ---
+          tooltipInterfaceLang: "Seleciona o idioma para a interface Aquila Prime.",
+          tooltipBuyPauseDuration: "Tempo (em minutos) que o modo de compra ficará pausado ao clicar no botão 'Pausar'. A função será reativada automaticamente após este período.",
+          tooltipSellPauseDuration: "Tempo (em minutos) que o modo de venda ficará pausado ao clicar no botão 'Pausar'. A função será reativada automaticamente após este período.",
+          tooltipCloseOnHCaptcha: "Se marcado, o script tentar\xE1 fechar automaticamente a aba do navegador se um desafio hCaptcha for detectado nesta p\xE1gina.",
+          statusLabel: "Status:",
+          premiumExchange: "Troca Premium",
+          // --- Textos Dinâmicos e Notificações ---
+          pausedUntil: "Pausado até {{time}}",
+          pauseDurationSet: "Pausa de {{mode}} definida por {{duration}} minuto(s).",
+          pauseExpired: "Pausa de {{mode}} expirou. Funcionalidade reativada.",
+          statusResumedManually: "{{mode}} retomado manualmente.",
+          setPauseDurationError: "Defina uma duração de pausa (> 0) nas configurações.",
+          // === INÍCIO: Chaves Buy/Sell PT ===
+          buy: "Compra",
+          sell: "Venda",
+          // === FIM: Chaves Buy/Sell PT ===
+        }
+      },
+      ru: {
+        translation: {
+          // ... (outras traduções RU) ...
+          title: "\u0420\u0410\u0413\u041D\u0410\u0420\u041E\u041A \u041F\u041E\u041A\u0423\u041F\u041A\u0410 \u0418 \u041F\u0420\u041E\u0414\u0410\u0416\u0410 \u0420\u0415\u0421\u0423\u0420\u0421\u041E\u0412",
+          buyModeToggleOn: "\u041E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043F\u043E\u043A\u0443\u043F\u043A\u0443",
+          buyModeToggleOff: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043F\u043E\u043A\u0443\u043F\u043A\u0443",
+          sellModeToggleOn: "\u041E\u0442\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043F\u0440\u043E\u0434\u0430\u0436\u0443",
+          sellModeToggleOff: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u044C \u043F\u0440\u043E\u0434\u0430\u0436\u0443",
+          saveConfig: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
+          resetAll: "\u0421\u0431\u0440\u043E\u0441\u0438\u0442\u044C \u0432\u0441\u0451",
+          pause: "\u041F\u0430\u0443\u0437\u0430",
+          transactions: "\u0422\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u0438",
+          aiAssistant: "\u0418\u0418-\u0410\u0441\u0441\u0438\u0441\u0442\u0435\u043D\u0442 \u0420\u0430\u0433\u043D\u0430\u0440\u043E\u043A",
+          settings: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+          saveSuccess: "\u041A\u043E\u043D\u0444\u0438\u0433\u0443\u0440\u0430\u0446\u0438\u044F \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0430!",
+          portuguese: "\u041F\u043E\u0440\u0442\u0443\u0433\u0430\u043B\u044C\u0441\u043A\u0438\u0439",
+          russian: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439",
+          english: "\u0410\u043D\u0433\u043B\u0438\u0439\u0441\u043A\u0438\u0439",
+          activated: "\u0410\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u043D\u043E",
+          deactivated: "\u0414\u0435\u0430\u043A\u0442\u0438\u0432\u0438\u0440\u043E\u0432\u0430\u043D\u043E",
+          transactionInProgress: "\u041E\u0431\u0440\u0430\u0431\u043E\u0442\u043A\u0430 \u0442\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u0438...",
+          transactionSuccess: "\u0422\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u044F \u0443\u0441\u043F\u0435\u0448\u043D\u043E \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043D\u0430!",
+          transactionError: "\u041E\u0448\u0438\u0431\u043A\u0430 \u0442\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u0438. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.",
+          domError: "\u041E\u0448\u0438\u0431\u043A\u0430 \u0434\u043E\u0441\u0442\u0443\u043F\u0430 \u043A \u044D\u043B\u0435\u043C\u0435\u043D\u0442\u0430\u043C \u0438\u0433\u0440\u044B. \u041E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0438\u0435...",
+          noTransactions: "\u0422\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u0439 \u043D\u0435 \u043D\u0430\u0439\u0434\u0435\u043D\u043E.",
+          transactionsHeader: "\u0418\u0441\u0442\u043E\u0440\u0438\u044F \u0442\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u0439",
+          transaction: "\u0422\u0440\u0430\u043D\u0437\u0430\u043A\u0446\u0438\u044F",
+          date: "\u0414\u0430\u0442\u0430",
+          type: "\u0422\u0438\u043F",
+          change: "\u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u0435",
+          world: "\u041C\u0438\u0440",
+          newPremiumPoints: "\u041D\u043E\u0432\u044B\u0435 \u043F\u0440\u0435\u043C\u0438\u0443\u043C-\u043E\u0447\u043A\u0438",
+          close: "\u0417\u0430\u043A\u0440\u044B\u0442\u044C",
+          filters: "\u0424\u0438\u043B\u044C\u0442\u0440\u044B",
+          dateFrom: "\u0414\u0430\u0442\u0430 \u043D\u0430\u0447\u0430\u043B\u0430",
+          dateTo: "\u0414\u0430\u0442\u0430 \u043E\u043A\u043E\u043D\u0447\u0430\u043D\u0438\u044F",
+          worldFilter: "\u0424\u0438\u043B\u044C\u0442\u0440 \u043F\u043E \u043C\u0438\u0440\u0443",
+          sortAsc: "\u0421\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043F\u043E \u0432\u043E\u0437\u0440\u0430\u0441\u0442\u0430\u043D\u0438\u044E",
+          sortDesc: "\u0421\u043E\u0440\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043F\u043E \u0443\u0431\u044B\u0432\u0430\u043D\u0438\u044E",
+          page: "\u0421\u0442\u0440\u0430\u043D\u0438\u0446\u0430",
+          next: "\u0421\u043B\u0435\u0434\u0443\u044E\u0449\u0430\u044F",
+          previous: "\u041F\u0440\u0435\u0434\u044B\u0434\u0443\u0449\u0430\u044F",
+          chartTitle: "\u0418\u0437\u043C\u0435\u043D\u0435\u043D\u0438\u044F \u0441 \u0442\u0435\u0447\u0435\u043D\u0438\u0435\u043C \u0432\u0440\u0435\u043C\u0435\u043D\u0438",
+          expenses: "\u0420\u0430\u0441\u0445\u043E\u0434\u044B",
+          sales: "\u041F\u0440\u0438\u0431\u044B\u043B\u044C",
+          profit: "\u0414\u043E\u0445\u043E\u0434",
+          filteredPeriodProfitLabel: "\u0427\u0438\u0441\u0442\u0430\u044F \u043F\u0440\u0438\u0431\u044B\u043B\u044C (\u041F\u0435\u0440\u0438\u043E\u0434)",
+          aiPrompt: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u0432\u0430\u0448 \u0432\u043E\u043F\u0440\u043E\u0441 \u0434\u043B\u044F \u0418\u0418-\u043F\u043E\u043C\u043E\u0449\u043D\u0438\u043A\u0430",
+          aiLoading: "\u0417\u0430\u0433\u0440\u0443\u0437\u043A\u0430 \u043E\u0442\u0432\u0435\u0442\u0430...",
+          aiError: "\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0438\u044F \u043E\u0442\u0432\u0435\u0442\u0430 \u043E\u0442 \u0418\u0418",
+          tooltipMinimize: "\u0421\u0432\u0435\u0440\u043D\u0443\u0442\u044C \u043E\u043A\u043D\u043E",
+          tooltipSettings: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438",
+          tooltipAIAssistant: "\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u0418\u0418-\u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043D\u0442\u0430",
+          stockDesiredTooltip: "\u0423\u0441\u0442\u0430\u043D\u0430\u0432\u043B\u0438\u0432\u0430\u0435\u0442 \u043C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0435 \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E {{resource}}, \u0443\u0447\u0438\u0442\u044B\u0432\u0430\u044F \u0441\u0443\u043C\u043C\u0443 \u0440\u0435\u0441\u0443\u0440\u0441\u043E\u0432 \u0432 \u0434\u0435\u0440\u0435\u0432\u043D\u0435 \u0438 \u043D\u0430\u0445\u043E\u0434\u044F\u0449\u0438\u0445\u0441\u044F \u0432 \u043F\u0443\u0442\u0438.",
+          userRateTooltip: "\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430 (\u043F\u0440\u0435\u043C\u0438\u0443\u043C-\u043E\u0447\u043A\u0438 \u0437\u0430 \u0435\u0434\u0438\u043D\u0438\u0446\u0443) \u0434\u043B\u044F \u043F\u043E\u043A\u0443\u043F\u043A\u0438 {{resource}}. \u0421\u043A\u0440\u0438\u043F\u0442 \u043F\u043E\u043A\u0443\u043F\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0435\u0441\u043B\u0438 \u0440\u044B\u043D\u043E\u0447\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430 \u0440\u0430\u0432\u043D\u0430 \u0438\u043B\u0438 \u0432\u044B\u0448\u0435.",
+          buyPerTimeTooltip: "Максимальное количество за покупку/транзакцию. Скрипт не превышает это значение.",
+          reserveAmountTooltip: "\u041C\u0438\u043D\u0438\u043C\u0430\u043B\u044C\u043D\u043E\u0435 \u043A\u043E\u043B\u0438\u0447\u0435\u0441\u0442\u0432\u043E {{resource}} \u0434\u043B\u044F \u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F. \u0421\u043A\u0440\u0438\u043F\u0442 \u043D\u0435 \u043F\u0440\u043E\u0434\u0430\u0435\u0442, \u0435\u0441\u043B\u0438 \u0437\u0430\u043F\u0430\u0441 \u0440\u0430\u0432\u0435\u043D \u0438\u043B\u0438 \u043C\u0435\u043D\u044C\u0448\u0435.",
+          reserveRateTooltip: "\u041C\u0430\u043A\u0441\u0438\u043C\u0430\u043B\u044C\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430 (\u043F\u0440\u0435\u043C\u0438\u0443\u043C-\u043E\u0447\u043A\u0438 \u0437\u0430 \u0435\u0434\u0438\u043D\u0438\u0446\u0443) \u0434\u043B\u044F \u043F\u0440\u043E\u0434\u0430\u0436\u0438 {{resource}}. \u0421\u043A\u0440\u0438\u043F\u0442 \u043F\u0440\u043E\u0434\u0430\u0435\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0435\u0441\u043B\u0438 \u0440\u044B\u043D\u043E\u0447\u043D\u0430\u044F \u0441\u0442\u0430\u0432\u043A\u0430 \u0440\u0430\u0432\u043D\u0430 \u0438\u043B\u0438 \u043D\u0438\u0436\u0435.",
+          sellLimitTooltip: "Максимальное количество за продажу/транзакцию. Скрипт не превышает это значение.",
+          tooltipVillageSelect: "Отображает активную деревню и координаты.",
+          tooltipPauseBuy: "\u041F\u0440\u0438\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u043E\u043A\u0443\u043F\u043A\u0443 \u043D\u0430 \u0432\u0440\u0435\u043C\u044F, \u0443\u043A\u0430\u0437\u0430\u043D\u043D\u043E\u0435 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.",
+          tooltipPauseSell: "\u041F\u0440\u0438\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u0440\u043E\u0434\u0430\u0436\u0443 \u043D\u0430 \u0432\u0440\u0435\u043C\u044F, \u0443\u043A\u0430\u0437\u0430\u043D\u043D\u043E\u0435 \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.",
+          clickToResumeTooltip: "\u041D\u0430\u0436\u043C\u0438\u0442\u0435, \u0447\u0442\u043E\u0431\u044B \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C",
+          tooltipSaveConfig: "Сохраняет текущие настройки в локальном хранилище браузера.",
+          tooltipTransactions: "Открывает историю транзакций Премиум-очков.",
+          tooltipPremiumLimit: "МАКСИМАЛЬНЫЙ лимит ПП, который скрипт может ПОТРАТИТЬ на покупки.",
+          tooltipWorldProfit: "Отображает ЧИСТУЮ прибыль в Премиум-очках, полученную в этом мире (Общий доход - Общие расходы, на основе истории).",
+          resourceNames: { wood: "\u0434\u0435\u0440\u0435\u0432\u043E", stone: "\u0433\u043B\u0438\u043D\u0430", iron: "\u0436\u0435\u043B\u0435\u0437\u043E" },
+          settingsSectionAccount: "\u0418\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F \u043E\u0431 \u0430\u043A\u043A\u0430\u0443\u043D\u0442\u0435",
+          settingsSectionLanguage: "\u042F\u0437\u044B\u043A",
+          settingsSectionGeneral: "\u041E\u0431\u0449\u0438\u0435",
+          // REMOVED: settingsSectionSell: "\u041F\u0440\u043E\u0434\u0430\u0436\u0430",
+          settingsSectionPause: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0438 \u043F\u0430\u0443\u0437\u044B",
+          settingsLabelBuyPauseDuration: "\u0414\u043B\u0438\u0442. \u043F\u0430\u0443\u0437\u044B \u043F\u043E\u043A\u0443\u043F\u043A\u0438 (\u043C\u0438\u043D):",
+          settingsLabelSellPauseDuration: "\u0414\u043B\u0438\u0442. \u043F\u0430\u0443\u0437\u044B \u043F\u0440\u043E\u0434\u0430\u0436\u0438 (\u043C\u0438\u043D):",
+          settingsLabelPlayer: "\u0418\u0433\u0440\u043E\u043A:",
+          settingsLabelLicense: "\u041B\u0438\u0446\u0435\u043D\u0437\u0438\u044F \u0434\u0435\u0439\u0441\u0442\u0432\u0443\u0435\u0442 \u0434\u043E:",
+          settingsLabelVersion: "\u0412\u0435\u0440\u0441\u0438\u044F \u0441\u043A\u0440\u0438\u043F\u0442\u0430:",
+          settingsLabelInterfaceLang: "\u042F\u0437\u044B\u043A \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430:",
+          settingsLabelCloseOnHCaptcha: "\u0417\u0430\u043A\u0440\u044B\u0432\u0430\u0442\u044C \u0432\u043A\u043B\u0430\u0434\u043A\u0443 \u043F\u0440\u0438 hCaptcha:",
+          hCaptchaDetectedLog: "hCaptcha \u043E\u0431\u043D\u0430\u0440\u0443\u0436\u0435\u043D!",
+          attemptingTabCloseLog: "\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430 \u0430\u043A\u0442\u0438\u0432\u043D\u0430 - \u041F\u043E\u043F\u044B\u0442\u043A\u0430 \u0437\u0430\u043A\u0440\u044B\u0442\u0438\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0438...",
+          tabCloseErrorLog: "\u041E\u0448\u0438\u0431\u043A\u0430 \u043F\u0440\u0438 \u043F\u043E\u043F\u044B\u0442\u043A\u0435 \u0437\u0430\u043A\u0440\u044B\u0442\u0438\u044F \u0432\u043A\u043B\u0430\u0434\u043A\u0438 (\u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u0437\u0430\u0431\u043B\u043E\u043A\u0438\u0440\u043E\u0432\u0430\u043D\u043E \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u043E\u043C):",
+          tooltipInterfaceLang: "\u0412\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u044F\u0437\u044B\u043A \u0434\u043B\u044F \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430 Aquila Prime.",
+          tooltipBuyPauseDuration: "\u0412\u0440\u0435\u043C\u044F (\u0432 \u043C\u0438\u043D\u0443\u0442\u0430\u0445), \u043D\u0430 \u043A\u043E\u0442\u043E\u0440\u043E\u0435 \u0440\u0435\u0436\u0438\u043C \u043F\u043E\u043A\u0443\u043F\u043A\u0438 \u0431\u0443\u0434\u0435\u0442 \u043F\u0440\u0438\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D \u043F\u0440\u0438 \u043D\u0430\u0436\u0430\u0442\u0438\u0438 \u043A\u043D\u043E\u043F\u043A\u0438 '\u041F\u0430\u0443\u0437\u0430'. \u0424\u0443\u043D\u043A\u0446\u0438\u044F \u0431\u0443\u0434\u0435\u0442 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430 \u043F\u043E\u0441\u043B\u0435 \u044D\u0442\u043E\u0433\u043E \u043F\u0435\u0440\u0438\u043E\u0434\u0430.",
+          tooltipSellPauseDuration: "\u0412\u0440\u0435\u043C\u044F (\u0432 \u043C\u0438\u043D\u0443\u0442\u0430\u0445), \u043D\u0430 \u043A\u043E\u0442\u043E\u0440\u043E\u0435 \u0440\u0435\u0436\u0438\u043C \u043F\u0440\u043E\u0434\u0430\u0436\u0438 \u0431\u0443\u0434\u0435\u0442 \u043F\u0440\u0438\u043E\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D \u043F\u0440\u0438 \u043D\u0430\u0436\u0430\u0442\u0438\u0438 \u043A\u043D\u043E\u043F\u043A\u0438 '\u041F\u0430\u0443\u0437\u0430'. \u0424\u0443\u043D\u043A\u0446\u0438\u044F \u0431\u0443\u0434\u0435\u0442 \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430 \u043F\u043E\u0441\u043B\u0435 \u044D\u0442\u043E\u0433\u043E \u043F\u0435\u0440\u0438\u043E\u0434\u0430.",
+          tooltipCloseOnHCaptcha: "\u0415\u0441\u043B\u0438 \u043E\u0442\u043C\u0435\u0447\u0435\u043D\u043E, \u0441\u043A\u0440\u0438\u043F\u0442 \u043F\u043E\u043F\u044B\u0442\u0430\u0435\u0442\u0441\u044F \u0430\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0437\u0430\u043A\u0440\u044B\u0442\u044C \u0432\u043A\u043B\u0430\u0434\u043A\u0443 \u0431\u0440\u0430\u0443\u0437\u0435\u0440\u0430, \u0435\u0441\u043B\u0438 \u043D\u0430 \u044D\u0442\u043E\u0439 \u0441\u0442\u0440\u0430\u043D\u0438\u0446\u0435 \u043E\u0431\u043D\u0430\u0440\u0443\u0436\u0435\u043D\u0430 \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430 hCaptcha.",
+          statusLabel: "\u0421\u0442\u0430\u0442\u0443\u0441:",
+          premiumExchange: "\u041F\u0440\u0435\u043C\u0438\u0443\u043C-\u043E\u0431\u043C\u0435\u043D",
+          pausedUntil: "\u041F\u0430\u0443\u0437\u0430 \u0434\u043E {{time}}",
+          pauseDurationSet: "\u041F\u0430\u0443\u0437\u0430 (\u0420\u0435\u0436\u0438\u043C: {{mode}}) \u0443\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u0430 \u043D\u0430 {{duration}} \u043C\u0438\u043D.",
+          pauseExpired: "\u041F\u0430\u0443\u0437\u0430 (\u0420\u0435\u0436\u0438\u043C: {{mode}}) \u0438\u0441\u0442\u0435\u043A\u043B\u0430. \u0424\u0443\u043D\u043A\u0446\u0438\u044F \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D\u0430.",
+          statusResumedManually: "\u0420\u0435\u0436\u0438\u043C {{mode}} \u0432\u043E\u0437\u043E\u0431\u043D\u043E\u0432\u043B\u0435\u043D \u0432\u0440\u0443\u0447\u043D\u0443\u044E.",
+          setPauseDurationError: "\u0423\u043A\u0430\u0436\u0438\u0442\u0435 \u0434\u043B\u0438\u0442\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C \u043F\u0430\u0443\u0437\u044B (> 0) \u0432 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430\u0445.",
+          // === INÍCIO: Chaves Buy/Sell RU ===
+          buy: "\u041F\u043E\u043A\u0443\u043F\u043A\u0430", // Pokupka
+          sell: "\u041F\u0440\u043E\u0434\u0430\u0436\u0430", // Prodazha
+          // === FIM: Chaves Buy/Sell RU ===
+        }
+      },
+      en: {
+        translation: {
+          title: "RAGNAROK RESOURCE TRADING",
+          buyModeToggleOn: "Turn Off Buying",
+          buyModeToggleOff: "Turn On Buying",
+          sellModeToggleOn: "Turn Off Selling",
+          sellModeToggleOff: "Turn On Selling",
+          saveConfig: "Save",
+          resetAll: "Reset Everything",
+          pause: "Pause",
+          transactions: "Transactions",
+          aiAssistant: "Ragnarok AI Assistant",
+          settings: "Settings",
+          saveSuccess: "Settings saved successfully!",
+          portuguese: "Portuguese",
+          russian: "Russian",
+          english: "English",
+          activated: "Activated",
+          deactivated: "Deactivated",
+          transactionInProgress: "Processing transaction...",
+          transactionSuccess: "Transaction completed successfully!",
+          transactionError: "Transaction failed. Please try again.",
+          domError: "Error accessing game elements. Refreshing...",
+          noTransactions: "No transactions found.",
+          transactionsHeader: "Transaction History",
+          transaction: "Transaction",
+          date: "Date",
+          type: "Type",
+          change: "Change",
+          world: "World",
+          newPremiumPoints: "New Premium Points",
+          close: "Close",
+          filters: "Filters",
+          dateFrom: "Start Date",
+          dateTo: "End Date",
+          worldFilter: "Filter by World",
+          sortAsc: "Sort Ascending",
+          sortDesc: "Sort Descending",
+          page: "Page",
+          next: "Next",
+          previous: "Previous",
+          chartTitle: "Changes Over Time",
+          expenses: "Costs",
+          sales: "Revenue",
+          profit: "Profit",
+          filteredPeriodProfitLabel: "Net Profit (Period)",
+          aiPrompt: "Type your question for the AI Assistant",
+          aiLoading: "Loading response...",
+          aiError: "Error retrieving AI response",
+          tooltipMinimize: "Minimize Window",
+          tooltipSettings: "Open Settings",
+          tooltipAIAssistant: "Open AI Assistant",
+          stockDesiredTooltip: "Sets the maximum amount of {{resource}}, taking into account the sum of resources available in the village and those in transit.",
+          userRateTooltip: "Minimum rate (premium points per unit) to buy {{resource}}. The script only buys if the market rate is at or above this.",
+          buyPerTimeTooltip: "Maximum amount per purchase/transaction. The script won't exceed this value.",
+          reserveAmountTooltip: "Minimum amount of {{resource}} to keep. The script won't sell if stock is at or below this.",
+          reserveRateTooltip: "Maximum rate (premium points per unit) to sell {{resource}}. The script only sells if the market rate is at or below this.",
+          sellLimitTooltip: "Maximum amount per sale/transaction. The script won't exceed this value.",
+          tooltipVillageSelect: "Displays the active village and coordinates.",
+          tooltipPauseBuy: "Pause Buying for the duration set in Settings.",
+          tooltipPauseSell: "Pause Selling for the duration set in Settings.",
+          clickToResumeTooltip: "Click to resume",
+          tooltipSaveConfig: "Saves the current settings to the browser's local storage.",
+          tooltipTransactions: "Opens the Premium Points transaction history.",
+          tooltipPremiumLimit: "MAXIMUM PP limit the script can SPEND on purchases.",
+          tooltipWorldProfit: "Displays the NET Premium Points balance obtained in this world (Total Income - Total Cost, based on history).",
+          resourceNames: {
+            wood: "wood",
+            stone: "clay",
+            iron: "iron"
+          },
+          settingsSectionAccount: "Account Information",
+          settingsSectionLanguage: "Language",
+          settingsSectionGeneral: "General",
+          // REMOVIDO: settingsSectionSell: "Selling",
+          settingsSectionPause: "Pause Settings",
+          settingsLabelBuyPauseDuration: "Buy Pause Duration (min):",
+          settingsLabelSellPauseDuration: "Sell Pause Duration (min):",
+          settingsLabelPlayer: "Player:",
+          settingsLabelLicense: "License Expires:",
+          settingsLabelVersion: "Script Version:",
+          settingsLabelInterfaceLang: "Interface Language:",
+          settingsLabelCloseOnHCaptcha: "Close Tab on hCaptcha:",
+          hCaptchaDetectedLog: "hCaptcha detected!",
+          attemptingTabCloseLog: "Setting enabled - Attempting to close tab...",
+          tabCloseErrorLog: "Error attempting to close tab (may be blocked by browser):",
+          tooltipInterfaceLang: "Select the language for the Aquila Prime interface.",
+          tooltipBuyPauseDuration: "Time (in minutes) the buying mode will be paused when clicking the 'Pause' button. Functionality will automatically resume after this period.",
+          tooltipSellPauseDuration: "Time (in minutes) the selling mode will be paused when clicking the 'Pause' button. Functionality will automatically resume after this period.",
+          tooltipCloseOnHCaptcha: "If checked, the script will attempt to automatically close the browser tab if an hCaptcha challenge is detected on this page.",
+          statusLabel: "Status:",
+          premiumExchange: "Premium Exchange",
+          pausedUntil: "Paused until {{time}}",
+          pauseDurationSet: "{{mode}} Pause set for {{duration}} minute(s).",
+          pauseExpired: "{{mode}} Pause expired. Functionality reactivated.",
+          statusResumedManually: "{{mode}} manually resumed.",
+          setPauseDurationError: "Set a pause duration (> 0) in settings.",
+           // === INÍCIO: Chaves Buy/Sell EN ===
+           buy: "Buying",
+           sell: "Selling",
+           // === FIM: Chaves Buy/Sell EN ===
+        }
+      }
+    }
+};
+
+  const i18n = window.i18next;
+  if (!i18n.isInitialized) {
+    i18n.init({
+      lng: localStorage.getItem("language") || "pt",
+      fallbackLng: "en",
+      resources: translations.resources,
+      debug: false,
+      // Mantenha false, a menos que esteja depurando i18next
+      interpolation: {
+        escapeValue: false
+        // Necessário para renderizar HTML (como o ícone de PP)
+      }
+    }).then(() => {
+      ////console.log("i18next inicializado com sucesso.");
+    }).catch((err) => {
+      console.error("Erro ao inicializar i18next:", err);
+    });
+  } else {
+    ////console.log("i18next j\xE1 inicializado. Recarregando recursos e definindo l\xEDngua.");
+    i18n.addResourceBundle("pt", "translation", translations.resources.pt.translation, true, true);
+    i18n.addResourceBundle("ru", "translation", translations.resources.ru.translation, true, true);
+    i18n.addResourceBundle("en", "translation", translations.resources.en.translation, true, true);
+    const currentLang = localStorage.getItem("language") || "pt";
+    if (i18n.language !== currentLang) {
+      i18n.changeLanguage(currentLang).catch((err) => console.error("Erro ao mudar l\xEDngua no i18next j\xE1 inicializado:", err));
+    }
+  }
+  i18n.init({
+    lng: localStorage.getItem("language") || "pt",
+    // Keep using saved language or default
+    fallbackLng: "en",
+    resources: translations.resources,
+    // Use the updated resources object
+    debug: false
+    // Set to true for i18next debugging if needed
+  });
+  const elementCache = /* @__PURE__ */ new Map();
+  let currentResources = { wood: 0, stone: 0, iron: 0 };
+  const resourceImgSrc = {
+    wood: "wood",
+    stone: "clay",
+    iron: "iron"
+  };
+  function getResourceAmount(doc, resourceName) {
+    let selector = `#${resourceName}.res`;
+    if (resourceName === "stone") {
+      selector = "#stone";
+    }
+    const resourceElement = doc.querySelector(selector);
+    if (resourceElement) {
+      const textContent = resourceElement.textContent;
+      const trimmedText = textContent.trim();
+      const parsedValue = _.parseInt(trimmedText.replace(/\D/g, ""), 10);
+      return parsedValue || 0;
+    } else {
+      return 0;
+    }
+  }
+  function getStorageCapacity() {
+    if (typeof TribalWars !== "undefined" && TribalWars.getGameData) {
+      const villageData = TribalWars.getGameData().village;
+      const storageCapacity = villageData.storage_max || 1e3;
+      return storageCapacity;
+    }
+    const storageElement = document.querySelector("#storage");
+    if (!storageElement) return 1e3;
+    const storageText = storageElement.textContent.trim();
+    const parts = storageText.split("/");
+    if (parts.length >= 2) {
+      const maxStorage = sanitizeNumber(parts[1]);
+      return maxStorage;
+    }
+    return 1e3;
+  }
+  async function fetchResources() {
+    const villageId = TribalWars.getGameData().village.id;
+    const overviewUrl = `https://${window.location.host}/game.php?village=${villageId}&screen=overview`;
+    const response = await fetchMarketData(overviewUrl);
+    if (response) {
+      const html = response;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      currentResources.wood = getResourceAmount(doc, "wood");
+      currentResources.stone = getResourceAmount(doc, "stone");
+      currentResources.iron = getResourceAmount(doc, "iron");
+    }
+    state.storageCapacity = getStorageCapacity();
+  }
+  class ResourceHandler {
+    constructor(name, config) {
+      this.name = name;
+      this.config = config;
+      this.elementCache = /* @__PURE__ */ new Map();
+    }
+    getDomElement(selector) {
+      if (!this.elementCache.has(selector)) {
+        const element = document.querySelector(selector);
+        this.elementCache.set(selector, element);
+        return element;
+      }
+      return this.elementCache.get(selector);
+    }
+    sanitizeNumber(value) {
+      return _.parseInt(value, 10) || 0;
+    }
+    getStock() {
+      return this.sanitizeNumber(this.getDomElement(this.config.stockSelector)?.textContent.trim());
+    }
+    getGameRate() {
+      return this.sanitizeNumber(this.getDomElement(this.config.rateSelector)?.textContent.trim().replace(/\D/g, ""));
+    }
+    getUserRate() {
+      return this.sanitizeNumber(this.config.uiRateInput?.value);
+    }
+    getTotal() {
+      return currentResources[this.name];
+    }
+    getReserved() {
+      return this.sanitizeNumber(this.config.uiReserveInput?.value);
+    }
+    getMarketValue() {
+      const marketImg = this.getDomElement(this.config.marketImg);
+      if (!marketImg) {
+        return 0;
+      }
+      const valueText = marketImg.parentElement?.textContent.trim();
+      if (!valueText) {
+        return 0;
+      }
+      return this.sanitizeNumber(valueText.replace(/[^0-9]/g, "")) || 0;
+    }
+    getReserveRate() {
+      return this.sanitizeNumber(this.config.uiReserveRateInput?.value);
+    }
+    getBuyInput() {
+      return this.getDomElement(this.config.buyInputSelector);
+    }
+    getSellInput() {
+      return this.getDomElement(this.config.sellInputSelector);
+    }
+  }
+  const resourceTemplate = (name, outputDefault) => ({
+    stockSelector: `#premium_exchange_stock_${name}`,
+    rateSelector: `#premium_exchange_rate_${name} > div:nth-child(1)`,
+    buyInputSelector: `input.premium-exchange-input[data-resource="${name}"][data-type="buy"]`,
+    sellInputSelector: `input.premium-exchange-input[data-resource="${name}"][data-type="sell"]`,
+    totalSelector: `#${name}.res`,
+    marketImg: `.premium-exchange-sep ${`img[src*="${name}_18x16"]`}`,
+    outputDefault
+  });
+  const resourceConfigs = {
+    wood: resourceTemplate("wood", 39),
+    stone: resourceTemplate("stone", 46),
+    iron: resourceTemplate("iron", 63)
+  };
+
+
+
+
+
+
+
+
+
+
+
+const state = mobx.observable({
+    resources: {
+        storageCapacity: 1e3,
+        wood: 0,
+        stone: 0,
+        iron: 0
+    },
+    incomingResources: {
+        wood: 0,
+        stone: 0,
+        iron: 0
+    },
+    marketRates: {},
+    transactions: [],
+    buyModeActive: localStorage.getItem("buyModeActive") === "true",
+    sellModeActive: localStorage.getItem("sellModeActive") === "true",
+
+    // >> Propriedades de Estado para Pausa Temporizada <<
+    buyPausedUntil: null,
+    sellPausedUntil: null,
+    buyPauseDurationMinutes: 5,
+    sellPauseDurationMinutes: 5,
+    // >> FIM Propriedades de Estado <<
+
+    hasExecutedBuy: false,
+    hasExecutedSell: false,
+    reloadPending: false,
+    autoReloadOnError: true, // Mantido o exemplo, ajuste se necessário
+    lastKnownPPLimitBeforeBuy: null,
+    lastKnownPPBalanceBeforeBuy: null,
+
+    // =======================================
+    // === INÍCIO: NOVA PROPRIEDADE hCAPTCHA ===
+    // =======================================
+    closeTabOnHCaptcha: false, // Inicializa como desativado por padrão
+    // =====================================
+    // === FIM: NOVA PROPRIEDADE hCAPTCHA ===
+    // =====================================
+
+    isDarkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
+    currentVillage: null,
+    worldProfit: 0,
+    language: localStorage.getItem("language") || "pt",
+    optimizedRates: mobx.computed(function() {
+      // Certifique-se de que this.marketRates existe antes de acessá-lo
+      return this.marketRates || {};
+    }),
+    rateHistory: {
+        wood: [],
+        stone: [],
+        iron: []
+    },
+    marketTrends: {
+        wood: "neutral",
+        stone: "neutral",
+        iron: "neutral"
+    },
+    marketVolatility: {
+        wood: 0,
+        stone: 0,
+        iron: 0
+    },
+    lastUpdate: {
+        wood: null,
+        stone: null,
+        iron: null
+    },
+    marketConditions: mobx.computed(function() {
+        return {
+            wood: {
+                trend: this.marketTrends.wood,
+                volatility: this.marketVolatility.wood,
+                lastUpdate: this.lastUpdate.wood
+            },
+            stone: {
+                trend: this.marketTrends.stone,
+                volatility: this.marketVolatility.stone,
+                lastUpdate: this.lastUpdate.stone
+            },
+            iron: {
+                trend: this.marketTrends.iron,
+                volatility: this.marketVolatility.iron,
+                lastUpdate: this.lastUpdate.iron
+            }
+        };
+    }),
+    allTransactionsFetched: false,
+    isUpdating: false,
+    isSettingsModalOpen: false,
+    isMinimized: false // Adicionado para consistência, se não existia antes
+});
+
+
+
+
+
+
+
+
+
+// >> NOVAS Variáveis Globais para IDs dos Timeouts da Pausa <<
+//    Usadas para poder cancelar um timeout agendado se necessário.
+let buyPauseTimeoutId = null;
+let sellPauseTimeoutId = null;
+// >> FIM NOVAS Variáveis Globais <<
+
+// === FIM DA ATUALIZAÇÃO ===
+
+const ui = {
+    elements: /* @__PURE__ */ new Map(),
+    buyInputs: /* @__PURE__ */ new Map(),
+    sellInputs: /* @__PURE__ */ new Map(),
+    gameElements: /* @__PURE__ */ new Map(),
+    getElement(key) {
+        if (!this.elements.has(key)) {
+            // Tenta pegar do cache de elementos primeiro
+            const cachedElement = elementCache.get(key);
+            if (cachedElement) {
+                 this.elements.set(key, cachedElement);
+                 return cachedElement;
+            }
+            // Se não estiver no cache, busca no DOM
+            const element = document.querySelector(`#${key}`);
+            if (element) {
+                this.elements.set(key, element);
+                elementCache.set(key, element); // Guarda no cache global também
+            }
+            return element; // Retorna o elemento encontrado ou null
+        }
+        return this.elements.get(key);
+    }
+};
+
+const createElement = (tag, props = {}) => {
+    const element = Object.assign(document.createElement(tag), props);
+    if (props.id) elementCache.set(props.id, element); // Mantém cache global
+    return element;
+};
+
+  function isModalOpen() {
+    const transactionsModal = document.getElementById("transactionsModal");
+    const aiModal = document.getElementById("aiModal");
+    const settingsModal = document.getElementById("settingsModal");
+    return transactionsModal && transactionsModal.style.display === "flex" || aiModal && aiModal.style.display === "flex" || settingsModal && settingsModal.style.display === "flex";
+  }
+
+
+
+
+
+
+
+// Função showTooltip ATUALIZADA (v11 - Lógica de extração de recurso corrigida)
+const showTooltip = (event) => {
+    const tooltip = ui.elements.get("tooltip");
+    if (!tooltip) { console.error("[Tooltip] Elemento tooltip não encontrado!"); return; }
+    const container = ui.elements.get("market-container");
+    if (!container) { console.error("[Tooltip] Container principal não encontrado!"); return; }
+
+    const targetElement = event.target;
+    const tooltipDirectKey = targetElement.dataset.tooltipKey;
+    const resourceInputTooltipKey = targetElement.dataset.tooltip;
+
+    let rawTranslation = '';
+    let interpolationData = {};
+
+    if (tooltipDirectKey) {
+        // --- Caso 1: Chave direta ---
+        rawTranslation = i18n.t(tooltipDirectKey, { defaultValue: `Tooltip: ${tooltipDirectKey}` });
+
+    } else if (resourceInputTooltipKey && targetElement.classList.contains('rate-input')) {
+        // --- Caso 2: Input de recurso (PRECISA DE EXTRAÇÃO CORRETA) ---
+        // 2a. Pega a tradução base
+        rawTranslation = i18n.t(resourceInputTooltipKey, { defaultValue: `Tooltip base: ${resourceInputTooltipKey}` });
+
+        // 2b. *** LÓGICA DE EXTRAÇÃO CORRIGIDA ***
+        const dataResourceValue = targetElement.dataset.resource || ''; // Pega o valor completo: ex: "reserve-wood-rate"
+        let resourceBaseKey = 'resource'; // Fallback inicial
+
+        // Tenta encontrar 'wood', 'stone', ou 'iron' DENTRO do valor do data-attribute
+        const resourceMatch = dataResourceValue.match(/(wood|stone|iron)/); // Regex sem o '^' (início da string)
+        if (resourceMatch && resourceMatch[1]) {
+             // Se encontrou (ex: encontrou 'wood' em 'reserve-wood-rate'), usa o nome encontrado
+             resourceBaseKey = resourceMatch[1];
+        } else {
+             // Se não encontrou 'wood', 'stone' ou 'iron' no nome (ex: 'buy-per-time'),
+             // mantém o fallback 'resource'. O tooltip pode não precisar do nome específico.
+             //console.warn(`[Tooltip] Não foi possível extrair nome do recurso de data-resource="${dataResourceValue}". Usando fallback '${resourceBaseKey}'.`);
+        }
+        // *** FIM DA LÓGICA CORRIGIDA ***
+
+        // 2c. Traduz o NOME do recurso encontrado (ou o fallback)
+        const translatedResourceName = i18n.t(`resourceNames.${resourceBaseKey}`, { defaultValue: resourceBaseKey });
+
+        // 2d. Prepara os dados para interpolação
+        interpolationData = { resource: translatedResourceName };
+
+        ////console.log(`[Tooltip DEBUG Corrigido] Antes de interpolar: raw='${rawTranslation}', data=`, interpolationData);
+
+
+    } else {
+        return;
+    }
+
+    // --- ETAPA FINAL: Interpolação e Exibição (como antes) ---
+    let finalText = rawTranslation;
+    if (Object.keys(interpolationData).length > 0 && rawTranslation.includes('{{')) {
+         try {
+              finalText = i18n.t(rawTranslation, interpolationData);
+         } catch (e) {
+              console.error(`[Tooltip] Erro na interpolação manual de '${rawTranslation}' com`, interpolationData, e);
+              finalText = rawTranslation;
+         }
+    }
+
+    if (!finalText || finalText.startsWith('Tooltip:') || finalText.startsWith('Tooltip base:')) {
+        //console.warn(`[Tooltip] Tradução final não encontrada ou inválida. Key(s): ${tooltipDirectKey || resourceInputTooltipKey}`);
+    }
+
+    ////console.log(`[Tooltip FINAL Corrigido] Key: '${tooltipDirectKey || resourceInputTooltipKey}', Texto Final: '${finalText}'`);
+
+    // --- Lógica de posicionamento (inalterada) ---
+    tooltip.innerHTML = finalText;
+    tooltip.style.display = 'block';
+    const targetRect = targetElement.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+    const relativeTargetTop = targetRect.top - containerRect.top;
+    const relativeTargetLeft = targetRect.left - containerRect.left;
+    let tooltipLeft = relativeTargetLeft + 5;
+    let tooltipTop = relativeTargetTop + targetRect.height + 5;
+    const containerPadding = 10;
+
+    if (tooltipLeft + tooltipWidth > container.clientWidth - containerPadding) {
+        tooltipLeft = container.clientWidth - tooltipWidth - containerPadding;
+    }
+    if (tooltipLeft < containerPadding) {
+        tooltipLeft = containerPadding;
+    }
+    if (tooltipTop + tooltipHeight > container.clientHeight - containerPadding) {
+        tooltipTop = relativeTargetTop - tooltipHeight - 5;
+    }
+    if (tooltipTop < containerPadding) {
+        tooltipTop = containerPadding;
+    }
+    tooltip.style.left = `${Math.max(0, tooltipLeft)}px`;
+    tooltip.style.top = `${Math.max(0, tooltipTop)}px`;
+};
+
+
+
+// Função updateTooltipPosition ATUALIZADA
+const updateTooltipPosition = (event) => {
+    const tooltip = ui.elements.get("tooltip"); // <--- PEGA DO CACHE DA UI
+    if (!tooltip || !tooltip.style.display || tooltip.style.display === "none") return;
+
+    const container = ui.elements.get("market-container"); // <--- PEGA DO CACHE DA UI
+    if (!container) return;
+
+    const targetElement = event.target;
+    const targetRect = targetElement.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const tooltipWidth = tooltip.offsetWidth;
+    const tooltipHeight = tooltip.offsetHeight;
+
+    // Lógica de cálculo de posição relativa (igual a showTooltip)
+    const relativeTargetTop = targetRect.top - containerRect.top;
+    const relativeTargetLeft = targetRect.left - containerRect.left;
+
+    let tooltipLeft = relativeTargetLeft + 5;
+    let tooltipTop = relativeTargetTop + targetRect.height + 5;
+
+    const containerPadding = 10;
+
+    if (tooltipLeft + tooltipWidth > container.clientWidth - containerPadding) {
+      tooltipLeft = container.clientWidth - tooltipWidth - containerPadding;
+    }
+    if (tooltipLeft < containerPadding) {
+      tooltipLeft = containerPadding;
+    }
+    if (tooltipTop + tooltipHeight > container.clientHeight - containerPadding) {
+        tooltipTop = relativeTargetTop - tooltipHeight - 5;
+    }
+    if (tooltipTop < containerPadding) {
+        tooltipTop = containerPadding;
+    }
+
+    tooltip.style.left = `${Math.max(0, tooltipLeft)}px`;
+    tooltip.style.top = `${Math.max(0, tooltipTop)}px`;
+};
+
+// Função hideTooltip ATUALIZADA
+const hideTooltip = () => {
+    const tooltip = ui.elements.get("tooltip"); // <--- PEGA DO CACHE DA UI
+    if (tooltip) {
+         tooltip.style.display = "none";
+         // REMOVIDO: Tentativa de anexar ao body
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const sanitizeNumber = (value) => _.parseInt(value, 10) || 0;
+  const createResourceCard = (resource, type, iconUrl, placeholders) => {
+    const tooltipKeys = {
+      "wood-stock": "stockDesiredTooltip",
+      "stone-stock": "stockDesiredTooltip",
+      "iron-stock": "stockDesiredTooltip",
+      "wood": "userRateTooltip",
+      "stone": "userRateTooltip",
+      "iron": "userRateTooltip",
+      "buy-per-time": "buyPerTimeTooltip",
+      "storage-limit": "buyPerTimeTooltip",
+      "max-spend": "buyPerTimeTooltip",
+      "reserve-wood": "reserveAmountTooltip",
+      "reserve-stone": "reserveAmountTooltip",
+      "reserve-iron": "reserveAmountTooltip",
+      "reserve-wood-rate": "reserveRateTooltip",
+      "reserve-stone-rate": "reserveRateTooltip",
+      "reserve-iron-rate": "reserveRateTooltip",
+      "sell-limit": "sellLimitTooltip",
+      "sell-limit-stone": "sellLimitTooltip",
+      "sell-limit-iron": "sellLimitTooltip"
+    };
+    const getTooltipKey = (resourceName, placeholderKey) => {
+      if (type === "buy") {
+        if (placeholderKey === 0) return tooltipKeys[`${resourceName}-stock`];
+        if (placeholderKey === 1) return tooltipKeys[resourceName];
+        if (placeholderKey === 2 && placeholders[2].key === "buy-per-time") return tooltipKeys["buy-per-time"];
+        if (placeholderKey === 2 && placeholders[2].key === "storage-limit") return tooltipKeys["storage-limit"];
+        if (placeholderKey === 2 && placeholders[2].key === "max-spend") return tooltipKeys["max-spend"];
+      } else if (type === "sell") {
+        if (placeholderKey === 0) return tooltipKeys[`reserve-${resourceName}`];
+        if (placeholderKey === 1) return tooltipKeys[`reserve-${resourceName}-rate`];
+        if (placeholderKey === 2 && placeholders[2].key === "sell-limit") return tooltipKeys["sell-limit"];
+        if (placeholderKey === 2 && placeholders[2].key === "sell-limit-stone") return tooltipKeys["sell-limit-stone"];
+        if (placeholderKey === 2 && placeholders[2].key === "sell-limit-iron") return tooltipKeys["sell-limit-iron"];
+      }
+      return void 0;
+    };
+    return `
+    <div class="resource-card base-card" data-resource="${resource}">
+        <img src="${iconUrl}" alt="${resource}" />
         <input type="number" class="rate-input"
-               data-resource="${"buy"===t?`${e}-stock`:`reserve-${e}`}"
-               data-tooltip="${n(e,0)}"
-               placeholder="${o[0]}">
+               data-resource="${type === "buy" ? `${resource}-stock` : `reserve-${resource}`}"
+               data-tooltip="${getTooltipKey(resource, 0)}"
+               placeholder="${placeholders[0]}">
 
-        <span>${"buy"===t?"↑":"↓"}</span>
+        <span>${type === "buy" ? "\u2191" : "\u2193"}</span>
 
         <input type="number" class="rate-input"
-               data-resource="${"buy"===t?e:`reserve-${e}-rate`}"
-               data-tooltip="${n(e,1)}"
-               placeholder="${o[1]}">
+               data-resource="${type === "buy" ? resource : `reserve-${resource}-rate`}"
+               data-tooltip="${getTooltipKey(resource, 1)}"
+               placeholder="${placeholders[1]}">
 
         <div class="num-input">
             <img src="https://dsus.innogamescdn.com/asset/95eda994/graphic/items/resources.png" alt="Resources" class="resource-icon" />
             <input type="number" class="rate-input"
-                   data-resource="${"buy"===t?o[2].key:`sell-limit${"wood"===e?"":`-${e}`}`}"
-                   data-tooltip="${n(e,2)}"
-                   placeholder="${o[2].value}">
+                   data-resource="${type === "buy" ? placeholders[2].key : `sell-limit${resource === "wood" ? "" : `-${resource}`}`}"
+                   data-tooltip="${getTooltipKey(resource, 2)}"
+                   placeholder="${placeholders[2].value}">
         </div>
     </div>
-  `},K=(e,t,a="black-btn",o={})=>{let r="";for(let n in o)if(Object.hasOwnProperty.call(o,n)){let i=String(o[n]).replace(/"/g,'"');r+=` ${n}="${i}"`}return`<button class="${a||""}" id="${e}"${r}>${t}</button>`},J=async e=>(console.warn("[Gemini API] Chave API n\xe3o configurada. Chamada ignorada."),"Erro: Chave da API Gemini n\xe3o configurada no script."),Y=()=>{let e=N("div",{className:"market-container draggable",style:"position: fixed; top: 50px; left: 50px; z-index: 2147483647; overflow: hidden;"});S.set("market-container",e),O.elements.set("market-container",e),e.innerHTML=`
+  `;
+  };
+  const createButton = (id, text, classes = "black-btn", attributes = {}) => {
+    let attrsString = "";
+    for (const key in attributes) {
+      if (Object.hasOwnProperty.call(attributes, key)) {
+        const escapedValue = String(attributes[key]).replace(/"/g, '"');
+        attrsString += ` ${key}="${escapedValue}"`;
+      }
+    }
+    return `<button class="${classes || ""}" id="${id}"${attrsString}>${text}</button>`;
+  };
+
+
+
+
+
+  // Função callGeminiAPI ATUALIZADA para usar GM_xmlhttpRequest
+const callGeminiAPI = async (prompt) => {
+    // Chave API ainda está vazia, a função não funcionará, mas a estrutura está aqui
+    if (!GEMINI_API_KEY) {
+         console.warn("[Gemini API] Chave API não configurada. Chamada ignorada.");
+         return "Erro: Chave da API Gemini não configurada no script."; // Retorna erro amigável
+    }
+
+    const payload = {
+        contents: [{
+            parts: [{ text: prompt }]
+        }]
+    };
+
+    // console.log(`[GM_XHR Request] Chamando Gemini API...`); // Log opcional
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, // Usa a constante da URL e chave
+            headers: {
+                "Content-Type": "application/json",
+            },
+            data: JSON.stringify(payload), // Converte o payload para string JSON
+            timeout: 15000, // Timeout de 15 segundos
+            onload: function(response) {
+                if (response.status === 200) {
+                    try {
+                        const responseData = JSON.parse(response.responseText);
+                        const content = responseData.candidates?.[0]?.content?.parts?.[0]?.text || "Sem resposta do Gemini.";
+                        // console.log(`[GM_XHR Success] Resposta recebida da Gemini API.`); // Log opcional
+                        resolve(content); // Resolve com o texto da resposta
+                    } catch (e) {
+                        console.error("[GM_XHR Parse Error] Erro ao parsear resposta da Gemini API:", e, response.responseText);
+                        reject(new Error("Erro ao processar resposta da API Gemini"));
+                    }
+                } else {
+                     console.error(`[GM_XHR HTTP Error] Status ${response.status} da Gemini API: ${response.statusText}`, response.responseText);
+                     reject(new Error(`Erro HTTP ${response.status} da API Gemini`));
+                }
+            },
+            onerror: function(error) {
+                console.error(`[GM_XHR Network Error] Erro de rede ao chamar Gemini API:`, error);
+                reject(new Error("Erro de rede ao chamar API Gemini"));
+            },
+            ontimeout: function() {
+                console.error(`[GM_XHR Timeout] Timeout ao chamar Gemini API`);
+                reject(new Error("Timeout ao chamar API Gemini"));
+            }
+        });
+    });
+};
+
+
+
+
+
+
+
+
+
+
+
+
+// ================================================================
+// ===        FUNÇÃO initializeUI ATUALIZADA (v17 - Move PP Input) ===
+// ================================================================
+const initializeUI = () => {
+    const container = createElement("div", {
+        className: "market-container draggable",
+        style: "position: fixed; top: 50px; left: 50px; z-index: 2147483647; overflow: hidden;"
+    });
+    elementCache.set("market-container", container);
+    ui.elements.set("market-container", container);
+
+    // --- HTML da Interface (Com Input PP no Header da Seção Compra) ---
+    container.innerHTML = `
         <div class="market-container">
             <div class="header">
-                <h2 id="headerTitle">${T.t("title")}</h2>
+                <h2 id="headerTitle">${i18n.t("title")}</h2>
                 <div class="dropdowns">
                     <div class="dropdown" data-tooltip-key="tooltipVillageSelect">
                         <span class="village-icon">
@@ -101,11 +1466,11 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
                 </div>
                 <div class="header-buttons">
                     <div class="btn-group-left">
-                        ${K("aiAssistantBtn",'<i class="fa-solid fa-robot"></i>',"icon-btn",{"data-tooltip-key":"tooltipAIAssistant"})}
+                        ${createButton("aiAssistantBtn", `<i class="fa-solid fa-robot"></i>`, "icon-btn", { "data-tooltip-key": "tooltipAIAssistant" })}
                     </div>
                     <div class="btn-group-right">
-                        ${K("minimizeButton",'<i class="fa-solid fa-window-minimize"></i>',"icon-btn",{"data-tooltip-key":"tooltipMinimize"})}
-                        ${K("settingsBtn",'<i class="fa-solid fa-gear"></i>',"icon-btn",{"data-tooltip-key":"tooltipSettings"})}
+                        ${createButton("minimizeButton", `<i class="fa-solid fa-window-minimize"></i>`, "icon-btn", { "data-tooltip-key": "tooltipMinimize" })}
+                        ${createButton("settingsBtn", `<i class="fa-solid fa-gear"></i>`, "icon-btn", { "data-tooltip-key": "tooltipSettings" })}
                     </div>
                 </div>
             </div>
@@ -114,8 +1479,8 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
 
                     <h3 style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                         <span>
-                           <span id="buyStatusLabel">${T.t("statusLabel")}</span>
-                           <span class="status" id="buyStatus">${T.t(q.buyModeActive?"activated":"deactivated")}</span>
+                           <span id="buyStatusLabel">${i18n.t("statusLabel")}</span>
+                           <span class="status" id="buyStatus">${i18n.t(state.buyModeActive ? "activated" : "deactivated")}</span>
                         </span>
                         <div class="premium-input-wrapper" data-tooltip-key="tooltipPremiumLimit">
                             <span class="icon header premium"></span>
@@ -125,15 +1490,15 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
 
 
                     <div class="sortable-container" id="buySortable">
-                        ${X("wood","buy","https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/WoodProduction_large.png",["200","2000",{key:"buy-per-time",value:"5000"}])}
-                        ${X("stone","buy","https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/StoneProduction_large.png",["200","2000",{key:"storage-limit",value:"5000"}])}
-                        ${X("iron","buy","https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png",["200","2000",{key:"max-spend",value:"5000"}])}
+                        ${createResourceCard("wood", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/WoodProduction_large.png", ["200", "2000", { key: "buy-per-time", value: "5000" }])}
+                        ${createResourceCard("stone", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/StoneProduction_large.png", ["200", "2000", { key: "storage-limit", value: "5000" }])}
+                        ${createResourceCard("iron", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png", ["200", "2000", { key: "max-spend", value: "5000" }])}
                     </div>
 
 
                                     <div class="buttons buy-buttons">
-                    ${K("buyModeToggle",T.t(q.buyModeActive?"buyModeToggleOn":"buyModeToggleOff"),"black-btn toggle-btn")}
-                    ${K("buyPause",`<i class="fas fa-pause"></i> ${T.t("pause")}`,"black-btn",{"data-tooltip-key":"tooltipPauseBuy"})}
+                    ${createButton("buyModeToggle", i18n.t(state.buyModeActive ? "buyModeToggleOn" : "buyModeToggleOff"), "black-btn toggle-btn")}
+                    ${createButton("buyPause", `<i class="fas fa-pause"></i> ${i18n.t("pause")}`, "black-btn", {"data-tooltip-key": "tooltipPauseBuy"})}
                     <span class="spinner" id="buySpinner" style="display: none;"></span>
                 </div>
 
@@ -143,35 +1508,35 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
 
                 <div class="section sell" id="sellSection">
 
-                    <h3><span id="sellStatusLabel">${T.t("statusLabel")}</span> <span class="status" id="sellStatus">${T.t(q.sellModeActive?"activated":"deactivated")}</span></h3>
+                    <h3><span id="sellStatusLabel">${i18n.t("statusLabel")}</span> <span class="status" id="sellStatus">${i18n.t(state.sellModeActive ? "activated" : "deactivated")}</span></h3>
                     <div class="sortable-container" id="sellSortable">
-                        ${X("wood","sell","https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/WoodProduction_large.png",["1000","64",{key:"sell-limit",value:"200"}])}
-                        ${X("stone","sell","https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/StoneProduction_large.png",["1000","64",{key:"sell-limit-stone",value:"200"}])}
-                        ${X("iron","sell","https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png",["1000","64",{key:"sell-limit-iron",value:"200"}])}
+                        ${createResourceCard("wood", "sell", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/WoodProduction_large.png", ["1000", "64", { key: "sell-limit", value: "200" }])}
+                        ${createResourceCard("stone", "sell", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/StoneProduction_large.png", ["1000", "64", { key: "sell-limit-stone", value: "200" }])}
+                        ${createResourceCard("iron", "sell", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png", ["1000", "64", { key: "sell-limit-iron", value: "200" }])}
                     </div>
                     <div class="buttons">
-                        ${K("sellModeToggle",T.t(q.sellModeActive?"sellModeToggleOn":"sellModeToggleOff"),"black-btn toggle-btn")}
-                        ${K("sellPause",`<i class="fas fa-pause"></i> ${T.t("pause")}`,"black-btn",{"data-tooltip-key":"tooltipPauseSell"})}
+                        ${createButton("sellModeToggle", i18n.t(state.sellModeActive ? "sellModeToggleOn" : "sellModeToggleOff"), "black-btn toggle-btn")}
+                        ${createButton("sellPause", `<i class="fas fa-pause"></i> ${i18n.t("pause")}`, "black-btn", {"data-tooltip-key": "tooltipPauseSell"})}
                         <span class="spinner" id="sellSpinner" style="display: none;"></span>
                     </div>
                 </div>
             </div>
             <div class="footer">
                 <div class="footer-buttons-row">
-                    ${K("resetAll",`\u21BB ${T.t("resetAll")}`,"black-btn")}
-                    ${K("transactionsBtn",T.t("transactions"),"black-btn",{"data-tooltip-key":"tooltipTransactions"})}
-                    ${K("saveConfig",`<i class="fa-solid fa-floppy-disk"></i> ${T.t("saveConfig")}`,"black-btn",{"data-tooltip-key":"tooltipSaveConfig"})}
+                    ${createButton("resetAll", `\u21BB ${i18n.t("resetAll")}`, "black-btn")}
+                    ${createButton("transactionsBtn", i18n.t("transactions"), "black-btn", {"data-tooltip-key": "tooltipTransactions"})}
+                    ${createButton("saveConfig", `<i class="fa-solid fa-floppy-disk"></i> ${i18n.t("saveConfig")}`, "black-btn", {"data-tooltip-key": "tooltipSaveConfig"})}
                 </div>
             </div>
 
-             <!-- MODAL TRANSA\xc7\xd5ES (Conte\xfado completo) -->
+             <!-- MODAL TRANSAÇÕES (Conteúdo completo) -->
             <div class="modal aquila-prime-modal" id="transactionsModal" style="display: none; z-index: 50;">
                 <div class="modal-content aquila-prime-panel">
                     <h3 class="aquila-modal-header">
                         <span class="aquila-icon">
                            <img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;">
                         </span>
-                        <span data-i18n-key="transactionsHeader">${T.t("transactionsHeader")}</span>
+                        <span data-i18n-key="transactionsHeader">${i18n.t("transactionsHeader")}</span>
                     </h3>
                     <div class="modal-scrollable-body">
                        <div id="filterSection"></div>
@@ -184,23 +1549,23 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
                     <div class="modal-footer-controls">
                        <div id="paginationControls"></div>
                        <div>
-                         ${K("closeModal",T.t("close"),"aquila-btn")}
+                         ${createButton("closeModal", i18n.t("close"), "aquila-btn")}
                        </div>
                     </div>
                  </div>
             </div>
 
-            <!-- MODAL IA (Conte\xfado completo) -->
+            <!-- MODAL IA (Conteúdo completo) -->
             <div class="modal" id="aiModal" style="display: none; z-index: 50;">
                  <div class="modal-content">
-                  <h3 data-i18n-key="aiAssistant">${T.t("aiAssistant")}</h3>
+                  <h3 data-i18n-key="aiAssistant">${i18n.t("aiAssistant")}</h3>
                   <div style="padding: 20px; flex-grow: 1; overflow-y: auto;">
-                        <textarea id="aiPrompt" data-i18n-key="aiPrompt" placeholder="${T.t("aiPrompt")}" rows="4" style="width: 100%; margin-bottom: 10px;"></textarea>
+                        <textarea id="aiPrompt" data-i18n-key="aiPrompt" placeholder="${i18n.t("aiPrompt")}" rows="4" style="width: 100%; margin-bottom: 10px;"></textarea>
                         <div id="aiResponse" style="margin-bottom: 10px; min-height: 50px; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 4px; border: 1px solid #303848;"></div>
                   </div>
                   <div style="padding: 15px 20px; border-top: 1px solid #303848; text-align: center;">
-                        ${K("submitAI","Enviar","aquila-btn")}
-                        ${K("closeAIModal",T.t("close"),"aquila-btn")}
+                        ${createButton("submitAI", "Enviar", "aquila-btn")}
+                        ${createButton("closeAIModal", i18n.t("close"), "aquila-btn")}
                   </div>
                 </div>
             </div>
@@ -212,8 +1577,8 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
                        <span class="aquila-icon">
                           <img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;">
                        </span>
-                       <h3 data-i18n-key="settings">Configura\xe7\xf5es Aquila</h3>
-                       <button id="closeSettingsModal" class="close-btn aquila-close-btn">\xd7</button>
+                       <h3 data-i18n-key="settings">Configurações Aquila</h3>
+                       <button id="closeSettingsModal" class="close-btn aquila-close-btn">×</button>
                     </div>
                     <div class="settings-body aquila-body">
 
@@ -224,11 +1589,11 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
                              <span class="info-value aquila-value" id="settingsPlayerName">--</span>
                           </div>
                           <div class="info-row aquila-info-item">
-                              <span class="info-label aquila-label" data-i18n-key="settingsLabelLicense"><i class="fas fa-calendar-check"></i> Validade da Licen\xe7a:</span>
+                              <span class="info-label aquila-label" data-i18n-key="settingsLabelLicense"><i class="fas fa-calendar-check"></i> Validade da Licença:</span>
                               <span class="info-value aquila-value" id="settingsLicenseExpiry">--</span>
                           </div>
                            <div class="info-row aquila-info-item">
-                              <span class="info-label aquila-label" data-i18n-key="settingsLabelVersion"><i class="fas fa-code-branch"></i> Vers\xe3o do Protocolo:</span>
+                              <span class="info-label aquila-label" data-i18n-key="settingsLabelVersion"><i class="fas fa-code-branch"></i> Versão do Protocolo:</span>
                               <span class="info-value aquila-value" id="settingsScriptVersion">--</span>
                           </div>
                        </div>
@@ -236,14 +1601,14 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
                        <div class="settings-section aquila-section language-settings">
                            <h4 data-i18n-key="settingsSectionLanguage"><i class="fas fa-globe-americas"></i> Interface & Idioma</h4>
                            <div class="setting-item aquila-setting-item">
-                                <label for="languageSelect" class="aquila-label" data-i18n-key="settingsLabelInterfaceLang"><i class="fas fa-language"></i> Idioma T\xe1tico:</label>
+                                <label for="languageSelect" class="aquila-label" data-i18n-key="settingsLabelInterfaceLang"><i class="fas fa-language"></i> Idioma Tático:</label>
                                 <select id="languageSelect" class="aquila-select"></select>
                                 <span class="tooltip-icon" data-tooltip-key="tooltipInterfaceLang"><i class="fas fa-info-circle"></i></span>
                            </div>
                        </div>
 
                        <div class="settings-section aquila-section general-settings">
-                           <h4 data-i18n-key="settingsSectionGeneral"><i class="fas fa-sliders-h"></i> Par\xe2metros Gerais</h4>
+                           <h4 data-i18n-key="settingsSectionGeneral"><i class="fas fa-sliders-h"></i> Parâmetros Gerais</h4>
 
                            <div class="setting-item aquila-setting-item checkbox-item">
                                <input type="checkbox" class="settings-checkbox aquila-checkbox" id="closeOnHCaptchaInput">
@@ -254,17 +1619,17 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
 
 
                        <div class="settings-section aquila-section pause-settings">
-                           <h4 data-i18n-key="settingsSectionPause"><i class="fas fa-hourglass-half"></i> Configura\xe7\xf5es de Pausa</h4>
+                           <h4 data-i18n-key="settingsSectionPause"><i class="fas fa-hourglass-half"></i> Configurações de Pausa</h4>
                            <div class="setting-item aquila-setting-item">
                                <label for="buyPauseDurationInput" class="aquila-label" data-i18n-key="settingsLabelBuyPauseDuration">
-                                   <i class="fas fa-shopping-cart"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Dura\xe7\xe3o Pausa Compra (min):
+                                   <i class="fas fa-shopping-cart"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Duração Pausa Compra (min):
                                </label>
                                <input type="number" class="settings-input aquila-input number-input" id="buyPauseDurationInput" min="1" step="1" placeholder="5">
                                <span class="tooltip-icon" data-tooltip-key="tooltipBuyPauseDuration"><i class="fas fa-info-circle"></i></span>
                            </div>
                            <div class="setting-item aquila-setting-item">
                                <label for="sellPauseDurationInput" class="aquila-label" data-i18n-key="settingsLabelSellPauseDuration">
-                                    <i class="fas fa-dollar-sign"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Dura\xe7\xe3o Pausa Venda (min):
+                                    <i class="fas fa-dollar-sign"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Duração Pausa Venda (min):
                                 </label>
                                <input type="number" class="settings-input aquila-input number-input" id="sellPauseDurationInput" min="1" step="1" placeholder="5">
                                <span class="tooltip-icon" data-tooltip-key="tooltipSellPauseDuration"><i class="fas fa-info-circle"></i></span>
@@ -281,46 +1646,2893 @@ Recarregue a p\xe1gina se o problema for resolvido.`);try{let p=document.querySe
 
         </div>
          <div id="aquilaTooltip" class="tooltip aquila-tooltip" style="display: none; position: absolute; z-index: 100;"></div>
-    `;let t=e.querySelector("#aquilaTooltip");t&&O.elements.set("tooltip",t),document.body.appendChild(e);let a=N("div",{id:"notification",className:"notification",style:"display: none; opacity: 0;"});document.body.appendChild(a),S.set("notification",a),O.elements.set("notification",a);let o=N("div",{id:"minimizedMarketBox",className:"minimized-box"});document.body.appendChild(o),O.elements.set("minimizedMarketBox",o);let r="true"===localStorage.getItem("isMinimized");void 0!==q&&(q.isMinimized=r),e.style.display=r?"none":"block",o.style.display=r?"flex":"none","function"==typeof Q&&Q(e),"function"==typeof Z&&Z();try{let n=JSON.parse(localStorage.getItem("marketContainerPosition"));n&&n.left&&n.top&&(e.style.left=n.left,e.style.top=n.top)}catch(i){localStorage.removeItem("marketContainerPosition")}},Q=e=>{let t=!1,a,o,r=null,n,i,s=!1;e.addEventListener("mousedown",r=>{t=!0;let n=e.getBoundingClientRect();a=r.clientX-n.left,o=r.clientY-n.top,e.style.cursor="grabbing"}),document.addEventListener("mouseup",()=>{t&&(t=!1,e.style.cursor="move",cancelAnimationFrame(r),e.style.left&&e.style.top&&localStorage.setItem("marketContainerPosition",JSON.stringify({left:e.style.left,top:e.style.top})))}),document.addEventListener("mousemove",u=>{if(!t||s)return;s=!0;let l=u.clientX-a,$=u.clientY-o,c=window.innerWidth-e.offsetWidth-10,d=window.innerHeight-e.offsetHeight-10;n=Math.max(0,Math.min(l,c)),i=Math.max(0,Math.min($,d));let p=()=>{r=requestAnimationFrame(()=>{t&&(e.style.left=`${n}px`,e.style.top=`${i}px`,p())})};p(),u.preventDefault(),setTimeout(()=>s=!1,16)}),e.addEventListener("mouseleave",()=>{t&&(t=!1,e.style.cursor="move",cancelAnimationFrame(r))})},Z=()=>{if("undefined"==typeof Sortable)return;let e=document.getElementById("buySortable"),t=document.getElementById("sellSortable");new Sortable(e,{animation:150,handle:".resource-card",onEnd(e){}}),new Sortable(t,{animation:150,handle:".resource-card",onEnd(e){}})},ee=()=>window.location.hostname.split(".")[0],et=()=>{if("undefined"!=typeof TribalWars&&TribalWars.getGameData){let e=TribalWars.getGameData().village;if(e){q.currentVillage={name:e.name,coordinates:e.coord,world:ee()},O.getElement("villageSelect").innerHTML=`<option value="current">${e.name} (${e.coord})</option>`;return}}q.currentVillage={name:"Desconhecido",coordinates:"N/A",world:ee()},O.getElement("villageSelect").innerHTML='<option value="current">Carregando...</option>'},ea=()=>(["headerTitle","worldProfit","buyModeToggle","sellModeToggle","saveConfig","resetAll","transactionsBtn","aiAssistantBtn","settingsBtn","languageSelect","villageSelect","buyStatus","sellStatus","buyPause","sellPause","buySpinner","sellSpinner","notification","transactionsModal","transactionsTableContainer","filterSection","paginationControls","transactionsChart","closeModal","aiModal","aiPrompt","aiResponse","submitAI","closeAIModal","minimizeButton","minimizedMarketBox","settingsModal","closeSettingsModal","premiumPointsInput"].forEach(e=>{let t=document.querySelector(`#${e}`);t&&(O.elements.set(e,t),S.set(e,t))}),O.elements.set("inputs",Array.from(document.querySelectorAll(".rate-input"))),O.elements.set("buyPerTimeInput",document.querySelector('.rate-input[data-resource="buy-per-time"]')),O.elements.set("storageLimitInput",document.querySelector('.rate-input[data-resource="storage-limit"]')),O.elements.set("maxSpendInput",document.querySelector('.rate-input[data-resource="max-spend"]')),O.elements.set("sellLimitInput",document.querySelector('.rate-input[data-resource="sell-limit"]')),Array.from(O.elements.values()).every(e=>null!==e)),eo=()=>{let e=Object.keys(L).reduce((e,t)=>{let a={...L[t]};return a.uiRateInput=document.querySelector(`.rate-input[data-resource="${t}"]`),a.uiReserveInput=document.querySelector(`.rate-input[data-resource="reserve-${t}"]`),a.uiReserveRateInput=document.querySelector(`.rate-input[data-resource="reserve-${t}-rate"]`),e[t]=new R(t,a),e},{});return Object.keys(e).forEach(t=>{O.buyInputs.set(t,e[t].getBuyInput()),O.sellInputs.set(t,e[t].getSellInput());let a=O.buyInputs.get(t);a&&!a.dataset.default&&(a.dataset.default="1000")}),e},er=()=>{O.gameElements.set("merchants",document.querySelector("#market_merchant_available_count")),O.gameElements.set("merchants",document.querySelector("#market_merchant_available_count")),O.gameElements.set("calculateButton",document.querySelector("input.btn-premium-exchange-buy")),O.gameElements.set("sellButton",document.querySelector("#premium_exchange_form > input"))},en=()=>{q.reloadPending||(q.reloadPending=!0,console.warn(`${t}: Agendando recarregamento da p\xe1gina em 2 segundos devido a um erro...`),setTimeout(()=>{window.location.reload()},2e3))},ei=(e,t="success",a=3e3)=>{let o=O.getElement("notification");o.textContent=e,o.className=`notification ${t}`,o.style.display="block",o.style.opacity="1",setTimeout(()=>{o.style.opacity="0",setTimeout(()=>o.style.display="none",500)},a)},es=e=>ei(e,"success"),eu=e=>ei(e,"error"),el=()=>{q.isDarkMode=window.matchMedia("(prefers-color-scheme: dark)").matches;let e=S.get("market-container");e.classList.toggle("dark",q.isDarkMode),e.classList.toggle("light",!q.isDarkMode)};window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",el);let e$=e=>{q[e]=!q[e],localStorage.setItem(e,q[e]),q.hasExecutedBuy=("buyModeActive"!==e||!!q[e])&&q.hasExecutedBuy,q.hasExecutedSell=("sellModeActive"!==e||!!q[e])&&q.hasExecutedSell,eK(),q[e]?"buyModeActive"===e?eG():eN():"buyModeActive"===e&&e6()},ec=!1,ed={},e2=async()=>{try{let{transactions:e}=await em(1);if(0===e.length)return!1;let t=e[0].date,a=ed[u];if(!a||0===a.length)return!0;let o=a[0].date;return t>o}catch(r){return console.error("[checkForUpdates] Erro ao verificar atualiza\xe7\xf5es:",r),!0}},ep=async()=>{let e=[],t=1,a=null;try{let{transactions:o,doc:r}=await em(t);o&&o.length>0&&e.push(...o);let n=r.querySelectorAll("a[href*='page=']"),i=1;n.forEach(e=>{let t=e.getAttribute("href"),a=t?.match(/page=(\d+)/);if(a&&a[1]){let o=v.parseInt(a[1],10);isNaN(o)||(i=Math.max(i,o+1))}}),a=i}catch(s){return console.error(`[fetchAllPages] Erro ao buscar/processar p\xe1gina 1:`,s),ec=!1,[]}for(;t<a;){t++;try{let{transactions:l}=await em(t);if(l&&l.length>0)e.push(...l);else break}catch($){console.error(`[fetchAllPages] Erro ao buscar p\xe1gina ${t}:`,$);break}await new Promise(e=>setTimeout(e,250))}e.length>0&&e.sort((e,t)=>{let a=e.date instanceof Date?e.date.getTime():0,o=t.date instanceof Date?t.date.getTime():0;return isNaN(a)||isNaN(o)?0:o-a});try{let c=`ragnarokMarketTransactions_${u}`;localStorage.setItem(c,JSON.stringify(e)),ed[u]=e}catch(d){console.error(`[fetchAllPages] Erro ao salvar logs para ${u}:`,d)}return ec=!1,e},em=async(e=1)=>{let t=TribalWars.getGameData?TribalWars.getGameData():{},a=t.village?.id||null;if(!a)throw Error("ID da vila n\xe3o encontrado no gameData");let o=`${window.location.origin}/game.php?village=${a}&screen=premium&mode=log`,r=1===e?o:`${o}&page=${e-1}`;try{let n=await C(r);if(!n)throw Error("Falha ao buscar logs premium");let i=new DOMParser().parseFromString(n,"text/html"),s=i.querySelector("#content_value");if(!s)throw Error("N\xe3o foi poss\xedvel encontrar o elemento #content_value");let u=null,l=s.querySelectorAll("table");for(let $ of l){let c=Array.from($.querySelectorAll("th")).map(e=>e.textContent.trim().toLowerCase());if(c.some(e=>e.includes("date")||e.includes("data"))&&c.some(e=>e.includes("world")||e.includes("mundo"))&&c.some(e=>e.includes("transaction")||e.includes("transa\xe7\xe3o"))){u=$;break}}let d=[];if(u){let p=Array.from(u.querySelectorAll("tr")).slice(1);d=e1(p)}return{transactions:d,doc:i}}catch(m){throw m}},eg=e=>{if(!e||"string"!=typeof e)return new Date(NaN);let t=null;for(let a of["en-US","pt-BR","ru"])if((t=E.fromFormat(e,"LLL dd, HH:mm",{locale:a})).isValid)break;if(!t||!t.isValid)return new Date(NaN);let o=E.now(),r=t.set({year:o.year});return r>o&&(r=r.set({year:o.year-1})),r.toJSDate()},e1=e=>{let t=[],a=window.location.hostname.includes("tribalwars.com.br")?"br":"us";return e.forEach(e=>{let o=e.querySelectorAll("td");if(o.length>=6){let r=eg(o[0].textContent.trim());if(isNaN(r.getTime()))return;let n=o[1].textContent.trim(),i=n.match(/(\d+)$/),s=n;if(i){let u=i[1];s=`${a}${u}`}let l=o[2].textContent.trim(),$=o[3].textContent.trim().match(/[-+]?\d+(?:\.\d+)?/),c=o[4].textContent.trim().match(/\d+/),d=l,p=$&&parseFloat($[0])||0;"Points redeemed"===l||"Pontos resgatados"===l||"Utilizado"===l?(d="Despesa",p=-Math.abs(p)):("Transfer"===l||"Transfer\xeancia"===l)&&(d=p<0?"Despesa":"Lucro"),t.push({date:r,type:d,change:Math.floor(p),newPremiumPoints:c&&v.parseInt(c[0],10)||0,world:s})}}),t.sort((e,t)=>t.date-e.date)},ef=()=>{if(!q.transactions||!q.currentVillage?.world)return 0;let e=q.transactions.filter(e=>e.world===q.currentVillage.world),t=e.filter(e=>e.change<0||"Despesa"===e.type).reduce((e,t)=>e+Math.abs(t.change),0),a=e.filter(e=>e.change>0||"Lucro"===e.type).reduce((e,t)=>e+t.change,0);return Math.floor(a-t)},eh=(e,t)=>{if(!e)return[];let{dateFrom:a,dateTo:o,worldFilter:r}=t;return v.filter(e,e=>{if(isNaN(e.date.getTime()))return!1;let t=a?new Date(a):null,n=o?new Date(o):null,i=(!t||e.date>=t)&&(!n||e.date<=n),s=!0;return r&&(s=e.world.toLowerCase().includes(r.toLowerCase().trim())),i&&s})},eb=(e,t,a)=>v.orderBy(e,[t],[a]),ex=(e,t,a=10)=>{let o=(t-1)*a;return v.slice(e,o,o+a)},e_=(e,t="date",a="desc",o=1,r=10)=>{let n=e.filter(e=>e.change<0||"Despesa"===e.type),i=e.filter(e=>e.change>0||"Lucro"===e.type),s=Math.floor(n.reduce((e,t)=>e+Math.abs(t.change),0)),u=Math.floor(i.reduce((e,t)=>e+t.change,0)),l=eb(n,t,a),$=eb(i,t,a),c=[{type:"header",label:T.t("expenses")},...l.map(e=>({...e,rowType:"expense"})),{type:"header",label:T.t("sales")},...$.map(e=>({...e,rowType:"income"})),{type:"summary",label:`${T.t("profit")}: <span class="icon header premium"></span> ${Math.floor(u-s)}`}],d=c.length,p=d>0?Math.ceil(d/r):1,m=ex(c,o,r),g=O.getElement("transactionsTableContainer");if(!g){console.error("Aquila Prime: Container da tabela (#transactionsTableContainer) n\xe3o encontrado.");return}g.innerHTML=`
+    `;
+    // --- FIM DO HTML ---
+
+    // Resto da função (adição de tooltips, notifications, etc.) permanece igual
+    const tooltipElement = container.querySelector("#aquilaTooltip");
+    if(tooltipElement) ui.elements.set("tooltip", tooltipElement);
+
+    document.body.appendChild(container);
+
+    const notificationElement = createElement("div", {
+        id: "notification",
+        className: "notification",
+        style: "display: none; opacity: 0;"
+    });
+    document.body.appendChild(notificationElement);
+    elementCache.set("notification", notificationElement);
+    ui.elements.set("notification", notificationElement);
+
+    const minimizedBox = createElement("div", {
+        id: "minimizedMarketBox",
+        className: "minimized-box"
+    });
+    document.body.appendChild(minimizedBox);
+    ui.elements.set("minimizedMarketBox", minimizedBox);
+
+    const isMinimized = localStorage.getItem("isMinimized") === "true";
+    if (typeof state !== 'undefined') { state.isMinimized = isMinimized; }
+    container.style.display = isMinimized ? "none" : "block";
+    minimizedBox.style.display = isMinimized ? "flex" : "none";
+
+    if (typeof addDragAndDropListeners === "function") {
+        addDragAndDropListeners(container);
+    }
+    if (typeof initializeSortable === "function") {
+        initializeSortable();
+    }
+    try {
+        const savedPos = JSON.parse(localStorage.getItem("marketContainerPosition"));
+        if (savedPos && savedPos.left && savedPos.top) {
+            container.style.left = savedPos.left;
+            container.style.top = savedPos.top;
+        }
+    } catch (e) {
+        localStorage.removeItem("marketContainerPosition");
+    }
+}; // --- Fim da função initializeUI (v17 - Move PP Input) ---
+
+
+
+
+
+
+
+
+  const addDragAndDropListeners = (element) => {
+    let isDragging = false;
+    let offsetX, offsetY;
+    let animationFrame = null;
+    let lastX, lastY;
+    let isProcessing = false;
+    element.addEventListener("mousedown", (e) => {
+      isDragging = true;
+      const rect = element.getBoundingClientRect();
+      offsetX = e.clientX - rect.left;
+      offsetY = e.clientY - rect.top;
+      element.style.cursor = "grabbing";
+    });
+    document.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        element.style.cursor = "move";
+        cancelAnimationFrame(animationFrame);
+        if (element.style.left && element.style.top) {
+          localStorage.setItem(
+            "marketContainerPosition",
+            JSON.stringify({
+              left: element.style.left,
+              top: element.style.top
+            })
+          );
+        }
+      }
+    });
+    document.addEventListener("mousemove", (e) => {
+      if (!isDragging || isProcessing) return;
+      isProcessing = true;
+      let newX = e.clientX - offsetX;
+      let newY = e.clientY - offsetY;
+      const maxX = window.innerWidth - element.offsetWidth - 10;
+      const maxY = window.innerHeight - element.offsetHeight - 10;
+      lastX = Math.max(0, Math.min(newX, maxX));
+      lastY = Math.max(0, Math.min(newY, maxY));
+      const moveElement = () => {
+        animationFrame = requestAnimationFrame(() => {
+          if (isDragging) {
+            element.style.left = `${lastX}px`;
+            element.style.top = `${lastY}px`;
+            moveElement();
+          }
+        });
+      };
+      moveElement();
+      e.preventDefault();
+      setTimeout(() => isProcessing = false, 16);
+    });
+    element.addEventListener("mouseleave", () => {
+      if (isDragging) {
+        isDragging = false;
+        element.style.cursor = "move";
+        cancelAnimationFrame(animationFrame);
+      }
+    });
+  };
+  const initializeSortable = () => {
+    if (typeof Sortable === "undefined") {
+      return;
+    }
+    const buySortable = document.getElementById("buySortable");
+    const sellSortable = document.getElementById("sellSortable");
+    new Sortable(buySortable, {
+      animation: 150,
+      handle: ".resource-card",
+      onEnd: (evt) => {
+      }
+    });
+    new Sortable(sellSortable, {
+      animation: 150,
+      handle: ".resource-card",
+      onEnd: (evt) => {
+      }
+    });
+  };
+  const getActiveWorld = () => {
+    return window.location.hostname.split(".")[0];
+  };
+  const updateVillageInfo = () => {
+    if (typeof TribalWars !== "undefined" && TribalWars.getGameData) {
+      const villageData = TribalWars.getGameData().village;
+      if (villageData) {
+        state.currentVillage = {
+          name: villageData.name,
+          coordinates: villageData.coord,
+          world: getActiveWorld()
+        };
+        ui.getElement("villageSelect").innerHTML = `<option value="current">${villageData.name} (${villageData.coord})</option>`;
+        return;
+      }
+    }
+    state.currentVillage = { name: "Desconhecido", coordinates: "N/A", world: getActiveWorld() };
+    ui.getElement("villageSelect").innerHTML = `<option value="current">Carregando...</option>`;
+  };
+  const initializeElements = () => {
+    const elementsToCache = [
+      "headerTitle",
+      "worldProfit",
+      "buyModeToggle",
+      "sellModeToggle",
+      "saveConfig",
+      "resetAll",
+      "transactionsBtn",
+      "aiAssistantBtn",
+      "settingsBtn",
+      "languageSelect",
+      "villageSelect",
+      "buyStatus",
+      "sellStatus",
+      "buyPause",
+      "sellPause",
+      "buySpinner",
+      "sellSpinner",
+      "notification",
+      "transactionsModal",
+      "transactionsTableContainer",
+      "filterSection",
+      "paginationControls",
+      "transactionsChart",
+      "closeModal",
+      "aiModal",
+      "aiPrompt",
+      "aiResponse",
+      "submitAI",
+      "closeAIModal",
+      "minimizeButton",
+      "minimizedMarketBox",
+      "settingsModal",
+      "closeSettingsModal",
+      "premiumPointsInput"
+    ];
+    elementsToCache.forEach((id) => {
+      const element = document.querySelector(`#${id}`);
+      if (element) {
+        ui.elements.set(id, element);
+        elementCache.set(id, element);
+      }
+    });
+    ui.elements.set("inputs", Array.from(document.querySelectorAll(".rate-input")));
+    ui.elements.set("buyPerTimeInput", document.querySelector('.rate-input[data-resource="buy-per-time"]'));
+    ui.elements.set("storageLimitInput", document.querySelector('.rate-input[data-resource="storage-limit"]'));
+    ui.elements.set("maxSpendInput", document.querySelector('.rate-input[data-resource="max-spend"]'));
+    ui.elements.set("sellLimitInput", document.querySelector('.rate-input[data-resource="sell-limit"]'));
+    return Array.from(ui.elements.values()).every((el) => el !== null);
+  };
+  const initializeResources = () => {
+    const resources2 = Object.keys(resourceConfigs).reduce((acc, name) => {
+      const config = { ...resourceConfigs[name] };
+      config.uiRateInput = document.querySelector(`.rate-input[data-resource="${name}"]`);
+      config.uiReserveInput = document.querySelector(`.rate-input[data-resource="reserve-${name}"]`);
+      config.uiReserveRateInput = document.querySelector(`.rate-input[data-resource="reserve-${name}-rate"]`);
+      acc[name] = new ResourceHandler(name, config);
+      return acc;
+    }, {});
+    Object.keys(resources2).forEach((name) => {
+      ui.buyInputs.set(name, resources2[name].getBuyInput());
+      ui.sellInputs.set(name, resources2[name].getSellInput());
+      const buyInput = ui.buyInputs.get(name);
+      if (buyInput && !buyInput.dataset.default) {
+        buyInput.dataset.default = "1000";
+      }
+    });
+    return resources2;
+  };
+  const updateGameElements = () => {
+    ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
+    ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
+    ui.gameElements.set("calculateButton", document.querySelector("input.btn-premium-exchange-buy"));
+    ui.gameElements.set("sellButton", document.querySelector("#premium_exchange_form > input"));
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Função scheduleReload ATUALIZADA (vHumanize 1.0 - Atraso Aleatório)
+const scheduleReload = () => {
+    if (!state.reloadPending) {
+      state.reloadPending = true;
+      const randomExtraDelay = Math.random() * 1500; // Adiciona até 1.5 segundos extras
+      const totalDelay = 2000 + randomExtraDelay;
+      console.warn(`${SCRIPT_NAME}: Agendando recarregamento da página em ${Math.round(totalDelay / 1000)} segundos devido a uma ação/erro...`); // Log ajustado
+      setTimeout(() => {
+        window.location.reload();
+      }, totalDelay); // Usa o delay total calculado
+    } else {
+        // console.log(`${SCRIPT_NAME}: Recarregamento já pendente, ignorando.`);
+    }
+};
+// --- Fim scheduleReload (vHumanize 1.0) ---
+
+
+
+
+
+
+
+
+
+
+
+// --- FIM scheduleReload (v2 - Sempre Ativo) ---
+  const notifyUser = (message, type = "success", duration = 3e3) => {
+    const notification = ui.getElement("notification");
+    notification.textContent = message;
+    notification.className = `notification ${type}`;
+    notification.style.display = "block";
+    notification.style.opacity = "1";
+    setTimeout(() => {
+      notification.style.opacity = "0";
+      setTimeout(() => notification.style.display = "none", 500);
+    }, duration);
+  };
+  const notifySuccess = (message) => notifyUser(message, "success");
+  const notifyError = (message) => notifyUser(message, "error");
+  const updateTheme = () => {
+    state.isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const container = elementCache.get("market-container");
+    container.classList.toggle("dark", state.isDarkMode);
+    container.classList.toggle("light", !state.isDarkMode);
+  };
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", updateTheme);
+  const toggleMode = (mode) => {
+    state[mode] = !state[mode];
+    localStorage.setItem(mode, state[mode]);
+    state.hasExecutedBuy = mode === "buyModeActive" && !state[mode] ? false : state.hasExecutedBuy;
+    state.hasExecutedSell = mode === "sellModeActive" && !state[mode] ? false : state.hasExecutedSell;
+    updateUI();
+    if (state[mode]) mode === "buyModeActive" ? updateAll() : updateSell();
+    else if (mode === "buyModeActive") resetBuyInputs();
+  };
+  let isFetching = false;
+  let cachedTransactions = {};
+  const checkForUpdates = async () => {
+    try {
+      const { transactions: firstPageTransactions } = await fetchPage(1);
+      if (firstPageTransactions.length === 0) {
+        return false;
+      }
+      const latestServerDate = firstPageTransactions[0].date;
+      const currentPlayerCache = cachedTransactions[currentPlayerNickname];
+      if (!currentPlayerCache || currentPlayerCache.length === 0) {
+        return true;
+      }
+      const latestSavedDate = currentPlayerCache[0].date;
+      return latestServerDate > latestSavedDate;
+    } catch (error) {
+      console.error("[checkForUpdates] Erro ao verificar atualiza\xE7\xF5es:", error);
+      return true;
+    }
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ // Função fetchAllPages ATUALIZADA (v4 - Remoção Detecção Última Página + DEBUG)
+const fetchAllPages = async () => {
+    let allTransactions = [];
+    let pageNum = 1;
+    const MAX_LOG_PAGES_TO_FETCH = 1000;
+    const DELAY_BETWEEN_PAGES = 250; // Milissegundos
+
+    console.log(`[fetchAllPages v4 - DEBUG] Iniciando busca completa (limite: ${MAX_LOG_PAGES_TO_FETCH} páginas).`);
+
+    while (pageNum <= MAX_LOG_PAGES_TO_FETCH) {
+        console.log(`[fetchAllPages v4 - DEBUG] Buscando página ${pageNum}...`);
+        try {
+            // Busca a página e tenta parsear as transações
+            const { transactions: pageTransactions, doc } = await fetchPage(pageNum);
+
+            // Verifica se retornou transações VÁLIDAS
+            if (pageTransactions && pageTransactions.length > 0) {
+                allTransactions.push(...pageTransactions);
+                console.log(`[fetchAllPages v4 - DEBUG] Página ${pageNum}: ${pageTransactions.length} transações adicionadas. Total agora: ${allTransactions.length}`);
+                // Continua para a próxima página
+            } else {
+                // Se fetchPage retornou array vazio ou null/undefined, considera fim dos logs.
+                console.log(`[fetchAllPages v4 - DEBUG] Página ${pageNum} retornou 0 transações válidas. Interrompendo busca.`);
+                break; // Sai do loop while
+            }
+
+            // Pausa entre requisições
+            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_PAGES));
+
+        } catch (error) {
+            console.error(`[fetchAllPages v4 - DEBUG] Erro ao buscar/processar página ${pageNum}:`, error);
+            // Decide se continua ou para em caso de erro. Parar é mais seguro.
+            break; // Sai do loop em caso de erro
+        }
+        pageNum++; // Incrementa para a próxima página
+    } // Fim do loop while
+
+    if (pageNum > MAX_LOG_PAGES_TO_FETCH) {
+         console.warn(`[fetchAllPages v4 - DEBUG] Limite de ${MAX_LOG_PAGES_TO_FETCH} páginas atingido.`);
+    }
+
+    // Ordena as transações pela data (mais recente primeiro) APÓS buscar tudo
+    if (allTransactions.length > 0) {
+        allTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()); // Mais recente primeiro
+        console.log(`[fetchAllPages v4 - DEBUG] Total final de ${allTransactions.length} transações encontradas e ordenadas.`);
+    } else {
+        console.log("[fetchAllPages v4 - DEBUG] Nenhuma transação encontrada em todas as páginas buscadas.");
+    }
+
+    console.log("[fetchAllPages v4 - DEBUG] Busca concluída.");
+    return allTransactions; // Retorna a lista completa (ou vazia)
+};
+
+
+
+
+
+
+
+// ================================================================
+// ===      FUNÇÃO fetchPremiumLogs ATUALIZADA (v8 - Force Full Fetch + Fix Save) ===
+// ================================================================
+const fetchPremiumLogs = (forceFullFetch = false) => { // <<< ADICIONADO PARÂMETRO
+    return new Promise(async (resolve, reject) => {
+        if (!currentPlayerNickname) {
+            console.error("[fetchPremiumLogs v8] Erro crítico: currentPlayerNickname não definido!");
+            return reject(new Error("Nickname do jogador não identificado para buscar logs."));
+        }
+        // console.log(`[DEBUG fetchPremiumLogs v8] Iniciada para ${currentPlayerNickname}. ForceFullFetch: ${forceFullFetch}, Buscando: ${isFetching}`);
+
+        if (isFetching) {
+            // console.log(`[DEBUG fetchPremiumLogs v8] Busca já em andamento. Retornando cache atual.`);
+            return resolve(mobx.toJS(state.transactions)); // Retorna o que está no state
+        }
+
+        isFetching = true;
+        // console.log(`[DEBUG fetchPremiumLogs v8] Marcando isFetching = true.`);
+
+        const storageKey = `ragnarokMarketTransactions_${currentPlayerNickname}`;
+        let logsFromStorage = null;
+        let loadedLastKnownPP = null;
+        let needsServerFetch = true; // Assume que precisa buscar
+
+        // 1. Tenta carregar do localStorage (SOMENTE SE NÃO FORÇAR BUSCA COMPLETA)
+        if (!forceFullFetch) {
+            const savedDataCompressed = localStorage.getItem(storageKey);
+            if (savedDataCompressed) {
+                try {
+                    const decompressed = LZString.decompress(savedDataCompressed);
+                    if (!decompressed) throw new Error("Descompressão retornou null/vazio");
+                    const savedDataObject = JSON.parse(decompressed);
+
+                    if (savedDataObject && Array.isArray(savedDataObject.transactions) && typeof savedDataObject.lastKnownPP === 'number') {
+                        logsFromStorage = savedDataObject.transactions.map(t => ({ ...t, date: new Date(t.date) }));
+                        loadedLastKnownPP = savedDataObject.lastKnownPP;
+                        // console.log(`[DEBUG fetchPremiumLogs v8] ${logsFromStorage.length} logs e PP ${loadedLastKnownPP} carregados do localStorage.`);
+
+                        mobx.runInAction(() => {
+                            state.transactions.replace(logsFromStorage); // Atualiza state
+                            state.allTransactionsFetched = true; // Assume completo se carregou do storage
+                        });
+                        needsServerFetch = false; // Pré-assume que não precisa buscar
+
+                    } else { throw new Error("Estrutura de dados inválida no localStorage."); }
+
+                } catch (e) {
+                    console.error(`[DEBUG fetchPremiumLogs v8] Erro ao carregar/parsear localStorage (${e.message}). Removendo item.`);
+                    localStorage.removeItem(storageKey);
+                    logsFromStorage = null; loadedLastKnownPP = null;
+                    mobx.runInAction(() => { state.transactions.replace([]); state.allTransactionsFetched = false; });
+                    needsServerFetch = true; // Precisa buscar se o cache falhou
+                }
+            } else {
+                // console.log(`[DEBUG fetchPremiumLogs v8] Nenhum dado salvo encontrado no localStorage.`);
+                mobx.runInAction(() => { state.allTransactionsFetched = false; });
+                needsServerFetch = true; // Precisa buscar se não há cache
+            }
+        } else {
+             console.log("[DEBUG fetchPremiumLogs v8] forceFullFetch=true, pulando carregamento do localStorage.");
+             mobx.runInAction(() => { state.transactions.replace([]); state.allTransactionsFetched = false; }); // Limpa state antes da busca completa
+             needsServerFetch = true; // Força a busca
+        }
+
+        // 2. Decide a estratégia de busca
+        try {
+            let finalTransactions = mobx.toJS(state.transactions); // Começa com o que está no state
+
+            if (needsServerFetch || forceFullFetch) {
+                // --- Busca Completa (se forçado ou se cache não existe/inválido) ---
+                if (forceFullFetch || !logsFromStorage) { // Condição para busca completa
+                    console.log(`[fetchPremiumLogs v8] Iniciando BUSCA COMPLETA (Forçado: ${forceFullFetch}, Sem Cache: ${!logsFromStorage})...`);
+                    finalTransactions = await fetchAllPages();
+                    // console.log(`[DEBUG fetchPremiumLogs v8] Busca completa retornou ${finalTransactions.length} logs.`);
+                    mobx.runInAction(() => {
+                        state.transactions.replace(finalTransactions);
+                        state.allTransactionsFetched = true; // Marca que a busca completa foi feita
+                    });
+                    // console.log("[DEBUG fetchPremiumLogs v8] State atualizado pós-busca completa.");
+
+                } else {
+                    // --- Verificação Rápida / Merge (se cache existe mas pode estar desatualizado) ---
+                    const currentPP = getAvailablePremiumPoints();
+                    const ppDifference = loadedLastKnownPP !== null ? currentPP - loadedLastKnownPP : null;
+                    // console.log(`[DEBUG fetchPremiumLogs v8] Verificação Rápida: PP Carregado: ${loadedLastKnownPP}, PP Atual: ${currentPP}, Diferença: ${ppDifference}`);
+
+                    // Só busca a página 1 se o PP mudou
+                    if (ppDifference !== null && ppDifference !== 0) {
+                        console.log("[fetchPremiumLogs v8] PP mudou. Iniciando VERIFICAÇÃO/MERGE da Página 1...");
+                        let firstPageTransactions = [];
+                        try {
+                            const { transactions: page1Logs } = await fetchPage(1);
+                            firstPageTransactions = page1Logs || [];
+                            // console.log(`[DEBUG fetchPremiumLogs v8] Página 1 retornou ${firstPageTransactions.length} logs.`);
+                        } catch (fetchPageError) {
+                             console.error("[fetchPremiumLogs v8] Erro ao buscar a página 1:", fetchPageError);
+                             firstPageTransactions = [];
+                        }
+
+                        if (firstPageTransactions.length > 0) {
+                            // Usa assinatura única para mesclar (igual à v7)
+                            const existingTransactionSignatures = new Set(
+                                finalTransactions.map(t => `${t.date.getTime()}_${t.change}_${t.type}_${t.newPremiumPoints}`)
+                            );
+                            const newTransactions = firstPageTransactions.filter(t => {
+                                const signature = `${t.date.getTime()}_${t.change}_${t.type}_${t.newPremiumPoints}`;
+                                return !existingTransactionSignatures.has(signature);
+                            });
+
+                            if (newTransactions.length > 0) {
+                                console.log(`[fetchPremiumLogs v8] ${newTransactions.length} NOVAS transações detectadas na página 1. Mesclando...`);
+                                finalTransactions = [...newTransactions, ...finalTransactions];
+                                finalTransactions.sort((a, b) => b.date.getTime() - a.date.getTime());
+                                mobx.runInAction(() => {
+                                    state.transactions.replace(finalTransactions);
+                                    state.allTransactionsFetched = true; // Assume completo após merge da P1 (pode ser otimizado se necessário)
+                                });
+                            } else {
+                                // console.log("[fetchPremiumLogs v8] Página 1 verificada, nenhuma transação nova para mesclar.");
+                            }
+                        } else {
+                            // console.log("[fetchPremiumLogs v8] Página 1 não retornou transações.");
+                        }
+                    } else {
+                        // console.log("[fetchPremiumLogs v8] PP não mudou. Verificação da Página 1 PULADA.");
+                        // Se não precisou buscar P1 e carregou do storage, allTransactionsFetched já está true.
+                    }
+                } // Fim do else (Verificação Rápida / Merge)
+            } // Fim do if (needsServerFetch || forceFullFetch)
+
+            // 3. Salva no localStorage SEMPRE ao final de uma busca/verificação bem-sucedida
+            //    Isso garante que lastKnownPP seja atualizado.
+            const currentPPForSave = getAvailablePremiumPoints(); // Pega o PP DEPOIS da busca/merge
+            // console.log(`[DEBUG fetchPremiumLogs v8] PP atual para salvar: ${currentPPForSave}`);
+            try {
+                const logsToSave = finalTransactions.map(t => ({ ...t, date: t.date.toISOString() }));
+                const dataToSave = { transactions: logsToSave, lastKnownPP: currentPPForSave }; // Salva o PP atual
+                const compressedData = LZString.compress(JSON.stringify(dataToSave));
+                if (compressedData) {
+                    localStorage.setItem(storageKey, compressedData);
+                    // console.log(`[DEBUG fetchPremiumLogs v8] Dados (${finalTransactions.length} logs, PP ${currentPPForSave}) salvos no localStorage.`);
+                } else { console.error("[fetchPremiumLogs v8] ERRO CRÍTICO: Compressão LZString nula ao salvar."); }
+            } catch (saveError) { console.error("[fetchPremiumLogs v8] Erro ao salvar no localStorage:", saveError); }
+
+            // 4. Calcula o lucro do mundo SEMPRE ao final
+            const worldProfit = calculateWorldProfit(); // Usa o state.transactions final
+            mobx.runInAction(() => { state.worldProfit = worldProfit; });
+            // console.log(`[DEBUG fetchPremiumLogs v8] Lucro do mundo ${state.currentVillage?.world} recalculado: ${worldProfit}.`);
+
+            // 5. Resolve a Promise com os dados finais (do state)
+            isFetching = false;
+            // console.log(`[DEBUG fetchPremiumLogs v8] Marcando isFetching = false. Resolvendo promise com ${finalTransactions.length} logs.`);
+            resolve(mobx.toJS(state.transactions)); // Retorna cópia do state atualizado
+
+        } catch (error) {
+            console.error(`[DEBUG fetchPremiumLogs v8] Erro GERAL durante a busca/verificação:`, error);
+            mobx.runInAction(() => {
+                state.transactions.replace([]); state.worldProfit = 0; state.allTransactionsFetched = false;
+            });
+            isFetching = false;
+            // console.log(`[DEBUG fetchPremiumLogs v8] Marcando isFetching = false devido a erro.`);
+            reject(error);
+        }
+    });
+};
+// === FIM fetchPremiumLogs ATUALIZADA ===
+
+
+
+
+
+
+
+
+
+/// Função fetchPage ATUALIZADA (v13 - ES Header Support + DEBUG)
+const fetchPage = async (pageNum = 1) => {
+    const gameData = TribalWars.getGameData ? TribalWars.getGameData() : {};
+    const villageId = gameData.village?.id || null;
+    if (!villageId) {
+      throw new Error("ID da vila não encontrado no gameData");
+    }
+    const baseUrl = `${window.location.origin}/game.php?village=${villageId}&screen=premium&mode=log`;
+    const url = pageNum <= 1 ? baseUrl : `${baseUrl}&page=${pageNum - 1}`;
+
+    console.log(`[fetchPage v13 - DEBUG] Buscando logs da URL: ${url}`); // Log v13
+
+    try {
+      const response = await fetchMarketData(url);
+      if (!response) {
+        throw new Error("Falha ao buscar logs premium (resposta vazia)");
+      }
+      const doc = new DOMParser().parseFromString(response, "text/html");
+      const contentValue = doc.querySelector("#content_value");
+      if (!contentValue) {
+        throw new Error("Não foi possível encontrar o elemento #content_value na resposta");
+      }
+
+      let transactionTable = null;
+      const tables = contentValue.querySelectorAll("table.vis");
+      console.log(`[fetchPage v13 - DEBUG] Encontradas ${tables.length} tabelas com classe 'vis'. Verificando cabeçalhos...`);
+
+      for (let i = 0; i < tables.length; i++) {
+        const table = tables[i];
+        const thElements = table.querySelectorAll("th");
+        if (thElements.length === 0) {
+             console.log(`[fetchPage v13 - DEBUG] Tabela ${i+1} não tem cabeçalhos (<th>). Pulando.`);
+             continue;
+        }
+        const rawHeaders = Array.from(thElements).map(th => th.textContent.trim());
+        const headers = rawHeaders.map(h => h.toLowerCase());
+        const columnCount = headers.length;
+
+        console.log(`[fetchPage v13 - DEBUG] Raw Headers Tabela ${i+1}:`, rawHeaders);
+        console.log(`[fetchPage v13 - DEBUG] Clean Headers Tabela ${i+1}:`, headers, `Colunas: ${columnCount}`);
+
+        // Define os cabeçalhos essenciais esperados (incluindo ES)
+        // "Fecha" = Date, "Mundo" = World, "Transacción"/"Descripción" = Transaction/Description, "Cambio" = Change
+        const essentialKeys = {
+            date: ["date", "data", "datum", "fecha"], // <<< ADICIONADO 'fecha'
+            world: ["world", "mundo", "welt", "svět", "wereld", "monde :", "mondo"], // <<< 'mundo' já existe
+            transaction: ["transaction", "transacción", "transaktion", "beschreibung", "popis", "transakce", "omschrijving", "description", "opération", "descrizione", "descripción"], // <<< ADICIONADO 'transacción', 'descripción'
+            change: ["change", "alterar", "mudança", "änderung", "změna", "wijziging", "modification", "changement", "variazione", "cambio"], // <<< ADICIONADO 'cambio'
+        };
+
+        const hasMinCols = columnCount >= 5;
+        const hasDateHeader = headers.some(h => essentialKeys.date.includes(h));
+        const hasWorldHeader = headers.some(h => essentialKeys.world.includes(h));
+        const hasChangeHeader = headers.some(h => essentialKeys.change.includes(h));
+        const hasTransactionHeader = headers.some(h => essentialKeys.transaction.includes(h));
+
+        // Condição: Exige Data, Mundo E (Mudança OU Transação)
+        if (hasMinCols && hasDateHeader && hasWorldHeader && (hasChangeHeader || hasTransactionHeader) ) {
+            transactionTable = table;
+            console.log(`[fetchPage v13 - DEBUG] Tabela ${i+1} identificada como tabela de transações (ES Support - Stricter Criteria Met).`);
+            break;
+        } else {
+            console.log(`[fetchPage v13 - DEBUG] Tabela ${i+1} não passou nos critérios estritos. Checks: Date=${hasDateHeader}, World=${hasWorldHeader}, Change=${hasChangeHeader}, Transaction=${hasTransactionHeader}, MinCols=${hasMinCols}`);
+        }
+      }
+
+      let transactions = [];
+      let rowCount = 0;
+      if (transactionTable) {
+        const rows = Array.from(transactionTable.querySelectorAll("tr:not(:first-child)"));
+        const dataRows = rows.filter(row => row.querySelectorAll('td').length >= 5);
+        rowCount = dataRows.length;
+
+        console.log(`[fetchPage v13 - DEBUG] Encontradas ${rowCount} linhas de dados (TRs com >=5 TDs) na tabela identificada.`);
+        if (rowCount > 0) {
+             transactions = parseTransactions(dataRows); // Chama parseTransactions (v9 ou mais recente)
+        }
+      } else {
+         console.warn("[fetchPage v13 - DEBUG] Nenhuma tabela de transações adequada encontrada no HTML após verificar todas as tabelas 'vis'.");
+      }
+
+      return { transactions, doc };
+
+    } catch (error) {
+       console.error(`[fetchPage v13 - DEBUG] Erro ao buscar/processar URL ${url}:`, error);
+       throw error;
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+// Função parseDate ATUALIZADA (v13 - ES Locale + DEBUG)
+const parseDate = (dateStr) => {
+    if (!dateStr || typeof dateStr !== 'string') return new Date(NaN);
+    // Locales a tentar
+    const locales = ["es", "pt-BR", "fr", "nl", "cs", "de", "en-US", "ru", "it"]; // <<< 'es' adicionado
+    // Formatos a tentar (ordem IMPORTA)
+    const formatStrings = [
+        "dd/MMM/yyyy (HH:mm)", // PT/BR specific
+        'MMMM d,yyyy HH:mm',   // FR specific
+        'dd.MM.yy HH:mm',      // CS/DE/NL?
+        'dd/MM/yy HH:mm',      // Common ES/FR/IT? <<<< Provável formato ES
+        'd MMM yy HH:mm',      // FR alt?
+        'dd. MM. yyyy HH:mm',  // Formato com ano completo
+        'dd.MM. HH:mm',       // DE antigo (fallback)
+        'LLL dd, HH:mm',      // Formato EN/PT/RU (pode funcionar para ES com locale)
+        'd MMM HH:mm',        // NL? / EN no year
+        'yyyy-MM-dd HH:mm:ss',// ISO-like
+    ];
+
+    let parsedDate = null;
+    let success = false;
+    let usedFormat = '';
+    let usedLocale = '';
+
+    Loop: // Label para sair dos loops aninhados
+    for (const format of formatStrings) {
+        for (const locale of locales) {
+            parsedDate = DateTime.fromFormat(dateStr, format, { locale });
+            if (parsedDate.isValid) {
+                console.log(`[parseDate v13 - DEBUG] Parsed "${dateStr}" using locale '${locale}' with format '${format}'`);
+                success = true;
+                usedFormat = format;
+                usedLocale = locale;
+                break Loop;
+            }
+        }
+    }
+
+    if (!success || !parsedDate || !parsedDate.isValid) {
+        console.warn(`[parseDate v13 - DEBUG] Failed to parse date string "${dateStr}" with known formats/locales.`);
+        return new Date(NaN); // Retorna data inválida
+    }
+
+    // --- Ajuste do Ano (Lógica mantida) ---
+    const now = DateTime.now();
+    let date = parsedDate;
+    let dateWithCurrentYear = date.set({ year: now.year });
+
+    if (usedFormat.includes('yy') && !usedFormat.includes('yyyy')) {
+         if (dateWithCurrentYear > now) {
+             date = date.set({ year: now.year - 1 });
+             console.log(`[parseDate v13 - DEBUG] Adjusted year to ${date.year} because format had 'yy' and date with current year (${now.year}) was in the future.`);
+        } else {
+             date = dateWithCurrentYear;
+             console.log(`[parseDate v13 - DEBUG] Kept year as ${date.year} (format had 'yy', result not future).`);
+        }
+    } else if (!usedFormat.includes('y')) {
+         date = date.set({ year: now.year });
+         if (date > now) {
+             date = date.set({ year: now.year - 1});
+              console.log(`[parseDate v13 - DEBUG] Set year to current year (${now.year}) but date was future, adjusted to previous year (${date.year}). Format was '${usedFormat}'.`);
+         } else {
+              console.log(`[parseDate v13 - DEBUG] Set year to current year (${date.year}) as original format lacked year. Format was '${usedFormat}'.`);
+         }
+    } else {
+         console.log(`[parseDate v13 - DEBUG] Kept year as ${date.year} (format likely had 'yyyy' or was already handled).`);
+    }
+
+    return date.toJSDate();
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Função parseTransactions ATUALIZADA (v9 - ES Support + DEBUG Logs ON)
+const parseTransactions = (rows) => {
+    const transactions = [];
+    // Detecta o código do servidor
+    const hostname = window.location.hostname;
+    let serverCode = hostname.split('.')[1]; // Fallback inicial
+
+    if (hostname.includes("tribalwars.com.br")) serverCode = "br";
+    else if (hostname.includes("tribalwars.us")) serverCode = "us";
+    else if (hostname.includes("die-staemme.de")) serverCode = "de";
+    else if (hostname.includes("divokekmeny.cz")) serverCode = "cs";
+    else if (hostname.includes("tribalwars.nl")) serverCode = "nl";
+    else if (hostname.includes("guerretribale.fr")) serverCode = "fr";
+    else if (hostname.includes("tribals.it")) serverCode = "it";
+    else if (hostname.includes("guerrastribales.es")) serverCode = "es"; // <<< ADICIONADO: Suporte ES (Spanish)
+    else if (hostname.includes("tribalwars.works")) serverCode = hostname.split('.')[0];
+
+    console.log(`[parseTransactions v9 - DEBUG] Recebidas ${rows.length} linhas para parsear. ServerCode: ${serverCode}`);
+
+    rows.forEach((row, index) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length >= 5) {
+        try {
+            const dateStr = cells[0]?.textContent?.trim();
+            const date = parseDate(dateStr); // Chama a função parseDate atualizada
+
+            if (isNaN(date.getTime())) {
+                 console.warn(`[parseTransactions v9 - DEBUG] Linha ${index}: Data inválida ou falha no parse: "${dateStr}"`);
+                 return;
+            }
+
+            let displayedWorld = cells[1]?.textContent?.trim() || 'MundoDesconocido';
+            let world = displayedWorld;
+            const worldNumberMatch = displayedWorld.match(/\d+$/);
+            if (worldNumberMatch) {
+                world = hostname.includes("tribalwars.works") ? serverCode : `${serverCode}${worldNumberMatch[0]}`;
+            } else {
+                 console.warn(`[parseTransactions v9 - DEBUG] Linha ${index}: Não foi possível extrair número do mundo de "${displayedWorld}". Usando como está: "${world}"`);
+            }
+
+            const typeText = cells[2]?.textContent?.trim() || 'TipoDesconocido';
+            const changeText = cells[3]?.textContent?.trim() || '0';
+            const newPointsText = cells[4]?.textContent?.trim() || '0';
+
+            const changeMatch = changeText.replace(/[.,](?=\d{3}(?:[.,]|$))/g, '').match(/([-+]?\d+)/);
+            const changeValue = changeMatch ? parseInt(changeMatch[1], 10) : 0;
+
+            const pointsMatch = newPointsText.replace(/[.,]/g, '').match(/\d+/);
+            const newPremiumPoints = pointsMatch ? parseInt(pointsMatch[0], 10) : 0;
+
+             // Define o tipo de transação (Lucro/Despesa) e adiciona termos em Espanhol
+             let transactionType = 'Desconocido';
+             const originalTypeTextLower = typeText.toLowerCase();
+
+             if (changeValue > 0) {
+                 transactionType = 'Lucro';
+             } else if (changeValue < 0) {
+                 transactionType = 'Despesa';
+             } else {
+                 // Handle zero change cases - Adiciona termos em Espanhol
+                 // "Transferencia" = Transfer, "Canjeado"/"Utilizado" = Redeemed/Used
+                 if (originalTypeTextLower.includes('transfer') || originalTypeTextLower.includes('überweisung') || originalTypeTextLower.includes('převod') || originalTypeTextLower.includes('overdracht') || originalTypeTextLower.includes('transfert') || originalTypeTextLower.includes('trasferimento') || originalTypeTextLower.includes('transferencia')) { // <<< ADICIONADO 'transferencia'
+                     transactionType = 'Transferencia (0)';
+                 } else if (originalTypeTextLower.includes('redeem') || originalTypeTextLower.includes('redeemed') || originalTypeTextLower.includes('resgatado') || originalTypeTextLower.includes('eingelöst') || originalTypeTextLower.includes('uplatněno') || originalTypeTextLower.includes('ingeleverd') || originalTypeTextLower.includes('ingeruild') || originalTypeTextLower.includes('utilisé') || originalTypeTextLower.includes('riscosso') || originalTypeTextLower.includes('utilizzato') || originalTypeTextLower.includes('canjeado') || originalTypeTextLower.includes('utilizado') ) { // <<< ADICIONADO 'canjeado', 'utilizado'
+                     transactionType = 'Resgate (0)';
+                 } else {
+                      transactionType = typeText;
+                 }
+             }
+
+            transactions.push({
+              date,
+              type: transactionType,
+              change: changeValue,
+              newPremiumPoints: newPremiumPoints,
+              world: world
+            });
+
+        } catch(e) {
+             console.error(`[parseTransactions v9 - DEBUG] Erro ao processar linha ${index}:`, e, row.innerHTML);
+        }
+
+      } else {
+          console.warn(`[parseTransactions v9 - DEBUG] Linha ${index} ignorada: Número de células (${cells.length}) insuficiente.`);
+      }
+    });
+
+    console.log(`[parseTransactions v9 - DEBUG] Parseamento concluído. ${transactions.length} transações extraídas.`);
+    return transactions;
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // ================================================================
+// ===      NOVA FUNÇÃO AUXILIAR: calculateNetProfitFromLogs    ===
+// ================================================================
+/**
+ * Calcula o lucro/prejuízo líquido SOMENTE a partir de um array de transações fornecido.
+ * Diferente de calculateWorldProfit, não filtra por mundo e usa diretamente os dados passados.
+ * @param {Array<Object>} logs - Um array de objetos de transação (com propriedade 'change').
+ * @returns {number} - O valor líquido (positivo para lucro, negativo para prejuízo).
+ */
+const calculateNetProfitFromLogs = (logs) => {
+    if (!logs || !Array.isArray(logs) || logs.length === 0) {
+        return 0;
+    }
+
+    let totalSales = 0;
+    let totalExpenses = 0;
+
+    logs.forEach(log => {
+        // Garante que 'change' é um número
+        const changeValue = typeof log.change === 'number' ? log.change : 0;
+
+        if (changeValue > 0) {
+            totalSales += changeValue;
+        } else if (changeValue < 0) {
+            totalExpenses += Math.abs(changeValue); // Soma o valor absoluto das despesas
+        }
+        // Ignora transações com change === 0
+    });
+
+    // console.log(`[DEBUG calculateNetProfitFromLogs] Calculado: Sales=${totalSales}, Expenses=${totalExpenses}, Net=${totalSales - totalExpenses}`); // Log opcional
+    return totalSales - totalExpenses;
+};
+// === FIM NOVA FUNÇÃO AUXILIAR ===
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const calculateWorldProfit = () => {
+    if (!state.transactions || !state.currentVillage?.world) return 0;
+    const worldTransactions = state.transactions.filter((t) => t.world === state.currentVillage.world);
+    const expenses = worldTransactions.filter((t) => t.change < 0 || t.type === "Despesa").reduce((sum, t) => sum + Math.abs(t.change), 0);
+    const sales = worldTransactions.filter((t) => t.change > 0 || t.type === "Lucro").reduce((sum, t) => sum + t.change, 0);
+    return Math.floor(sales - expenses);
+  };
+
+
+
+ // ================================================================
+// ===  FUNÇÃO filterTransactions ATUALIZADA (v3 - UTC Date Parts) ===
+// ================================================================
+ // ================================================================
+// ===  FUNÇÃO filterTransactions ATUALIZADA (v4 - Comparação YYYY-MM-DD Local) ===
+// ================================================================
+const filterTransactions = (transactions, filters) => {
+    if (!transactions) return [];
+    const { dateFrom, dateTo, worldFilter } = filters; // dateFrom/dateTo são strings no formato "YYYY-MM-DD"
+
+    // console.log(`[DEBUG filterTransactions v4] Filtros recebidos: From='${dateFrom}', To='${dateTo}', World='${worldFilter}'`);
+
+    // Filtra a lista de transações
+    return _.filter(transactions, (t) => {
+        // 1. Validação básica da data da transação
+        if (!(t.date instanceof Date) || isNaN(t.date.getTime())) {
+            // console.warn(`[filterTransactions v4] Transação ignorada - data inválida:`, t);
+            return false;
+        }
+
+        // 2. Formata a data da transação para "YYYY-MM-DD" usando componentes LOCAIS
+        //    Isso garante que comparamos com o dia local selecionado no input <input type="date">
+        const tYearLocal = t.date.getFullYear();
+        const tMonthLocal = t.date.getMonth() + 1; // getMonth é 0-indexado, ajusta para 1-12
+        const tDayLocal = t.date.getDate();
+        // Cria a string no formato YYYY-MM-DD (ex: "2025-04-20")
+        const transactionDateString = `${tYearLocal}-${String(tMonthLocal).padStart(2, '0')}-${String(tDayLocal).padStart(2, '0')}`;
+        // console.log(`[DEBUG filterTransactions v4] Data Transação: ${t.date.toISOString()} -> Formatada Local: ${transactionDateString}`); // Log para depuração
+
+        // 3. Comparação de Data usando as strings "YYYY-MM-DD"
+        let isDateValid = true; // Assume válido inicialmente
+
+        // Verifica se a data da transação é ANTERIOR à data inicial do filtro
+        if (dateFrom && transactionDateString < dateFrom) {
+            isDateValid = false;
+            // console.log(` -> INVÁLIDO (Antes de dateFrom): ${transactionDateString} < ${dateFrom}`);
+        }
+
+        // Verifica se a data da transação é POSTERIOR à data final do filtro (só checa se ainda for válido)
+        if (isDateValid && dateTo && transactionDateString > dateTo) {
+            isDateValid = false;
+            // console.log(` -> INVÁLIDO (Depois de dateTo): ${transactionDateString} > ${dateTo}`);
+        }
+        // Se isDateValid permaneceu true, significa que transactionDateString está entre dateFrom e dateTo (inclusive).
+
+        // 4. Validação do Mundo (lógica inalterada)
+        let isWorldValid = true;
+        if (worldFilter && typeof worldFilter === 'string' && worldFilter.trim() !== '') {
+            isWorldValid = t.world && typeof t.world === 'string' && t.world.toLowerCase().includes(worldFilter.toLowerCase().trim());
+        }
+
+        // Log de depuração (opcional, útil se ainda não funcionar)
+        // if (isDateValid && isWorldValid) {
+        //     console.log(`[DEBUG filterTransactions v4] INCLUINDO: ${transactionDateString} | World: ${t.world}`);
+        // } else if (!isDateValid) {
+        //      // Não precisa logar de novo, já logamos acima
+        // } else { // Apenas world inválido
+        //      console.log(`[DEBUG filterTransactions v4] EXCLUINDO (World Inválido): ${transactionDateString} | World: ${t.world} (Filtro: ${worldFilter})`);
+        // }
+
+        // Retorna true apenas se AMBAS as condições (data e mundo) forem válidas
+        return isDateValid && isWorldValid;
+    });
+};
+// === FIM filterTransactions ATUALIZADA (v4 - Comparação YYYY-MM-DD Local) ===
+
+
+
+
+
+
+
+  const sortTransactions = (transactions, sortField, sortDirection) => {
+    return _.orderBy(transactions, [sortField], [sortDirection]);
+  };
+  const paginateTransactions = (transactions, page, perPage = 10) => {
+    const start = (page - 1) * perPage;
+    return _.slice(transactions, start, start + perPage);
+  };
+
+
+
+
+
+
+
+// ================================================================
+// ===      FUNÇÃO renderLedgerTable ATUALIZADA (v4 - Label Consistente) ===
+// ================================================================
+const renderLedgerTable = (transactions, sortField = "date", sortDirection = "desc", page = 1, perPage = 10, currentFilters = {}) => {
+    console.log(`[renderLedgerTable v4 - Label Consistente] Iniciada. Recebeu ${transactions?.length ?? 0} logs. Ordenação: ${sortField} ${sortDirection}, Página: ${page}`);
+
+    // 1. Calcula totais e lucros (SEM Math.floor intermediário)
+    const expensesTransactions = transactions.filter(t => t.change < 0 || t.type === "Despesa");
+    const salesTransactions = transactions.filter(t => t.change > 0 || t.type === "Lucro");
+
+
+
+
+
+
+
+
+
+
+
+    const totalExpenses = expensesTransactions.reduce((sum, t) => sum + Math.abs(t.change || 0), 0);
+
+
+
+
+
+
+
+
+    const totalSales = salesTransactions.reduce((sum, t) => sum + (t.change || 0), 0);
+    const profit = totalSales - totalExpenses;
+    console.log(` -> Sumário Calculado (sem floor): Despesas=${totalExpenses}, Vendas=${totalSales}, Lucro=${profit}`);
+
+    // 2. Ordena as transações SEPARADAS por tipo
+    const sortedExpenses = sortTransactions(expensesTransactions, sortField, sortDirection);
+    const sortedSales = sortTransactions(salesTransactions, sortField, sortDirection);
+    console.log(` -> Ordenação concluída: ${sortedExpenses.length} despesas, ${sortedSales.length} vendas.`);
+
+    // 3. Cria a lista combinada com cabeçalhos e sumário
+    // *** MUDANÇA AQUI: Define a label do sumário baseado se há filtros ativos ***
+    const hasActiveFilters = currentFilters.dateFrom || currentFilters.dateTo || currentFilters.worldFilter;
+    const summaryLabelKey = hasActiveFilters ? "filteredPeriodProfitLabel" : "profit";
+    const summaryLabelText = i18n.t(summaryLabelKey); // Pega a tradução correta
+    // *** FIM DA MUDANÇA ***
+
+    const allMarkedTransactions = [
+        { type: "header", label: i18n.t("expenses") },
+        ...sortedExpenses.map(t => ({ ...t, rowType: "expense" })),
+        { type: "header", label: i18n.t("sales") },
+        ...sortedSales.map(t => ({ ...t, rowType: "income" })),
+        // *** USA A LABEL DEFINIDA ACIMA ***
+        { type: "summary", label: `${summaryLabelText}: <span class="icon header premium"></span> ${profit}` }
+    ];
+    console.log(` -> Lista combinada criada com ${allMarkedTransactions.length} itens. Label Sumário: "${summaryLabelText}"`);
+
+    // 4. Pagina a lista combinada
+    const totalItems = allMarkedTransactions.length;
+    const totalPages = totalItems > 0 ? Math.ceil(totalItems / perPage) : 1;
+    const paginated = paginateTransactions(allMarkedTransactions, page, perPage);
+    console.log(` -> Paginação: Exibindo ${paginated.length} itens na página ${page} de ${totalPages}.`);
+
+    // 5. Renderiza a Tabela HTML
+    const tableContainer = ui.getElement("transactionsTableContainer");
+    if (!tableContainer) {
+      console.error("[renderLedgerTable v4] ERRO: Container da tabela (#transactionsTableContainer) não encontrado.");
+      return;
+    }
+    tableContainer.innerHTML = `
         <table class="ledger-table aquila-table">
             <thead>
                 <tr>
-                    <th data-sort="date"><i class="fas fa-clock"></i> ${T.t("date")}</th>
-                    <th data-sort="type"><i class="fas fa-exchange-alt"></i> ${T.t("type")}</th>
-                    <th data-sort="change"><i class="fas fa-coins"></i> ${T.t("change")}</th>
-                    <th data-sort="world"><i class="fas fa-globe"></i> ${T.t("world")}</th>
+                    <th data-sort="date" class="${sortField === 'date' ? `sort-${sortDirection}` : ''}"><i class="fas fa-clock"></i> ${i18n.t("date")}</th>
+                    <th data-sort="type" class="${sortField === 'type' ? `sort-${sortDirection}` : ''}"><i class="fas fa-exchange-alt"></i> ${i18n.t("type")}</th>
+                    <th data-sort="change" class="${sortField === 'change' ? `sort-${sortDirection}` : ''}"><i class="fas fa-coins"></i> ${i18n.t("change")}</th>
+                    <th data-sort="world" class="${sortField === 'world' ? `sort-${sortDirection}` : ''}"><i class="fas fa-globe"></i> ${i18n.t("world")}</th>
                 </tr>
             </thead>
             <tbody id="transactionsTableBody">
-                ${m.map(e=>{if("header"===e.type)return`<tr class="section-header-row"><td colspan="4" class="section-header">${e.label}</td></tr>`;if("summary"===e.type)return`<tr class="profit-summary-row"><td colspan="4">${e.label}</td></tr>`;if(e.date instanceof Date&&!isNaN(e.date.getTime())){let t="expense"===e.rowType?"expense-row":"income-row",a=e.date.toLocaleString(q.language||"pt-BR"),o=e.change<0?`(<span class="icon header premium"></span> ${Math.abs(e.change)})`:`<span class="icon header premium"></span> ${e.change}`;return`
-                            <tr class="${t}">
-                                <td>${a}</td>
-                                <td>${e.type||"N/A"}</td>
-                                <td>${o}</td>
-                                <td>${e.world||"N/A"}</td>
-                            </tr>`}return""}).join("")}
+                ${paginated.map(item => {
+                  if (item.type === "header") return `<tr class="section-header-row"><td colspan="4" class="section-header">${item.label}</td></tr>`;
+                  // *** USA a `item.label` que já foi definida com a chave correta (profit ou filteredPeriodProfitLabel) ***
+                  if (item.type === "summary") return `<tr class="profit-summary-row"><td colspan="4">${item.label}</td></tr>`;
+                  if (item.date instanceof Date && !isNaN(item.date.getTime())) {
+                    const rowClass = item.rowType === "expense" ? "expense-row" : "income-row";
+                    const formattedDate = item.date.toLocaleString(state.language || "pt-BR", { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    const formattedChange = (item.change < 0 ? `(<span class="icon header premium"></span> ${Math.abs(item.change).toLocaleString(state.language || "pt-BR")})` : `<span class="icon header premium"></span> ${item.change.toLocaleString(state.language || "pt-BR")}`);
+                    return `
+                        <tr class="${rowClass}">
+                            <td>${formattedDate}</td>
+                            <td>${item.type || "N/A"}</td>
+                            <td>${formattedChange}</td>
+                            <td>${item.world || "N/A"}</td>
+                        </tr>`;
+                  }
+                  return "";
+                }).join("")}
             </tbody>
         </table>
-    `;let f=O.getElement("paginationControls");f&&(f.innerHTML=`
-            <button class="aquila-btn" id="prevPage" ${o<=1?"disabled":""}><i class="fas fa-chevron-left"></i> ${T.t("previous")}</button>
-            <span class="page-info">${T.t("page")} ${o} / ${p}</span>
-            <button class="aquila-btn" id="nextPage" ${o>=p?"disabled":""}><i class="fas fa-chevron-right"></i> ${T.t("next")}</button>
-        `,f.querySelector("#prevPage")?.addEventListener("click",()=>{o>1&&e_(e,t,a,o-1,r)}),f.querySelector("#nextPage")?.addEventListener("click",()=>{o<p&&e_(e,t,a,o+1,r)}));let h=O.getElement("transactionsChart");h&&e.length>0?(ev(e.sort((e,t)=>e.date-t.date)),h.style.display="block"):h&&(h.style.display="none"),g.querySelectorAll("th[data-sort]").forEach(o=>{o.addEventListener("click",()=>{let n=o.dataset.sort;e_(e,n,t===n&&"desc"===a?"asc":"desc",1,r)})})},ey=null,ev=async e=>{console.log("[DEBUG Aquila renderChart v8] Iniciada.");try{if(await (tr?Promise.resolve():tn||(console.log("[Chart.js Loader] Iniciando carregamento din\xe2mico..."),tn=new Promise((e,t)=>{GM_xmlhttpRequest({method:"GET",url:"https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js",timeout:1e4,onload:function(a){if(a.status>=200&&a.status<300){console.log("[Chart.js Loader] Script baixado com sucesso.");try{console.log("[Chart.js Loader] Tentando injetar script no <head>...");let o=document.createElement("script");o.textContent=a.responseText,o.setAttribute("data-chartjs-loaded","true");let r=document.querySelector('script[data-chartjs-loaded="true"]');r&&(r.remove(),console.log("[Chart.js Loader] Script antigo removido.")),document.head.appendChild(o),console.log("[Chart.js Loader] Script injetado no <head>."),setTimeout(()=>{"undefined"!=typeof Chart?(console.log("[Chart.js Loader] Chart.js carregado e 'Chart' definido globalmente com sucesso!"),tr=!0,tn=null,e()):(console.error("[Chart.js Loader] Script injetado, mas 'Chart' n\xe3o foi definido globalmente ap\xf3s atraso."),o.parentNode&&o.remove(),tn=null,t(Error("Falha ao definir Chart globalmente ap\xf3s inje\xe7\xe3o do script.")))},100)}catch(n){console.error("[Chart.js Loader] Erro durante a inje\xe7\xe3o do script Chart.js:",n),tn=null,t(n)}}else console.error(`[Chart.js Loader] Falha ao baixar Chart.js. Status: ${a.status}`),tn=null,t(Error(`Falha ao baixar Chart.js (Status: ${a.status})`))},onerror:function(e){console.error("[Chart.js Loader] Erro de rede ao baixar Chart.js:",e),tn=null,t(e)},ontimeout:function(){console.error("[Chart.js Loader] Timeout ao baixar Chart.js"),tn=null,t(Error("Timeout ao baixar Chart.js"))}})}))),"undefined"==typeof Chart)throw Error("Objeto Chart n\xe3o est\xe1 definido globalmente ap\xf3s carregamento.");console.log("[renderChart] Chart.js confirmado como carregado.")}catch(t){console.error("[renderChart] Erro cr\xedtico ao carregar/confirmar Chart.js:",t),eu("Falha ao carregar biblioteca do gr\xe1fico.");let a=O.getElement("transactionsChartContainer");a&&(a.style.display="none");return}let o=O.getElement("transactionsChartContainer");if(!o){console.error("[renderChart] ERRO: Container do gr\xe1fico #transactionsChartContainer n\xe3o encontrado!");return}let r=o.querySelector("canvas#transactionsChart");if(!r&&(console.warn("[renderChart] Canvas n\xe3o encontrado, recriando..."),o.innerHTML='<canvas id="transactionsChart"></canvas>',!(r=o.querySelector("canvas#transactionsChart")))){console.error("[renderChart] ERRO: Falha ao recriar o canvas!"),o.style.display="none";return}let n=r.getContext("2d");if(!n){console.error("[renderChart] ERRO: Contexto 2D n\xe3o obtido do canvas."),o.style.display="none";return}if(ey)try{ey.destroy(),console.log("[renderChart] Inst\xe2ncia anterior do gr\xe1fico destru\xedda.")}catch(i){console.warn("[renderChart] Erro ao destruir inst\xe2ncia anterior:",i)}finally{ey=null}if(e&&0!==e.length)o.style.display="block";else{console.log("[renderChart] Nenhuma transa\xe7\xe3o v\xe1lida para exibir no gr\xe1fico."),o.style.display="none";return}console.log("[renderChart] Preparando dados para o gr\xe1fico...");let s={};e.forEach(e=>{if(!(e.date instanceof Date)||isNaN(e.date.getTime()))return;let t=e.date.getUTCFullYear(),a=e.date.getUTCMonth(),o=e.date.getUTCDate(),r=`${t}-${String(a+1).padStart(2,"0")}-${String(o).padStart(2,"0")}`;if(!s[r]){let n=new Date(Date.UTC(t,a,o,0,0,0,0));s[r]={date:n,sales:0,expenses:0}}e.change>0?s[r].sales+=e.change:s[r].expenses+=Math.abs(e.change)});let u=Object.values(s).sort((e,t)=>e.date.getTime()-t.date.getTime()),l=u.map(e=>e.date.toLocaleDateString(q.language||"pt-BR",{day:"2-digit",month:"short",timeZone:"UTC"})),$=u.map(e=>e.sales),c=u.map(e=>e.expenses);console.log("[renderChart] Dados preparados:",{labels:l.length,sales:$.length,expenses:c.length});try{console.log("[renderChart] Criando nova inst\xe2ncia do Chart..."),ey=new Chart(n,{type:"bar",data:{labels:l,datasets:[{label:T.t("sales"),data:$,backgroundColor:"#81C784",borderColor:"#519657",borderWidth:1},{label:T.t("expenses"),data:c,backgroundColor:"#E57373",borderColor:"#B71C1C",borderWidth:1}]},options:{responsive:!0,maintainAspectRatio:!1,indexAxis:"x",scales:{x:{stacked:!0,title:{display:!0,text:T.t("date"),color:"#C0C0C0",font:{size:14,family:"'Poppins', sans-serif"}},ticks:{color:"#C0C0C0",font:{size:12}},grid:{display:!1}},y:{stacked:!0,title:{display:!0,text:T.t("change"),color:"#C0C0C0",font:{size:14,family:"'Poppins', sans-serif"}},ticks:{color:"#C0C0C0",font:{size:12},callback:e=>Math.abs(e)>=1e6?(e/1e6).toFixed(1)+" M":Math.abs(e)>=1e3?(e/1e3).toFixed(0)+" K":e.toLocaleString(q.language||"pt-BR")},grid:{color:"rgba(205, 127, 50, 0.15)",borderDash:[4,4]}}},plugins:{title:{display:!0,text:T.t("chartTitle"),color:"#CD7F32",font:{size:16,family:"'Cinzel', serif"},padding:{bottom:15}},legend:{display:!0,position:"bottom",labels:{color:"#C0C0C0",font:{size:13},boxWidth:15,padding:20}},tooltip:{backgroundColor:"rgba(10, 13, 20, 0.95)",titleFont:{family:"'Poppins', sans-serif",size:14},bodyFont:{family:"'Poppins', sans-serif",size:12},titleColor:"#CD7F32",bodyColor:"#C0C0C0",borderColor:"#CD7F32",borderWidth:1,cornerRadius:5,caretSize:6,padding:10,mode:"index",intersect:!1,callbacks:{label:function(e){let t=e.dataset.label||"";return t&&(t+=": "),null!==e.parsed.y&&(t+=e.parsed.y.toLocaleString(q.language||"pt-BR")),t}}}},interaction:{mode:"index",intersect:!1}}}),console.log("[renderChart] Nova inst\xe2ncia do gr\xe1fico criada com sucesso.")}catch(d){console.error("[renderChart] ERRO ao criar a nova inst\xe2ncia do Chart:",d),o.style.display="none",eu("Erro ao desenhar o gr\xe1fico."),ey=null}},eE=(e,t,a,o,r,n)=>{let i=O.getElement("filterSection"),s=O.getElement("transactionsTableContainer"),u=O.getElement("paginationControls"),l=O.getElement("transactionsChartContainer"),$=document.getElementById("filteredProfitSummary");if(!i||!s||!u||!l||!$){console.error("[DEBUG renderTransactionsModal v2] ERRO: Falha ao encontrar um ou mais elementos de CONTE\xdaDO interno (#filterSection, #transactionsTableContainer, #paginationControls, #transactionsChartContainer, #filteredProfitSummary).");return}i.innerHTML=`
+    `;
+    console.log("[renderLedgerTable v4] Tabela HTML renderizada.");
+
+    // 6. Renderiza Controles de Paginação
+    const paginationControls = ui.getElement("paginationControls");
+    if (paginationControls) {
+      paginationControls.innerHTML = `
+            <button class="aquila-btn" id="prevPage" ${page <= 1 ? "disabled" : ""}><i class="fas fa-chevron-left"></i> ${i18n.t("previous")}</button>
+            <span class="page-info">${i18n.t("page")} ${page} / ${totalPages}</span>
+            <button class="aquila-btn" id="nextPage" ${page >= totalPages ? "disabled" : ""}><i class="fas fa-chevron-right"></i> ${i18n.t("next")}</button>
+        `;
+      paginationControls.querySelector("#prevPage")?.addEventListener("click", () => {
+        if (page > 1) {
+            console.log("[Pagination Click] Indo para página ANTERIOR.");
+            renderLedgerTable(transactions, sortField, sortDirection, page - 1, perPage, currentFilters);
+        }
+      });
+      paginationControls.querySelector("#nextPage")?.addEventListener("click", () => {
+        if (page < totalPages) {
+            console.log("[Pagination Click] Indo para página PRÓXIMA.");
+            renderLedgerTable(transactions, sortField, sortDirection, page + 1, perPage, currentFilters);
+        }
+      });
+      console.log("[renderLedgerTable v4] Controles de paginação renderizados.");
+    }
+
+    // 7. Renderiza o Gráfico
+    const chartElement = ui.getElement("transactionsChart");
+    const chartContainer = ui.getElement("transactionsChartContainer");
+    const validTransactionsForChart = transactions.filter(t => t.date instanceof Date && !isNaN(t.date.getTime()));
+    if (chartElement && chartContainer && validTransactionsForChart.length > 0) {
+      console.log("[renderLedgerTable v4] Chamando renderChart...");
+      renderChart(validTransactionsForChart.sort((a, b) => a.date - b.date));
+      chartContainer.style.display = 'block';
+    } else if (chartContainer) {
+      console.log("[renderLedgerTable v4] Sem transações válidas para o gráfico. Escondendo.");
+      chartContainer.style.display = 'none';
+       if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    }
+
+    // 8. Adiciona Listeners de Ordenação aos Cabeçalhos da Tabela
+    tableContainer.querySelectorAll("th[data-sort]").forEach(header => {
+      header.removeEventListener("click", handleSortClick);
+       function handleSortClick() {
+            const newSortField = header.dataset.sort;
+            const newSortDirection = (sortField === newSortField && sortDirection === "desc") ? "asc" : "desc";
+            console.log(`[Sort Click] Mudando ordenação para: ${newSortField} ${newSortDirection}`);
+            renderLedgerTable(transactions, newSortField, newSortDirection, 1, perPage, currentFilters);
+       }
+      header.addEventListener("click", handleSortClick);
+    });
+    console.log("[renderLedgerTable v4] Listeners de ordenação adicionados/atualizados.");
+
+    console.log("[renderLedgerTable v4 - Label Consistente] FINALIZADA.");
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ================================================================
+// ===    FUNÇÃO renderChart v10 - Group by Local Date String   ===
+// ================================================================
+let chartInstance = null; // Variável para manter a instância do gráfico
+
+const renderChart = async (transactions) => {
+    //console.log("[DEBUG Aquila renderChart v10] Iniciada.");
+
+    // 1. Garante Chart.js carregado
+    try {
+        await loadChartJsDynamically();
+        if (typeof Chart === 'undefined') {
+            throw new Error("Objeto Chart não está definido globalmente após carregamento.");
+        }
+        //console.log("[renderChart v10] Chart.js confirmado como carregado.");
+    } catch (error) {
+        console.error("[renderChart v10] Erro crítico ao carregar/confirmar Chart.js:", error);
+        notifyError("Falha ao carregar biblioteca do gráfico.");
+        const chartContainer = ui.getElement("transactionsChartContainer");
+        if (chartContainer) chartContainer.style.display = 'none';
+        return;
+    }
+
+    // 2. Pega elementos do DOM
+    const chartContainer = ui.getElement("transactionsChartContainer");
+    if (!chartContainer) {
+        console.error("[renderChart v10] ERRO: Container do gráfico #transactionsChartContainer não encontrado!");
+        return;
+    }
+    let canvas = chartContainer.querySelector("canvas#transactionsChart");
+    if (!canvas) {
+        console.warn("[renderChart v10] Canvas não encontrado, recriando...");
+        chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>';
+        canvas = chartContainer.querySelector("canvas#transactionsChart");
+        if (!canvas) {
+             console.error("[renderChart v10] ERRO: Falha ao recriar o canvas!");
+             chartContainer.style.display = 'none';
+             return;
+        }
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        console.error("[renderChart v10] ERRO: Contexto 2D não obtido do canvas.");
+        chartContainer.style.display = 'none';
+        return;
+    }
+
+    // 3. Destroi instância anterior
+    if (chartInstance) {
+        try {
+            chartInstance.destroy();
+            //console.log("[renderChart v10] Instância anterior do gráfico destruída.");
+        } catch (destroyError) {
+            console.warn("[renderChart v10] Erro ao destruir instância anterior:", destroyError);
+        } finally {
+             chartInstance = null;
+        }
+    }
+
+    // 4. Verifica dados
+    if (!transactions || transactions.length === 0) {
+        //console.log("[renderChart v10] Nenhuma transação válida para exibir no gráfico.");
+        chartContainer.style.display = "none";
+        return;
+    } else {
+        chartContainer.style.display = "block";
+    }
+
+    // 5. Prepara os dados para o gráfico - *** MUDANÇA PRINCIPAL AQUI ***
+    //console.log("[renderChart v10] Preparando dados para o gráfico (agrupando por DIA LOCAL)...");
+    const dailyData = {};
+
+    // Itera sobre as transações (que já estão filtradas)
+    transactions.forEach((t) => {
+        if (!(t.date instanceof Date) || isNaN(t.date.getTime())) { return; } // Pula inválidas
+
+        // *** CRIA A CHAVE DE AGRUPAMENTO USANDO A DATA LOCAL ***
+        const localYear = t.date.getFullYear();
+        const localMonth = t.date.getMonth(); // 0-indexado para o construtor Date
+        const localDay = t.date.getDate();
+        // Chave no formato "YYYY-MM-DD" local
+        const dateKey = `${localYear}-${String(localMonth + 1).padStart(2, '0')}-${String(localDay).padStart(2, '0')}`;
+
+        // Se for a primeira vez que vemos esse dia LOCAL
+        if (!dailyData[dateKey]) {
+            // Cria um objeto Date que representa o início daquele dia LOCAL (para ordenação)
+            const localDayStartDate = new Date(localYear, localMonth, localDay, 0, 0, 0, 0);
+            dailyData[dateKey] = {
+                dateForSortAndLabel: localDayStartDate, // Usaremos isso para ordenar e gerar a etiqueta
+                sales: 0,
+                expenses: 0
+             };
+            //console.log(` -> Novo dia local encontrado: ${dateKey}, Data para label/sort: ${localDayStartDate.toISOString()}`);
+        }
+
+        // Acumula vendas ou despesas para aquele dia LOCAL
+        if (t.change > 0) {
+            dailyData[dateKey].sales += t.change;
+        } else {
+            dailyData[dateKey].expenses += Math.abs(t.change);
+        }
+    });
+
+    // Ordena os dados agrupados pela data de início do dia local
+    const sortedDailyData = Object.values(dailyData).sort((a, b) => a.dateForSortAndLabel.getTime() - b.dateForSortAndLabel.getTime());
+    //console.log(`[renderChart v10] Dados agrupados por dia local e ordenados: ${sortedDailyData.length} dias no total.`);
+
+    // Gera os labels (etiquetas do eixo X) a partir da data local armazenada
+    const labels = sortedDailyData.map((d) => {
+        // Usa a data que representa o início do dia LOCAL para formatação
+        return d.dateForSortAndLabel.toLocaleDateString(state.language || "pt-BR", {
+            day: "2-digit", month: "short" // Formato DD/Mês (ex: 19 de abr, 20 de abr)
+            // Não precisa especificar fuso horário aqui, pois 'dateForSortAndLabel' já é local
+        });
+    });
+
+    // Pega os dados de vendas e despesas
+    const salesDataset = sortedDailyData.map((d) => d.sales);
+    const expensesDataset = sortedDailyData.map((d) => d.expenses);
+    //console.log("[renderChart v10] Labels e datasets preparados:", { labels: labels.length, sales: salesDataset.length, expenses: expensesDataset.length });
+
+
+    // 6. Cria a nova instância do gráfico (opções mantidas)
+    try {
+        //console.log("[renderChart v10] Criando nova instância do Chart...");
+        chartInstance = new Chart(ctx, {
+            type: "bar",
+            data: {
+                labels: labels, // <<< Usa os labels dos dias LOCAIS
+                datasets: [
+                    { label: i18n.t("sales"), data: salesDataset, backgroundColor: "#81C784", borderColor: "#519657", borderWidth: 1 },
+                    { label: i18n.t("expenses"), data: expensesDataset, backgroundColor: "#E57373", borderColor: "#B71C1C", borderWidth: 1 }
+                ]
+            },
+            options: { // Suas opções originais aqui (mantidas)
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: "x",
+                scales: {
+                     x: { stacked: true, title: { display: true, text: i18n.t("date"), color: "#C0C0C0", font: { size: 14, family: "'Poppins', sans-serif" } }, ticks: { color: "#C0C0C0", font: { size: 12 } }, grid: { display: false } },
+                     y: { stacked: true, title: { display: true, text: i18n.t("change"), color: "#C0C0C0", font: { size: 14, family: "'Poppins', sans-serif" } }, ticks: { color: "#C0C0C0", font: { size: 12 }, callback: (value) => { if (Math.abs(value) >= 1e6) return (value / 1e6).toFixed(1) + " M"; if (Math.abs(value) >= 1e3) return (value / 1e3).toFixed(0) + " K"; return value.toLocaleString(state.language || "pt-BR"); } }, grid: { color: "rgba(205, 127, 50, 0.15)", borderDash: [4, 4] } }
+                },
+                plugins: {
+                     title: { display: true, text: i18n.t("chartTitle"), color: "#CD7F32", font: { size: 16, family: "'Cinzel', serif" }, padding: { bottom: 15 } },
+                     legend: { display: true, position: "bottom", labels: { color: "#C0C0C0", font: { size: 13 }, boxWidth: 15, padding: 20 } },
+                     tooltip: { backgroundColor: "rgba(10, 13, 20, 0.95)", titleFont: { family: "'Poppins', sans-serif", size: 14 }, bodyFont: { family: "'Poppins', sans-serif", size: 12 }, titleColor: "#CD7F32", bodyColor: "#C0C0C0", borderColor: "#CD7F32", borderWidth: 1, cornerRadius: 5, caretSize: 6, padding: 10, mode: "index", intersect: false, callbacks: { label: function(context) { let label = context.dataset.label || ""; if (label) { label += ": "; } if (context.parsed.y !== null) { label += context.parsed.y.toLocaleString(state.language || "pt-BR"); } return label; } } }
+                },
+                interaction: { mode: "index", intersect: false }
+            } // Fim das opções
+        });
+        //console.log("[renderChart v10] Nova instância do gráfico criada com sucesso.");
+    } catch (error) {
+        console.error("[renderChart v10] ERRO ao criar a nova instância do Chart:", error);
+        chartContainer.style.display = "none";
+        notifyError("Erro ao desenhar o gráfico.");
+        chartInstance = null;
+    }
+}; // --- Fim da função renderChart v10 ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ // Função renderTransactionsModal ATUALIZADA (v3 - DEBUG Logs ON)
+const renderTransactionsModal = (transactions, currentFilters, currentSortField, currentSortDirection, currentPage, perPage) => {
+    console.log(`[renderTransactionsModal v3 - DEBUG] Iniciada. Recebeu ${transactions?.length ?? 0} logs.`);
+    console.log(` -> Filtros Atuais:`, currentFilters);
+    console.log(` -> Ordenação: ${currentSortField} ${currentSortDirection}, Página: ${currentPage}`);
+
+    const filterSection = ui.getElement("filterSection");
+    const tableContainer = ui.getElement("transactionsTableContainer");
+    const paginationControls = ui.getElement("paginationControls");
+    const chartContainer = ui.getElement("transactionsChartContainer");
+    const filteredProfitSummaryEl = document.getElementById("filteredProfitSummary");
+
+    if (!filterSection || !tableContainer || !paginationControls || !chartContainer || !filteredProfitSummaryEl) {
+      console.error("[renderTransactionsModal v3 - DEBUG] ERRO: Falha ao encontrar um ou mais elementos de CONTEÚDO interno.");
+      return;
+    }
+
+    // 1. Renderiza Filtros (Mantido como estava)
+    filterSection.innerHTML = `
         <div class="aquila-filter-grid">
             <div class="aquila-filter-item">
-                <label for="dateFrom"><i class="fas fa-calendar-alt"></i> ${T.t("dateFrom")}</label>
-                <input type="date" id="dateFrom" class="aquila-input" value="${t.dateFrom||""}">
+                <label for="dateFrom"><i class="fas fa-calendar-alt"></i> ${i18n.t("dateFrom")}</label>
+                <input type="date" id="dateFrom" class="aquila-input" value="${currentFilters.dateFrom || ""}">
             </div>
             <div class="aquila-filter-item">
-                <label for="dateTo"><i class="fas fa-calendar-alt"></i> ${T.t("dateTo")}</label>
-                <input type="date" id="dateTo" class="aquila-input" value="${t.dateTo||""}">
+                <label for="dateTo"><i class="fas fa-calendar-alt"></i> ${i18n.t("dateTo")}</label>
+                <input type="date" id="dateTo" class="aquila-input" value="${currentFilters.dateTo || ""}">
             </div>
             <div class="aquila-filter-item">
-                <label for="worldFilter"><i class="fas fa-globe"></i> ${T.t("worldFilter")}</label>
-                <input type="text" id="worldFilter" class="aquila-input" value="${t.worldFilter||""}" placeholder="${T.t("worldFilterPlaceholder",{defaultValue:"Ex: br118"})}">
+                <label for="worldFilter"><i class="fas fa-globe"></i> ${i18n.t("worldFilter")}</label>
+                <input type="text" id="worldFilter" class="aquila-input" value="${currentFilters.worldFilter || ""}" placeholder="${i18n.t("worldFilterPlaceholder", { defaultValue: "Ex: br118" })}">
             </div>
         </div>
-    `;let c=v.debounce(()=>{let t={dateFrom:i.querySelector("#dateFrom")?.value||"",dateTo:i.querySelector("#dateTo")?.value||"",worldFilter:i.querySelector("#worldFilter")?.value||""},c=eh(e,t),d=0;if(c.length>0){try{let p=c.filter(e=>e.change>0).reduce((e,t)=>e+t.change,0),m=c.filter(e=>e.change<0).reduce((e,t)=>e+Math.abs(t.change),0);d=Math.floor(p-m)}catch(g){console.error("[DEBUG v2] Erro ao calcular lucro l\xedquido filtrado:",g),d="Erro"}let f=T.t("filteredPeriodProfitLabel",{defaultValue:"Lucro L\xedquido (Per\xedodo Selecionado)"});$.innerHTML=`${f}: <span class="icon header premium"></span> ${d}`,$.style.display="block",e_(c,a,o,r,n,t)}else $.style.display="none",s.innerHTML=`<p>${T.t("noTransactions")}</p>`,u&&(u.innerHTML=""),l&&(l.style.display="none"),ey&&(ey.destroy(),ey=null)},300);i.querySelectorAll("input").forEach(e=>e.addEventListener("input",c)),c()},e0=async()=>{if(!u){console.error("[showTransactions v3] Erro cr\xedtico: currentPlayerNickname n\xe3o definido!"),eu("N\xe3o foi poss\xedvel identificar o jogador atual para buscar o hist\xf3rico.");return}console.log(`[DEBUG showTransactions v3] Iniciada para ${u}.`);let e=O.getElement("transactionsModal"),t=O.getElement("transactionsTableContainer"),a=O.getElement("filterSection");if(e){if(e.style.display="flex",t&&!q.allTransactionsFetched){a&&(a.innerHTML="");let o=O.getElement("paginationControls");o&&(o.innerHTML="");let r=O.getElement("transactionsChartContainer");r&&(r.style.display="none");let n=document.getElementById("filteredProfitSummary");n&&(n.style.display="none"),t.innerHTML=`<p style="text-align:center; padding: 20px; font-style:italic;">${T.t("loadingInitialData",{defaultValue:"Carregando dados iniciais..."})}</p>`}console.log("[DEBUG showTransactions v3] Modal exibida.")}else{console.error("[DEBUG showTransactions v3] Erro CR\xcdTICO ao obter elemento da modal.");return}let i=q.transactions.length>0?A.toJS(q.transactions):ed[u]||[];if(0===i.length&&!q.allTransactionsFetched){console.log("[DEBUG showTransactions v3] Cache/State vazio e fetchAll=false, buscando p\xe1g 1 antes de renderizar...");try{await eA(!1),i=A.toJS(q.transactions),console.log(`[DEBUG showTransactions v3] P\xe1g 1 buscada, ${i.length} logs para render inicial.`)}catch(s){console.error("[DEBUG showTransactions v3] Erro ao buscar p\xe1g 1 inicial.",s),i=[],t&&(t.innerHTML=`<p style="text-align:center; padding: 20px; color: red;">${T.t("errorLoadingHistory",{defaultValue:"Erro ao carregar hist\xf3rico."})}</p>`)}}console.log(`[DEBUG showTransactions v3] Renderizando modal INICIALMENTE com ${i.length} logs.`),eE(i,{},"date","desc",1,10),q.allTransactionsFetched?(console.log("[DEBUG showTransactions v3] Todos os logs j\xe1 foram buscados anteriormente."),eE(i,{},"date","desc",1,10)):(console.log("[DEBUG showTransactions v3] Busca completa ainda n\xe3o realizada. Disparando fetchAndUpdateProfit(true) em segundo plano..."),eA(!0).then(e=>{console.log(`[DEBUG showTransactions v3] Busca completa CONCLU\xcdDA em segundo plano (${e?.length||0} logs).`);let t={dateFrom:a?.querySelector("#dateFrom")?.value||"",dateTo:a?.querySelector("#dateTo")?.value||"",worldFilter:a?.querySelector("#worldFilter")?.value||""};console.log("[DEBUG showTransactions v3] Re-renderizando modal com dados completos e filtros:",t),eE(e||[],t,"date","desc",1,10)}).catch(e=>{console.error("[DEBUG showTransactions v3] Erro durante a busca completa em segundo plano:",e),eu("Erro ao carregar o hist\xf3rico completo.")}))},eA=async(e=!1)=>{if(!u)throw console.error("[fetchAndUpdateProfit v3] Erro: currentPlayerNickname n\xe3o definido!"),A.runInAction(()=>{q.transactions.replace([]),q.worldProfit=0,q.allTransactionsFetched=!1}),eK(),Error("Nickname do jogador n\xe3o identificado.");if(console.log(`[DEBUG fetchAndUpdateProfit v3] Iniciando. FetchAll: ${e}`),q.allTransactionsFetched&&!e){console.log("[DEBUG fetchAndUpdateProfit v3] Usando dados completos j\xe1 cacheados.");let t=ef();return A.runInAction(()=>{q.worldProfit=t}),eK(),q.transactions}try{let a=[],o=!0,r=`ragnarokMarketTransactions_${u}`,n=localStorage.getItem(r);if(n&&!e)try{let i=JSON.parse(n).map(e=>({...e,date:new Date(e.date)}));ed[u]=i,a=i,console.log(`[DEBUG fetchAndUpdateProfit v3] ${i.length} logs carregados do localStorage.`);let s=await e2();s?(console.log("[DEBUG fetchAndUpdateProfit v3] Cache do localStorage desatualizado ou precisa buscar tudo."),e&&(a=[],ed[u]=[],localStorage.removeItem(r),console.log("[DEBUG fetchAndUpdateProfit v3] Cache limpo devido a fetchAll=true e cache desatualizado.")),A.runInAction(()=>{q.allTransactionsFetched=!1})):(console.log("[DEBUG fetchAndUpdateProfit v3] Cache do localStorage est\xe1 atualizado (baseado na p\xe1g 1)."),o=!1,A.runInAction(()=>{q.allTransactionsFetched=!0}))}catch(l){console.error("[DEBUG fetchAndUpdateProfit v3] Erro ao parsear localStorage, limpando.",l),localStorage.removeItem(r),a=[],ed[u]=[],A.runInAction(()=>{q.allTransactionsFetched=!1})}else A.runInAction(()=>{q.allTransactionsFetched=!1}),console.log("[DEBUG fetchAndUpdateProfit v3] Sem cache no localStorage ou fetchAll=true.");if(o){if(e)console.log("[DEBUG fetchAndUpdateProfit v3] Buscando TODAS as p\xe1ginas..."),a=await ep(),A.runInAction(()=>{q.allTransactionsFetched=!0}),console.log(`[DEBUG fetchAndUpdateProfit v3] Busca completa conclu\xedda: ${a.length} logs.`);else{console.log("[DEBUG fetchAndUpdateProfit v3] Buscando APENAS a primeira p\xe1gina...");let{transactions:$}=await em(1);a=$||[],A.runInAction(()=>{q.allTransactionsFetched=!1}),console.log(`[DEBUG fetchAndUpdateProfit v3] Primeira p\xe1gina buscada: ${a.length} logs.`),(!ed[u]||a.length>0&&(!ed[u][0]||a[0].date>ed[u][0].date))&&(ed[u]=a,console.log("[DEBUG fetchAndUpdateProfit v3] Cache em mem\xf3ria atualizado com a primeira p\xe1gina."))}}a&&Array.isArray(a)?(A.runInAction(()=>{q.transactions.replace(a)}),console.log(`[DEBUG fetchAndUpdateProfit v3] State.transactions atualizado com ${a.length} logs.`)):(console.warn("[DEBUG fetchAndUpdateProfit v3] Nenhum log para processar."),A.runInAction(()=>{q.transactions.replace([]),q.allTransactionsFetched=e}));let c=ef();return A.runInAction(()=>{q.worldProfit=c}),console.log(`[DEBUG fetchAndUpdateProfit v3] Lucro do mundo ${q.currentVillage?.world} recalculado: ${c}`),eK(),q.transactions}catch(d){throw console.error("[DEBUG fetchAndUpdateProfit v3] Erro geral:",d),A.runInAction(()=>{q.transactions.replace([]),q.worldProfit=0,q.allTransactionsFetched=!1}),ed[u]=[],localStorage.removeItem(`ragnarokMarketTransactions_${u}`),eK(),eu(T.t("domError")),d}},ek=(e,a,o)=>{let r=Date.now(),n="buy"===e,i=n?O.buyInputs.get(a.name):O.sellInputs.get(a.name),s=n?document.querySelector('input.btn-premium-exchange-buy[type="submit"]'):document.querySelector('#premium_exchange_form input.btn[type="submit"]'),u=n?O.getElement("buySpinner"):O.getElement("sellSpinner");if(!i||!s){console.error(`${t}: [TX-${r} - ${e}] Erro Cr\xedtico: Input (${i?"OK":"FALHA"}) ou Bot\xe3o de A\xe7\xE3o (${s?"OK":"FALHA"}) n\xe3o encontrado para ${a.name}. Tentando atualizar elementos DOM e agendando reload.`),er(),eu(T.t("domError")),en(),n?eC=!1:eF=!1;return}u&&(u.style.display="inline-block"),ei(T.t("transactionInProgress"),"warning");let l=()=>{if(s.disabled){let e=new MutationObserver(t=>{t.forEach(t=>{"disabled"!==t.attributeName||s.disabled||(e.disconnect(),s.click(),$())})});e.observe(s,{attributes:!0,attributeFilter:["disabled"]})}else s.click(),$()},$=()=>{let a=0,o=!1,i=setInterval(()=>{if(o){clearInterval(i);return}let s=null;for(let l of["div.ui-dialog[aria-describedby='premium_exchange_confirm_buy']","div.ui-dialog[aria-describedby='premium_exchange_confirm_sell']","div.ui-dialog:not([style*='display: none'])","div[role='dialog']:not([style*='display: none'])"])if((s=document.querySelector(l))&&(!s.style.display||"none"!==s.style.display))break;if(s){let $=null;for(let c of["div.confirmation-buttons button.btn.evt-confirm-btn.btn-confirm-yes","button.btn-confirm-yes",'button:enabled:contains("Sim")','button:enabled:contains("Yes")',".ui-dialog-buttonpane button:not(:disabled):first-of-type"])if(($=s.querySelector(c))&&!$.disabled)break;if($){clearInterval(i),o=!0;let d=0;if(n)try{let p=null;for(let m of["#confirmation-msg p",".dialog_content p",".ui-dialog-content p"])if(p=s.querySelector(m))break;if(p){let g=p.innerHTML,f=g.match(/<img\s[^>]*src="[^"]*premium\.png"[^>]*>\s*(\d+)/i);f&&f[1]&&(d=W(f[1]))}}catch(h){console.error(`${t}: [TX-${r} - Compra] Erro CR\xcdTICO ao tentar extrair/processar custo do PP no pop-up:`,h)}if(n&&d>0){console.log(`${t}: [TX-${r} - Compra] Custo ${d} > 0. Tentando atualizar input e salvar config.`);let b=O.getElement("premiumPointsInput");if(b){console.log(`${t}: [TX-${r} - Compra] Input de PP encontrado.`);let x=W(b.value)||0;console.log(`${t}: [TX-${r} - Compra] Valor ATUAL no input: ${x}`);let _=Math.max(0,x-d);console.log(`${t}: [TX-${r} - Compra] Novo valor CALCULADO para input: ${_}`),b.value=_,console.log(`${t}: [TX-${r} - Compra] Input visualmente atualizado para ${_}.`),eH(),console.log(`${t}: [TX-${r} - Compra] performSaveOperation() chamada para persistir o novo limite de PP (${_}).`)}else console.warn(`${t}: [TX-${r} - Compra] Input #premiumPointsInput N\xc3O encontrado.`)}else n&&console.log(`${t}: [TX-${r} - Compra] Custo do PP foi 0 ou n\xe3o p\xf4de ser extra\xeddo. Input e config n\xe3o ser\xe3o atualizados.`);console.log(`${t}: [TX-${r} - ${e}] Clicando no bot\xe3o 'Sim' AGORA.`),$.click(),u&&(u.style.display="none"),es(T.t("transactionSuccess")),en();return}s.querySelector("button.btn-confirm-yes")}++a>=50&&(clearInterval(i),o=!0,u&&(u.style.display="none"),eu(T.t("transactionError")+" (Timeout Confirma\xe7\xe3o)"),en(),n?eC=!1:eF=!1)},100)},c=W(o);if(isNaN(c)||c<=0){console.error(`${t}: [TX-${r} - ${e}] Quantidade inv\xe1lida (${o} -> ${c}). Transa\xe7\xE3o abortada.`),u&&(u.style.display="none"),n?eC=!1:eF=!1;return}i.value=c,i.dispatchEvent(new Event("input",{bubbles:!0})),i.dispatchEvent(new Event("change",{bubbles:!0})),i.dispatchEvent(new Event("keyup",{bubbles:!0})),setTimeout(l,150)},eC=!1,ew=async()=>{if(to()){console.log("[Compra] hCaptcha detectado. Abortando compra."),eC=!1;return}let e=Date.now();if(!q.buyModeActive){eC=!1;return}if(eC)return;if(q.buyPausedUntil&&q.buyPausedUntil>e){new Date(q.buyPausedUntil).toLocaleString();return}eC=!0;try{await eD()}catch(t){console.error("[Compra] Erro ao buscar recursos em tr\xe2nsito:",t),eC=!1;return}q.storageCapacity=F();let a=e3(),o=O.getElement("premiumPointsInput"),r=o?W(o.value):1/0,n=Math.min(a,r);if(n<=0){q.hasExecutedBuy=!1,eC=!1;return}let i=Object.keys(eY).map(e=>{let t=eY[e];if(!t)return null;let a=document.querySelector(`.rate-input[data-resource="${e}-stock"]`),o=document.querySelector(`.rate-input[data-resource="${e}"]`),r=document.querySelector('.rate-input[data-resource="buy-per-time"]'),n=W(a?.value)||0,i=W(o?.value)||0,s=W(r?.value)||1/0,u=t.getGameRate()||0;return{name:e,desiredStock:n,marketRate:u,userRateLimit:i,buyLimitPerTime:s}}).filter(e=>null!==e);if(void 0===D){console.error("[Compra] Vari\xe1vel global 'currentResources' n\xe3o est\xe1 definida!"),eC=!1;return}let s={action:"calculateBuyAmount",data:{resources:i,effectivePP:n,storageCapacity:q.storageCapacity,incomingResources:A.toJS(q.incomingResources),currentResources:A.toJS(D)}};eR.postMessage(s),eR.onmessage=async e=>{if(to()){console.log("[Compra - Worker Callback] hCaptcha detectado ANTES de processar resultado. Abortando.");return}if("buyAmountCalculated"===e.data.action){let{amountToBuy:t,resourceName:a}=e.data.result;if(t>0&&a&&eY[a]){let n=eY[a],i=e3(),s=D[a]||0;try{await ek("buy",n,t),A.runInAction(()=>{q.hasExecutedBuy=!0}),await new Promise(e=>setTimeout(e,1500));let u=e3(),l=D[a]||0,$=i-u;if(o&&r!==1/0&&($>0||l>s)){let c=Math.max(0,r-$);W(o.value)!==c&&(o.value=c,updateAndSavePPConfig(c))}}catch(d){console.error(`[Compra] Erro durante executeTransaction para ${a}:`,d)}}else A.runInAction(()=>{q.hasExecutedBuy=!1}),eC=!1}else e.data.error?(console.error("[Compra] Erro retornado pelo Worker:",e.data.error),eC=!1):(console.warn("[Compra] A\xe7\xe3o inesperada recebida do Worker:",e.data.action),eC=!1)},eR.onerror=e=>{console.error("[Compra] Erro GERAL no Worker:",e.message,e),eC=!1}};function e3(){let e=document.querySelector("#premium_points");return e?W(e.textContent.trim()):0}let e6=()=>O.buyInputs.forEach(e=>e&&(e.value="")),eT={log(){},error(){},warn(){},debug(){}};function eP(e){if("string"!=typeof e||!e)return 0;let t=e.replace(/[.,]/g,"").replace(/[^\d]/g,""),a=parseInt(t,10);return isNaN(a)?0:a}function eS(e){let t={wood:0,stone:0,iron:0};if(!e)return t;let a=e.querySelector(".icon.header.wood"),o=e.querySelector(".icon.header.stone"),r=e.querySelector(".icon.header.iron"),n=e=>{if(!e)return 0;let t=e.nextElementSibling;if(t&&t.textContent.match(/[\d.,]+/)&&!t.querySelector(".icon.header"))return eP(t.textContent);let a=e.nextSibling;for(;a&&a.nodeType!==Node.TEXT_NODE;){if(a.nodeType===Node.ELEMENT_NODE&&a.textContent.match(/[\d.,]+/)&&!a.querySelector(".icon.header"))return eP(a.textContent);a=a.nextSibling}if(a&&a.nodeType===Node.TEXT_NODE){let o=a.textContent.trim().match(/^[\s]*([\d.,]+)/);if(o)return eP(o[1])}let r=e.parentElement;if(r&&r.textContent){let n=r.textContent.trim(),i=n.match(/([\d.,]+)/g);i&&i.length}return 0};if(t.wood=n(a),t.stone=n(o),t.iron=n(r),0===t.wood&&0===t.stone&&0===t.iron&&(a||o||r)){eT.debug("Icon-based extraction failed, attempting text-based fallback within element:",e.textContent.substring(0,100));let i=e.textContent||"",s=(i.match(/[\d.,]+/g)||[]).map(e=>eP(e)),u=0;if(a&&u<s.length&&(t.wood=s[u],u++),o&&u<s.length&&(t.stone=s[u],u++),r&&u<s.length&&(t.iron=s[u],u++),eT.debug(" - Text fallback results:",t),1===u&&[a,o,r].filter(Boolean).length>1)return eT.warn("Single number found for multiple icons via text fallback, resetting as likely incorrect."),{wood:0,stone:0,iron:0}}return t}async function eD(){return new Promise((e,t)=>{let a="undefined"!=typeof TribalWars&&TribalWars.getGameData?TribalWars.getGameData():{},o=a.village?.id;if(!o)return eT.error("[Fetch] ID da vila n\xe3o encontrado."),A.runInAction(()=>{q.incomingResources.wood=0,q.incomingResources.stone=0,q.incomingResources.iron=0}),e({wood:0,stone:0,iron:0});let r=`https://${window.location.host}/game.php?village=${o}&screen=market&mode=transports`;eT.log(`[Fetch] Buscando dados de transporte de: ${r}`),GM_xmlhttpRequest({method:"GET",url:r,timeout:15e3,onload(a){if(a.status>=200&&a.status<300){eT.log("[Fetch] Resposta da p\xe1gina de transporte recebida (Status OK).");try{let o=function e(t){eT.log("Iniciando parseamento da p\xe1gina de transportes.");let a=new DOMParser,o=a.parseFromString(t,"text/html"),r={madeira:0,argila:0,ferro:0},n=!1,i=o.body.textContent.toLowerCase();if(i.includes("n\xe3o h\xe1 transportes chegando")||i.includes("nenhum transporte em chegada")||i.includes("no incoming transports")||i.includes("нет входящих транспортов"))return eT.log("P\xe1gina indica explicitamente que n\xe3o h\xe1 transportes de chegada."),r;let s=null;if(!(s=o.querySelector("#market_transports_in table.vis, #market_transports_in, #market_status_in table.vis"))){let u=Array.from(o.querySelectorAll("h2, h3, h4, .content-header, .box-header, th, .table-header")),l=["transportes em chegada","entrando","incoming transports","chegando","mercadores chegando","arrival","прибывающие транспорты","chegada","transporte de entrada","transporte chegando","транспорт прибытия"];for(let $ of u){let c=$.textContent.trim().toLowerCase();if(l.some(e=>c.includes(e))){eT.log(`Cabe\xe7alho de chegada encontrado: "${c}"`);let d=$,p=5;for(;d&&p>0;){if("TABLE"===d.tagName&&d.classList.contains("vis")){s=d;break}let m=d.querySelector("table.vis");if(m){s=m;break}d=d.nextElementSibling,p--}if(s){eT.log(`Tabela de chegada encontrada pr\xf3xima ao cabe\xe7alho "${c}"`);break}}}}if(s){eT.log("Processando tabela de chegada encontrada...");let g=Array.from(s.querySelectorAll("tr")).filter(e=>!e.querySelector("th")&&e.cells&&e.cells.length>1),f=Array.from(s.querySelectorAll("tr")).find(e=>{let t=e.textContent.toLowerCase();return(t.includes("total:")||t.includes("soma:")||t.includes("summe:")||t.includes("итого:")||t.includes("entrada:"))&&!e.querySelector("th")});if(f){eT.log("Processando linha de sum\xe1rio de chegada...");let h=eS(f);(h.wood>0||h.stone>0||h.iron>0)&&(r.madeira=h.wood,r.argila=h.stone,r.ferro=h.iron,n=!0,eT.log("Recursos extra\xeddos da linha de sum\xe1rio:",r))}else g.length>0?(eT.log(`Processando ${g.length} linhas de dados na tabela de chegada...`),g.forEach((e,t)=>{let a=eS(e);(a.wood>0||a.stone>0||a.iron>0)&&(r.madeira+=a.wood,r.argila+=a.stone,r.ferro+=a.iron,n=!0,eT.debug(`Linha ${t}: Recursos adicionados: W=${a.wood}, S=${a.stone}, I=${a.iron}`))}),eT.log("Total de recursos encontrados:",r)):eT.warn("Tabela de chegada encontrada, mas sem linhas de dados ou sum\xe1rio reconhec\xedvel.")}else eT.warn("Nenhuma tabela espec\xedfica de chegada encontrada. Tentando estrat\xe9gia alternativa...");if(!n){eT.log("Buscando linhas de transporte gerais e verificando dire\xe7\xe3o...");let b=[...o.querySelectorAll(".transport_row"),...o.querySelectorAll('tr[id^="market_"]'),...o.querySelectorAll("tr.row_a, tr.row_b"),...o.querySelectorAll("table.vis tr:not(:first-child)")];b.length>0?(eT.log(`Encontradas ${b.length} poss\xedveis linhas de transporte para an\xe1lise.`),b.forEach((e,t)=>{let a=!1,o=e.textContent.toLowerCase(),i=e.innerHTML.toLowerCase(),s=["para esta aldeia","incoming","arrival","chegada","chegando","entrada","para c\xe1","entrando","recebendo"],u=["arrow_right","arrow_in","icon_in","→","▶","⇨"];(s.some(e=>o.includes(e))||u.some(e=>i.includes(e)))&&(a=!0);let l=e.querySelector(".transport_direction, .direction, .movement-direction");if(l){let $=l.textContent.trim().toLowerCase(),c=l.innerHTML.toLowerCase();(s.some(e=>$.includes(e))||u.some(e=>c.includes(e)))&&(a=!0)}if(a){eT.debug(`Linha ${t} identificada como CHEGANDO`);let d=e.querySelector(".resources_sum, .res")||e,p=eS(d);(p.wood>0||p.stone>0||p.iron>0)&&(r.madeira+=p.wood,r.argila+=p.stone,r.ferro+=p.iron,n=!0,eT.debug(`Recursos adicionados: W=${p.wood}, S=${p.stone}, I=${p.iron}`))}})):eT.error("Nenhuma linha de transporte encontrada em toda a p\xe1gina.")}if(!n){eT.log("Tentando encontrar elementos de sum\xe1rio de recursos...");let x=[o.querySelector("#market_status_in"),o.querySelector(".incoming-resources"),o.querySelector(".resources-incoming"),...o.querySelectorAll(".sum_incoming"),...o.querySelectorAll(".incoming_total")].filter(Boolean);for(let _ of x){let y=eS(_);if(y.wood>0||y.stone>0||y.iron>0){r.madeira=y.wood,r.argila=y.stone,r.ferro=y.iron,n=!0,eT.log("Recursos encontrados em elemento de sum\xe1rio:",r);break}}}return n?(eT.log("Parseamento conclu\xeddo com sucesso. Recursos CHEGANDO:",r),{madeira:r.madeira,argila:r.argila,ferro:r.ferro}):(eT.error("N\xe3o foi poss\xedvel encontrar dados de transportes em chegada na p\xe1gina."),{madeira:0,argila:0,ferro:0})}(a.responseText);null===o?(eT.error("[Fetch] parseTransportData retornou null (falha ao encontrar/parsear dados). Resolvendo com recursos zerados."),A.runInAction(()=>{q.incomingResources.wood=0,q.incomingResources.stone=0,q.incomingResources.iron=0}),e({wood:0,stone:0,iron:0})):(eT.log("[Fetch] Atualizando state.incomingResources:",o),A.runInAction(()=>{q.incomingResources.wood=o.madeira||0,q.incomingResources.stone=o.argila||0,q.incomingResources.iron=o.ferro||0}),e({wood:q.incomingResources.wood,stone:q.incomingResources.stone,iron:q.incomingResources.iron}))}catch(r){eT.error(`[Fetch] Erro durante o parseamento: ${r.message}`,r),A.runInAction(()=>{q.incomingResources.wood=0,q.incomingResources.stone=0,q.incomingResources.iron=0}),t(r)}}else eT.error(`[Fetch] Falha ao buscar dados de transporte. Status: ${a.status}`),A.runInAction(()=>{q.incomingResources.wood=0,q.incomingResources.stone=0,q.incomingResources.iron=0}),t(Error(`HTTP error! status: ${a.status}`))},onerror(e){eT.error(`[Fetch] Erro na requisi\xe7\xE3o GM_xmlhttpRequest:`,e),A.runInAction(()=>{q.incomingResources.wood=0,q.incomingResources.stone=0,q.incomingResources.iron=0}),t(e)},ontimeout(){eT.error("[Fetch] Requisi\xe7\xe3o para transportes expirou (timeout)."),A.runInAction(()=>{q.incomingResources.wood=0,q.incomingResources.stone=0,q.incomingResources.iron=0}),t(Error("Transport request timed out"))}})})}let eI=new Map,eF=!1,eM=`
+    `;
+    console.log("[renderTransactionsModal v3 - DEBUG] Seção de filtros atualizada no HTML.");
+
+    // 2. Define a função debounced para aplicar filtros
+    const debouncedApplyFilters = _.debounce(() => {
+      console.log("[debouncedApplyFilters - DEBUG] Disparado.");
+      const filtersNow = {
+        dateFrom: filterSection.querySelector("#dateFrom")?.value || "",
+        dateTo: filterSection.querySelector("#dateTo")?.value || "",
+        worldFilter: filterSection.querySelector("#worldFilter")?.value || ""
+      };
+      console.log(" -> Aplicando filtros:", filtersNow);
+
+      const filtered = filterTransactions(transactions, filtersNow); // Usa a lista original recebida
+      console.log(` -> ${filtered.length} logs após filtrar.`);
+
+      let netFilteredProfit = 0;
+      if (filtered.length > 0) {
+        try {
+          const totalFilteredSales = filtered.filter(t => t.change > 0).reduce((sum, t) => sum + t.change, 0);
+          const totalFilteredExpenses = filtered.filter(t => t.change < 0).reduce((sum, t) => sum + Math.abs(t.change), 0);
+          netFilteredProfit = Math.floor(totalFilteredSales - totalFilteredExpenses);
+          console.log(` -> Lucro Líquido Filtrado: ${netFilteredProfit}`);
+        } catch (calcError) {
+          console.error("[debouncedApplyFilters - DEBUG] Erro ao calcular lucro líquido filtrado:", calcError);
+          netFilteredProfit = "Erro";
+        }
+        const profitLabel = i18n.t("filteredPeriodProfitLabel", { defaultValue: "Lucro Líquido (Período)" });
+        filteredProfitSummaryEl.innerHTML = `${profitLabel}: <span class="icon header premium"></span> ${netFilteredProfit}`;
+        filteredProfitSummaryEl.style.display = "block";
+
+        console.log(" -> Renderizando tabela/gráfico com dados filtrados...");
+        renderLedgerTable(filtered, currentSortField, currentSortDirection, 1, perPage, filtersNow); // Reinicia na página 1 ao filtrar
+
+      } else {
+        console.log(" -> Nenhum resultado após filtrar. Limpando tabela/gráfico.");
+        filteredProfitSummaryEl.style.display = "none";
+        tableContainer.innerHTML = `<p style="text-align: center; padding: 20px;">${i18n.t("noTransactions")}</p>`;
+        if (paginationControls) paginationControls.innerHTML = "";
+        if (chartContainer) chartContainer.style.display = "none";
+        if (chartInstance) {
+          chartInstance.destroy();
+          chartInstance = null;
+        }
+      }
+    }, 300);
+
+    // 3. Adiciona listeners aos inputs de filtro
+    filterSection.querySelectorAll("input").forEach(input => {
+        input.removeEventListener("input", debouncedApplyFilters); // Remove listener antigo
+        input.addEventListener("input", debouncedApplyFilters);    // Adiciona novo
+    });
+    console.log("[renderTransactionsModal v3 - DEBUG] Listeners de filtro adicionados/atualizados.");
+
+    // 4. Chama applyFilters imediatamente para renderizar com os filtros/dados iniciais
+    console.log("[renderTransactionsModal v3 - DEBUG] Chamando applyFilters inicial...");
+    debouncedApplyFilters();
+
+    console.log("[renderTransactionsModal v3 - DEBUG] FINALIZADA.");
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ==========================================================================
+// === FUNÇÃO showTransactions ATUALIZADA (v10 - Simplificada, Confia no Fetch) ===
+// ==========================================================================
+const showTransactions = async () => {
+    // 0. Validação Inicial e Nickname
+    if (!currentPlayerNickname) {
+        console.error("[showTransactions v10] Erro crítico: currentPlayerNickname não definido!");
+        // Tenta notificar o usuário, mas não pode prosseguir
+        try {
+            notifyError(i18n.t("errorMissingNickname", { defaultValue: "Não foi possível identificar o jogador atual para buscar o histórico." }));
+        } catch (e) { /* Ignora erro de notificação se i18n não estiver pronto */ }
+        return; // Interrompe a execução
+    }
+    console.log(`[showTransactions v10 - Simplificada] Iniciada para ${currentPlayerNickname}.`);
+
+    // 1. Obtém Elementos da Modal
+    const modalElement = ui.getElement("transactionsModal");
+    const tableContainer = ui.getElement("transactionsTableContainer");
+    const filterSection = ui.getElement("filterSection");
+    const paginationControls = ui.getElement("paginationControls");
+    const chartContainer = ui.getElement("transactionsChartContainer");
+    const filteredProfitSummaryEl = document.getElementById("filteredProfitSummary"); // Usando getElementById por consistência se ui.getElement falhar
+
+    // Validação dos elementos internos da modal
+    if (!modalElement) {
+        console.error("[showTransactions v10] Erro CRÍTICO: Elemento principal da modal (#transactionsModal) não encontrado.");
+        // Notifica erro, pois a modal não pode ser exibida
+        try {
+            notifyError(i18n.t("errorModalNotFound", { defaultValue: "Erro ao encontrar a janela de histórico." }));
+        } catch(e) {}
+        return;
+    }
+    if (!tableContainer || !filterSection || !paginationControls || !chartContainer || !filteredProfitSummaryEl) {
+         console.warn("[showTransactions v10] Aviso: Um ou mais containers internos da modal não foram encontrados. A exibição pode estar incompleta.");
+         // Continua mesmo assim, tentando renderizar o que for possível
+    }
+
+    // 2. Mostra Modal e Estado de Carregamento INICIAL
+    try {
+        modalElement.style.display = "flex"; // Exibe a modal
+
+        // Define a mensagem de carregamento (traduzível)
+        const loadingMessage = `<p style="text-align:center; padding: 20px; font-style:italic; color: #a0aab8;">${i18n.t('loadingHistory', { defaultValue: 'Carregando histórico...' })}</p>`;
+
+        // Limpa e configura o estado inicial dos containers internos
+        if (tableContainer) tableContainer.innerHTML = loadingMessage;
+        if (filterSection) filterSection.innerHTML = ''; // Limpa filtros
+        if (paginationControls) paginationControls.innerHTML = ''; // Limpa paginação
+        if (chartContainer) {
+            // Destroi gráfico anterior se existir e limpa o container
+            if (chartInstance) {
+                try { chartInstance.destroy(); } catch(e) {}
+                chartInstance = null;
+            }
+            chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>'; // Recria canvas
+            chartContainer.style.display = 'none'; // Esconde container do gráfico
+        }
+        if (filteredProfitSummaryEl) {
+            filteredProfitSummaryEl.innerHTML = ''; // Limpa sumário de lucro
+            filteredProfitSummaryEl.style.display = 'none'; // Esconde sumário
+        }
+        console.log("[showTransactions v10] Modal exibida com placeholder de carregamento.");
+
+    } catch (uiError) {
+        console.error("[showTransactions v10] Erro ao configurar UI inicial da modal:", uiError);
+        // Tenta esconder a modal se houve erro ao configurá-la
+        if(modalElement) modalElement.style.display = "none";
+        try {
+            notifyError(i18n.t("errorModalSetup", { defaultValue: "Erro ao preparar a janela de histórico." }));
+        } catch(e) {}
+        return; // Interrompe se não conseguiu preparar a UI
+    }
+
+
+    // 3. Variáveis para o processo de busca
+    let finalLogsToRender = []; // Array para guardar os logs que serão exibidos
+    let fetchError = null;      // Variável para guardar possíveis erros durante a busca
+
+    // --- INÍCIO DO PROCESSO DE BUSCA ---
+    try {
+        // === PASSO ÚNICO: Chama fetchPremiumLogs para atualizar (se necessário) ===
+        console.log("[showTransactions v10] Iniciando fetchPremiumLogs(false)...");
+        // Esta função contém a lógica principal:
+        // 1. Tenta carregar dados + último PP conhecido do localStorage.
+        // 2. Compara o PP atual do jogo com o último PP conhecido salvo.
+        // 3. Se diferente, busca a Página 1 dos logs no servidor e mescla com os dados do localStorage.
+        // 4. Se igual (ou se não havia cache), usa os dados carregados do localStorage (ou fica vazio se não havia).
+        // 5. Salva os logs resultantes E o PP ATUAL do jogo no localStorage para a próxima verificação.
+        await fetchPremiumLogs(false); // O 'false' indica para NÃO forçar busca completa.
+
+        // Pega os logs resultantes que estão agora no state MobX
+        finalLogsToRender = mobx.toJS(state.transactions);
+        console.log(`[showTransactions v10] Fetch/Update via fetchPremiumLogs(false) concluído. Logs finais no state: ${finalLogsToRender.length}.`);
+
+        // *** VERIFICAÇÃO DE CONSISTÊNCIA REMOVIDA DESTA FUNÇÃO ***
+        // A lógica de decidir se busca a página 1 ou usa o cache agora está encapsulada
+        // dentro de `fetchPremiumLogs(false)`. `showTransactions` apenas confia no resultado.
+
+    } catch (error) {
+        fetchError = error; // Guarda o erro para tratar depois
+        console.error("[showTransactions v10] Erro durante a execução de fetchPremiumLogs:", error);
+        // Não interrompe aqui, o bloco finally/renderização tratará o erro.
+    }
+    // --- FIM DO PROCESSO DE BUSCA ---
+
+    // 4. Renderiza o Conteúdo FINAL ou Mensagem de Erro
+    // Este bloco executa SEMPRE, após o try...catch da busca.
+    try {
+        if (fetchError) {
+            // Se ocorreu um erro durante a busca
+            console.error("[showTransactions v10] Renderizando mensagem de erro na modal devido a falha no fetch.");
+            if (tableContainer) {
+                tableContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: red;">${i18n.t('errorLoadingHistory', { defaultValue: 'Erro ao carregar histórico.' })} (${fetchError.message || 'Erro desconhecido'})</p>`;
+            }
+            // Limpa as outras seções da modal em caso de erro
+            if (filterSection) filterSection.innerHTML = '';
+            if (paginationControls) paginationControls.innerHTML = '';
+            if (chartContainer) chartContainer.style.display = 'none';
+            if (filteredProfitSummaryEl) filteredProfitSummaryEl.style.display = 'none';
+            // Garante que o gráfico seja destruído se houve erro
+            if (chartInstance) {
+                try { chartInstance.destroy(); } catch(e) {}
+                chartInstance = null;
+            }
+
+        } else if (finalLogsToRender && finalLogsToRender.length > 0) {
+            // Se a busca foi bem-sucedida e há logs para exibir
+            console.log("[showTransactions v10] Renderizando conteúdo real da modal com dados FINAIS...");
+            // Chama a função que monta a tabela, filtros, gráfico, etc.
+            renderTransactionsModal(finalLogsToRender, {}, "date", "desc", 1, 10); // Começa sem filtros, ordenado por data desc, pág 1
+            console.log("[showTransactions v10] Conteúdo real renderizado com sucesso.");
+
+        } else {
+            // Se a busca foi bem-sucedida, mas não retornou nenhum log
+            console.log("[showTransactions v10] Nenhum log encontrado para exibir. Renderizando mensagem 'Sem transações'.");
+            if (tableContainer) {
+                tableContainer.innerHTML = `<p style="text-align: center; padding: 20px;">${i18n.t("noTransactions")}</p>`;
+            }
+            // Limpa as outras seções se não há dados
+            if (filterSection) filterSection.innerHTML = '';
+            if (paginationControls) paginationControls.innerHTML = '';
+            if (chartContainer) chartContainer.style.display = 'none';
+            if (filteredProfitSummaryEl) filteredProfitSummaryEl.style.display = 'none';
+        }
+    } catch (renderError) {
+        // Captura erros que possam ocorrer DURANTE a renderização (ex: em renderTransactionsModal)
+        console.error("[showTransactions v10] Erro DURANTE a renderização da modal:", renderError);
+        if (tableContainer) {
+             tableContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: red;">${i18n.t('errorRenderingModal', { defaultValue: 'Erro ao exibir o histórico.' })}</p>`;
+        }
+         // Tenta notificar o usuário sobre o erro de renderização
+         try {
+             notifyError(i18n.t("errorRenderingModal", { defaultValue: "Erro ao exibir o histórico." }));
+         } catch(e) {}
+    }
+
+    // 5. Log final da função
+    console.log("[showTransactions v10 - Simplificada] Execução finalizada.");
+
+}; // --- Fim da função showTransactions (v10 - Simplificada) ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Função fetchAndUpdateProfit v3 - Busca inicial limitada
+const fetchAndUpdateProfit = async (fetchAll = false) => { // Adiciona parâmetro fetchAll
+    if (!currentPlayerNickname) {
+        console.error("[fetchAndUpdateProfit v3] Erro: currentPlayerNickname não definido!");
+        // Reset state
+        mobx.runInAction(() => {
+            state.transactions.replace([]);
+            state.worldProfit = 0;
+            state.allTransactionsFetched = false; // Reseta flag
+        });
+        updateUI();
+        throw new Error("Nickname do jogador não identificado.");
+    }
+
+    //console.log(`[DEBUG fetchAndUpdateProfit v3] Iniciando. FetchAll: ${fetchAll}`);
+
+    // Usa cache se já tiver buscado tudo antes e não for forçado a buscar de novo
+     if (state.allTransactionsFetched && !fetchAll) {
+        //console.log("[DEBUG fetchAndUpdateProfit v3] Usando dados completos já cacheados.");
+         // Recalcula o lucro (caso a aldeia ativa tenha mudado)
+         const worldProfit = calculateWorldProfit();
+         mobx.runInAction(() => { state.worldProfit = worldProfit; });
+         updateUI();
+         return state.transactions; // Retorna os dados completos cacheados
+     }
+
+
+    try {
+        let transactionsToProcess = [];
+        let needsServerFetch = true; // Assume que precisa buscar, a menos que o cache exista
+
+        // Tenta carregar do localStorage primeiro
+        const storageKey = `ragnarokMarketTransactions_${currentPlayerNickname}`;
+        const savedTransactions = localStorage.getItem(storageKey);
+         if (savedTransactions && !fetchAll) { // Só usa cache se não forçar busca completa
+            try {
+                const parsed = JSON.parse(savedTransactions).map(t => ({ ...t, date: new Date(t.date) }));
+                cachedTransactions[currentPlayerNickname] = parsed;
+                transactionsToProcess = parsed;
+               // console.log(`[DEBUG fetchAndUpdateProfit v3] ${parsed.length} logs carregados do localStorage.`);
+                // Verifica se o cache está atualizado (comparando com a primeira página)
+                const needsUpdateCheck = await checkForUpdates();
+                if (!needsUpdateCheck) {
+                    //console.log("[DEBUG fetchAndUpdateProfit v3] Cache do localStorage está atualizado (baseado na pág 1).");
+                     needsServerFetch = false; // Não precisa buscar se cache está ok
+                     // Assume que o cache contém todos os dados se estiver atualizado
+                     mobx.runInAction(() => { state.allTransactionsFetched = true; });
+                } else {
+                    //console.log("[DEBUG fetchAndUpdateProfit v3] Cache do localStorage desatualizado ou precisa buscar tudo.");
+                    // Se o cache está desatualizado E estamos forçando fetchAll, limpa o cache
+                    if(fetchAll) {
+                         transactionsToProcess = [];
+                         cachedTransactions[currentPlayerNickname] = [];
+                         localStorage.removeItem(storageKey);
+                         //console.log("[DEBUG fetchAndUpdateProfit v3] Cache limpo devido a fetchAll=true e cache desatualizado.");
+                    }
+                    // Se não está forçando fetchAll mas o cache está desatualizado,
+                    // apenas marca que precisa buscar, mas mantém os dados cacheados por enquanto
+                    mobx.runInAction(() => { state.allTransactionsFetched = false; });
+                }
+            } catch (e) {
+                console.error("[DEBUG fetchAndUpdateProfit v3] Erro ao parsear localStorage, limpando.", e);
+                localStorage.removeItem(storageKey);
+                transactionsToProcess = [];
+                cachedTransactions[currentPlayerNickname] = [];
+                mobx.runInAction(() => { state.allTransactionsFetched = false; });
+            }
+        } else {
+             mobx.runInAction(() => { state.allTransactionsFetched = false; });
+             //console.log("[DEBUG fetchAndUpdateProfit v3] Sem cache no localStorage ou fetchAll=true.");
+        }
+
+
+        // Busca do servidor se necessário
+        if (needsServerFetch) {
+            if (fetchAll) {
+                //console.log("[DEBUG fetchAndUpdateProfit v3] Buscando TODAS as páginas...");
+                 // Mostra um indicador de loading se possível (ex: spinner na modal)
+                transactionsToProcess = await fetchAllPages(); // Função que busca todas as páginas
+                 mobx.runInAction(() => { state.allTransactionsFetched = true; }); // Marca que buscou tudo
+                //console.log(`[DEBUG fetchAndUpdateProfit v3] Busca completa concluída: ${transactionsToProcess.length} logs.`);
+            } else {
+                //console.log("[DEBUG fetchAndUpdateProfit v3] Buscando APENAS a primeira página...");
+                const { transactions: firstPageTransactions } = await fetchPage(1);
+                transactionsToProcess = firstPageTransactions || []; // Usa a primeira página
+                mobx.runInAction(() => { state.allTransactionsFetched = false; }); // Ainda não buscou tudo
+                //console.log(`[DEBUG fetchAndUpdateProfit v3] Primeira página buscada: ${transactionsToProcess.length} logs.`);
+                // Atualiza o cache APENAS se a primeira página for mais nova que o cache existente
+                // (A lógica de salvar/cachear pode ser refinada aqui se necessário)
+                if (!cachedTransactions[currentPlayerNickname] || transactionsToProcess.length > 0 && (!cachedTransactions[currentPlayerNickname][0] || transactionsToProcess[0].date > cachedTransactions[currentPlayerNickname][0].date)) {
+                     cachedTransactions[currentPlayerNickname] = transactionsToProcess; // Atualiza cache em memória (mesmo sendo só pág 1)
+                     // Não salva no localStorage ainda, pois não temos todos os dados
+                     //console.log("[DEBUG fetchAndUpdateProfit v3] Cache em memória atualizado com a primeira página.");
+                 }
+            }
+        }
+
+        // Atualiza o estado MobX com os dados processados (sejam completos ou parciais)
+        if (transactionsToProcess && Array.isArray(transactionsToProcess)) {
+             mobx.runInAction(() => {
+                // Substitui completamente ou mescla, dependendo da estratégia
+                // Por simplicidade, vamos substituir aqui
+                 state.transactions.replace(transactionsToProcess);
+             });
+             //console.log(`[DEBUG fetchAndUpdateProfit v3] State.transactions atualizado com ${transactionsToProcess.length} logs.`);
+        } else {
+            console.warn("[DEBUG fetchAndUpdateProfit v3] Nenhum log para processar.");
+             mobx.runInAction(() => {
+                state.transactions.replace([]);
+                 state.allTransactionsFetched = fetchAll; // Se buscou tudo e não veio nada, marca como buscado
+             });
+        }
+
+        // Calcula e atualiza o lucro do mundo atual SEMPRE
+        const worldProfit = calculateWorldProfit(); // Usa state.transactions atualizado
+         mobx.runInAction(() => { state.worldProfit = worldProfit; });
+        //console.log(`[DEBUG fetchAndUpdateProfit v3] Lucro do mundo ${state.currentVillage?.world} recalculado: ${worldProfit}`);
+
+        updateUI(); // Atualiza a UI com o novo lucro
+        return state.transactions; // Retorna os dados atuais (parciais ou completos)
+
+    } catch (error) {
+        console.error(`[DEBUG fetchAndUpdateProfit v3] Erro geral:`, error);
+        mobx.runInAction(() => {
+            state.transactions.replace([]);
+            state.worldProfit = 0;
+            state.allTransactionsFetched = false; // Reseta em caso de erro
+        });
+        cachedTransactions[currentPlayerNickname] = []; // Limpa cache em memória
+        localStorage.removeItem(`ragnarokMarketTransactions_${currentPlayerNickname}`); // Limpa storage
+        updateUI();
+        notifyError(i18n.t("domError"));
+        throw error; // Propaga o erro
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Função executeTransaction ATUALIZADA (vHumanize 1.0 - Atrasos Aleatórios)
+  const executeTransaction = async (type, resource, amount) => { // Adicionado 'async' aqui
+    const transactionId = Date.now();
+    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Iniciando transação (Humanizada) para ${resource.name}, Quantidade: ${amount}`);
+    const isBuy = type === "buy";
+    const input = isBuy ? ui.buyInputs.get(resource.name) : ui.sellInputs.get(resource.name);
+    const actionButton = isBuy ? document.querySelector('input.btn-premium-exchange-buy[type="submit"]') : document.querySelector('#premium_exchange_form input.btn[type="submit"]');
+    const transactionSpinner = isBuy ? ui.getElement("buySpinner") : ui.getElement("sellSpinner");
+
+    // Função auxiliar para criar pausa aleatória
+    const randomDelay = (min = 150, max = 450) => {
+        const delay = Math.floor(Math.random() * (max - min + 1)) + min;
+        // console.log(`[Humanize Delay] Aguardando ${delay}ms...`); // Log opcional
+        return new Promise(resolve => setTimeout(resolve, delay));
+    };
+
+    if (!input || !actionButton) {
+      console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Erro Crítico: Input ou Botão de Ação não encontrado. Tentando atualizar e agendando reload.`);
+      updateGameElements();
+      notifyError(i18n.t("domError"));
+      scheduleReload(); // Mantém o reload em caso de erro crítico
+      if (isBuy) isProcessingBuy = false;
+      else isProcessingSell = false;
+      return;
+    }
+
+    if (transactionSpinner) {
+      transactionSpinner.style.display = "inline-block";
+      //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Spinner ativado.`);
+    }
+
+    notifyUser(i18n.t("transactionInProgress"), "warning");
+    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Notificação 'Processando' exibida.`);
+
+    const handleActionButtonClick = async () => { // Adicionado 'async' aqui
+      //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] handleActionButtonClick iniciado.`);
+      if (actionButton.disabled) {
+        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão de ação desabilitado, iniciando MutationObserver.`);
+        // Lógica do MutationObserver (mantida como estava)
+        const observer = new MutationObserver(async (mutations) => { // Adicionado 'async' aqui
+          for (const mutation of mutations) { // Usar loop para garantir que só processe uma vez
+            if (mutation.attributeName === "disabled" && !actionButton.disabled) {
+              observer.disconnect();
+              //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão de ação habilitado pelo observer. Desconectando observer.`);
+              await randomDelay(100, 250); // Pequena pausa antes de clicar após habilitar
+              //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Clicando no botão principal.`);
+              actionButton.click();
+              startConfirmationCheck(); // Continua para checar confirmação
+              return; // Sai após processar a mutação
+            }
+          }
+        });
+        observer.observe(actionButton, { attributes: true, attributeFilter: ["disabled"] });
+      } else {
+        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão de ação já habilitado.`);
+        await randomDelay(100, 250); // Pequena pausa antes de clicar
+        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Clicando no botão principal.`);
+        actionButton.click();
+        startConfirmationCheck(); // Continua para checar confirmação
+      }
+    };
+
+
+
+
+
+
+
+
+  const startConfirmationCheck = () => {
+      //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Iniciando busca pelo pop-up de confirmação.`);
+      let attempts = 0;
+      const maxAttempts = 50; // Mantido
+      let confirmationProcessed = false; // Flag para evitar processamento múltiplo
+
+      const interval = setInterval(async () => { // Adicionado 'async' aqui
+        if (confirmationProcessed) {
+          clearInterval(interval);
+          //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Intervalo de confirmação limpo (já processado).`);
+          return;
+        }
+
+        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Tentativa ${attempts + 1}/${maxAttempts} para encontrar pop-up.`);
+        const popupSelectors = [ // Mantido
+          "div.ui-dialog[aria-describedby='premium_exchange_confirm_buy']",
+          "div.ui-dialog[aria-describedby='premium_exchange_confirm_sell']",
+          "div.ui-dialog:not([style*='display: none'])",
+          "div[role='dialog']:not([style*='display: none'])"
+        ];
+        let popup = null;
+        for (const selector of popupSelectors) {
+          popup = document.querySelector(selector);
+          if (popup && (!popup.style.display || popup.style.display !== "none")) {
+            //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Pop-up encontrado.`);
+            break;
+          }
+        }
+
+        if (popup) {
+          const confirmButtonSelectors = [ // Mantido
+            "div.confirmation-buttons button.btn.evt-confirm-btn.btn-confirm-yes",
+            "button.btn-confirm-yes",
+            // Seletores jQuery ':contains' não funcionam em querySelector, use alternativas ou filtre depois se necessário
+            // '.ui-dialog-buttonpane button:not(:disabled):first-of-type' // Pode ser muito genérico, manter como último recurso
+            // Adicionar seletores mais específicos se possível
+            ".ui-dialog-buttonpane button:enabled:not(:disabled):first-of-type" // Tentativa mais segura
+          ];
+          let confirmButton = null;
+          for (const selector of confirmButtonSelectors) {
+            confirmButton = popup.querySelector(selector);
+            // Adiciona verificação de texto se o seletor for genérico
+             if (confirmButton && !confirmButton.disabled) {
+                 if (selector.includes(".ui-dialog-buttonpane")) { // Se for o seletor genérico do painel
+                     const buttonText = confirmButton.textContent.trim().toLowerCase();
+                     if (buttonText === 'sim' || buttonText === 'yes' || buttonText === 'ok') {
+                        // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim/Yes/OK' HABILITADO encontrado (via seletor genérico).`);
+                         break; // Botão correto encontrado
+                     } else {
+                         confirmButton = null; // Não é o botão que queremos, continua procurando
+                     }
+                 } else { // Se for um seletor específico (como btn-confirm-yes)
+                     // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim' HABILITADO encontrado (via seletor específico: ${selector}).`);
+                     break; // Botão correto encontrado
+                 }
+             }
+          }
+
+
+          if (confirmButton) {
+            // Ação encontrada! Processa apenas uma vez.
+            if (!confirmationProcessed) {
+                confirmationProcessed = true; // Marca como processado
+                clearInterval(interval); // Para o intervalo imediatamente
+                //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim' confirmado. Processando pré-clique.`);
+
+                // ***** Bloco removido daqui (cálculo premiumCost e atualização input) *****
+
+                // *** ATRASO ANTES DE CLICAR NA CONFIRMAÇÃO ***
+                await randomDelay(200, 500); // Pausa para simular leitura
+                //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Clicando no botão 'Sim' AGORA.`);
+                confirmButton.click();
+
+                // <<< INÍCIO DA ATUALIZAÇÃO: Salvar Timestamp >>>
+                const transactionEndTime = Date.now();
+                try {
+                    localStorage.setItem('aquila_lastTransactionTime', transactionEndTime.toString());
+                    // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Timestamp da transação (${transactionEndTime}) salvo no localStorage.`);
+                } catch (e) {
+                    console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Erro ao salvar timestamp no localStorage:`, e);
+                    // Mesmo com erro, continua para o reload
+                }
+                // <<< FIM DA ATUALIZAÇÃO: Salvar Timestamp >>>
+
+                // Finalização (DEPOIS de salvar o timestamp)
+                if (transactionSpinner) transactionSpinner.style.display = "none";
+                notifySuccess(i18n.t("transactionSuccess"));
+                //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Transação confirmada. Agendando reload.`);
+                scheduleReload(); // Agenda reload (com seu próprio atraso)
+
+                // Resetar flags de processamento é importante aqui
+                if (isBuy) isProcessingBuy = false; else isProcessingSell = false;
+                return; // Sai da função do intervalo
+            }
+
+          } else {
+            //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim' não encontrado ou desabilitado. Aguardando.`);
+          }
+        } else {
+          //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Pop-up não encontrado/visível.`);
+        }
+
+        // Lógica de Timeout (mantida como estava)
+        attempts++;
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          confirmationProcessed = true; // Marca como processado para evitar ações tardias
+          console.warn(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] TIMEOUT: Pop-up/botão não encontrado. Assumindo erro.`);
+          if (transactionSpinner) transactionSpinner.style.display = "none";
+          notifyError(i18n.t("transactionError") + " (Timeout Confirmação)");
+
+          // Limpa o timestamp se der timeout ANTES de confirmar, para não bloquear a próxima ação
+          try {
+              localStorage.removeItem('aquila_lastTransactionTime');
+              // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Timestamp removido do localStorage devido a timeout.`);
+          } catch (e) {
+               console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Erro ao remover timestamp do localStorage no timeout:`, e);
+          }
+
+          scheduleReload();
+          if (isBuy) isProcessingBuy = false;
+          else isProcessingSell = false;
+        }
+      }, 100 + Math.random() * 150); // <<< Intervalo de verificação LEVEMENTE randomizado
+    }; // <-- Fim da função startConfirmationCheck (ATUALIZADA)
+
+
+
+
+
+
+
+
+    // --- Início da execução da transação ---
+    const finalAmount = sanitizeNumber(amount);
+    if (isNaN(finalAmount) || finalAmount <= 0) {
+      console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Quantidade inválida (${amount}). Abortada.`);
+      if (transactionSpinner) transactionSpinner.style.display = "none";
+      if (isBuy) isProcessingBuy = false; else isProcessingSell = false;
+      return;
+    }
+
+    // *** ATRASO ANTES DE PREENCHER O INPUT ***
+    await randomDelay(150, 400); // Pausa para simular encontrar e preencher o campo
+
+    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Preenchendo input com: ${finalAmount}`);
+    input.value = finalAmount;
+
+    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Disparando eventos input/change/keyup.`);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    input.dispatchEvent(new Event("keyup", { bubbles: true }));
+
+    // *** ATRASO ANTES DE CLICAR NO PRIMEIRO BOTÃO (calcular/vender) ***
+    // A função handleActionButtonClick já tem um delay interno agora.
+    // O tempo aqui é o tempo *antes* de *começar* a tentar clicar.
+    const initialClickDelay = 150 + Math.random() * 300;
+    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Agendando handleActionButtonClick em ${Math.round(initialClickDelay)}ms.`);
+    setTimeout(handleActionButtonClick, initialClickDelay);
+
+  }; // Fim da função executeTransaction atualizada
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const calculateMaxBuyAmount = (resource) => {
+    const gameRate = resource.getGameRate();
+    const userRate = resource.getUserRate();
+    const stock = resource.getStock();
+    const output = resource.config.outputDefault;
+    const buyPerTime = sanitizeNumber(ui.getElement("buyPerTimeInput").value);
+    const storageLimit = sanitizeNumber(ui.getElement("storageLimitInput").value) || 1e3;
+    const maxSpend = sanitizeNumber(ui.getElement("maxSpendInput").value);
+    if (gameRate <= 0 || userRate <= 0 || stock <= 0 || maxSpend <= 0) return 0;
+    const adjustedStorageLimit = Math.max(0, storageLimit - output);
+    if (gameRate < userRate) return 0;
+    let maxBuyAmount = stock < buyPerTime ? stock : Math.min(maxSpend * gameRate, buyPerTime, adjustedStorageLimit, stock);
+    return Math.max(0, Math.floor(maxBuyAmount));
+  };
+  const calculateAvailableCapacityForResource = async (resourceName) => {
+    const storageCapacity = state.storageCapacity;
+    const currentStock = currentResources[resourceName];
+    const incomingResources = await fetchTransportData();
+    const totalStock = currentStock + incomingResources[resourceName];
+    return Math.max(0, storageCapacity - totalStock);
+  };
+  let isProcessingBuy = false;
+
+
+
+
+
+
+
+
+
+
+
+/**
+ * Calcula um "spread" ou margem de segurança para compras,
+ * baseado na tendência do mercado.
+ * Spread maior significa compra mais conservadora (assume custo efetivo maior).
+ * @param {string} resourceName - Nome do recurso ('wood', 'stone', 'iron').
+ * @param {number} marketRate - A taxa de mercado atual para o recurso (PP/unidade).
+ * @param {object} stateRef - Referência ao objeto de estado (para acessar tendências).
+ * @returns {number} - O percentual de spread (ex: 0.05 para 5%).
+ */
+function calculateBuySpread(resourceName, marketRate, stateRef) {
+    // Acessa a tendência do estado passado como referência
+    const trend = stateRef.marketTrends[resourceName];
+    let spreadPercentage = 0.05; // Base spread 5% (similar à taxa de venda)
+
+    // Ajusta baseado na tendência
+    if (trend === 'up') {
+        // Preços subindo: Comprar é menos favorável. Aumenta o spread (mais conservador).
+        spreadPercentage += 0.015; // Ex: 5% -> 6.5%
+    } else if (trend === 'down') {
+        // Preços caindo: Comprar é mais favorável. Diminui o spread ligeiramente.
+        spreadPercentage -= 0.01; // Ex: 5% -> 4%
+    }
+
+    // Opcional: Poderíamos adicionar lógica baseada na 'marketRate' aqui se necessário,
+    // mas vamos manter simples por enquanto, focando na tendência.
+
+    // Garante que o spread fique dentro de limites razoáveis (ex: 3% a 8%)
+    const clampedSpread = Math.min(Math.max(spreadPercentage, 0.03), 0.08);
+    // console.log(`[calculateBuySpread - ${resourceName}] Trend: ${trend}, Base: 0.05, Adjusted: ${spreadPercentage.toFixed(4)}, Clamped: ${clampedSpread.toFixed(4)}`); // Log Opcional
+
+    return clampedSpread;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// FUNÇÃO processBuyBasedOnResources ATUALIZADA (vCompraInteligente 6.0 - Lista Ranqueada)
+  const processBuyBasedOnResources = async () => {
+    // --- COOLDOWN PERSISTENTE CHECK ---
+    const COOLDOWN_DURATION = 6000; // 6 segundos
+    const lastTxTimeStr = localStorage.getItem('aquila_lastTransactionTime');
+    const lastTxTime = lastTxTimeStr ? parseInt(lastTxTimeStr, 10) : null;
+    const nowForCooldown = Date.now();
+    const timeSinceLastTx = lastTxTime && !isNaN(lastTxTime) ? nowForCooldown - lastTxTime : Infinity;
+
+    if (timeSinceLastTx < COOLDOWN_DURATION) {
+        const secondsRemaining = Math.ceil((COOLDOWN_DURATION - timeSinceLastTx) / 1000);
+        // console.log(`[Compra vInteligente 6.0 + Cooldown] Cooldown ativo. Aguardando ${secondsRemaining}s.`); // Log Opcional
+        return; // Sai cedo se estiver em cooldown
+    }
+    // --- FIM COOLDOWN PERSISTENTE CHECK ---
+
+    // --- Lógica de atualização PÓS-COMPRA (lendo localStorage) ---
+    // (Código Pós-Compra mantido como estava antes)
+    const savedBalanceBeforeBuyStr = localStorage.getItem('aquila_ppBalanceBeforeBuy');
+    const savedLimitBeforeBuyStr = localStorage.getItem('aquila_ppLimitBeforeBuy');
+    if (savedBalanceBeforeBuyStr !== null && savedLimitBeforeBuyStr !== null) {
+        console.log("[Compra vInteligente 6.0 - Pós-Reload Check] Verificando PP gasto..."); // Log Opcional
+        const balanceBeforeBuy = parseInt(savedBalanceBeforeBuyStr, 10);
+        const limitBeforeBuy = parseInt(savedLimitBeforeBuyStr, 10);
+        const currentPPBalance = getAvailablePremiumPoints();
+        localStorage.removeItem('aquila_ppBalanceBeforeBuy');
+        localStorage.removeItem('aquila_ppLimitBeforeBuy');
+        console.log("[Compra vInteligente 6.0 - Pós-Reload Check] Chaves temporárias removidas."); // Log Opcional
+        if (!isNaN(balanceBeforeBuy) && !isNaN(limitBeforeBuy)) {
+            const ppSpent = balanceBeforeBuy - currentPPBalance;
+            console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Saldo Antes: ${balanceBeforeBuy}, Atual: ${currentPPBalance}, Gasto: ${ppSpent}`); // Log Opcional
+            if (ppSpent > 0) {
+                const newPPLimit = Math.max(0, limitBeforeBuy - ppSpent);
+                const premiumInput = ui.getElement("premiumPointsInput");
+                if (premiumInput) {
+                    premiumInput.value = newPPLimit;
+                    console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Limite PP atualizado: ${newPPLimit}. Salvando...`); // Log Opcional
+                    performSaveOperation(); // Salva a configuração atualizada
+                }
+            } else {
+                console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Nenhum PP gasto.`); // Log Opcional
+                 const premiumInput = ui.getElement("premiumPointsInput");
+                 if (premiumInput && sanitizeNumber(premiumInput.value) !== limitBeforeBuy) {
+                     console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Restaurando limite pré-compra (${limitBeforeBuy}).`); // Log Opcional
+                     premiumInput.value = limitBeforeBuy;
+                     performSaveOperation(); // Salva a configuração restaurada
+                 }
+            }
+        } else { console.warn("[Compra vInteligente 6.0 - Pós-Reload Check] Erro ao parsear valores salvos."); } // Log Opcional
+    }
+    // --- Fim PÓS-COMPRA ---
+
+    // --- Lógica de verificação/início da compra ---
+    const initialDelay = Math.random() * 200 + 50;
+    await new Promise(resolve => setTimeout(resolve, initialDelay));
+
+    // Verifica hCaptcha e outras condições
+    if (checkAndHandleHCaptcha()) { console.log("[Compra vInteligente 6.0] hCaptcha detectado. Abortando."); isProcessingBuy = false; return; }
+    const now = Date.now();
+    if (!state.buyModeActive || isProcessingBuy || (state.buyPausedUntil && state.buyPausedUntil > now) || isProcessingSell) {
+        // console.log(`[Compra vInteligente 6.0] Abortando. Condições: buyModeActive=${state.buyModeActive}, isProcessingBuy=${isProcessingBuy}, buyPausedUntil=${state.buyPausedUntil ? new Date(state.buyPausedUntil) : null}, now=${new Date(now)}, isProcessingSell=${isProcessingSell}`); // Log Opcional
+        return;
+     }
+
+    console.log("[Compra vInteligente 6.0 - MAIN THREAD] Iniciando verificação..."); // Log Opcional
+    isProcessingBuy = true; // Marca como processando AGORA
+
+    // Busca dados pré-worker
+    try {
+        await fetchIncomingResources();
+        state.storageCapacity = getStorageCapacity();
+        console.log(`[Compra vInteligente 6.0 - MAIN THREAD] Recursos chegando e capacidade atualizados. Capacidade: ${state.storageCapacity}`); // Log Opcional
+    } catch (error) {
+        console.error("[Compra vInteligente 6.0 - MAIN THREAD] Erro ao buscar dados pré-worker:", error);
+        isProcessingBuy = false; // Reset se falhar aqui
+        return;
+    }
+
+    // Verifica PP
+    const availablePP = getAvailablePremiumPoints();
+    const premiumInput = ui.getElement("premiumPointsInput");
+    const maxPP = premiumInput ? sanitizeNumber(premiumInput.value) : Infinity;
+    const effectivePP = Math.min(availablePP, maxPP);
+    if (effectivePP <= 0) {
+        console.log("[Compra vInteligente 6.0 - MAIN THREAD] PP efetivo zerado."); // Log Opcional
+        isProcessingBuy = false; // Reset se não tiver PP
+        return;
+    }
+
+    // --- Monta dados para o Worker ---
+    // Passa a TAXA DE VENDA para o worker, usada como base dos múltiplos
+    const workerResourcesData = Object.keys(resources).map(name => {
+        const handler = resources[name];
+        if (!handler) return null;
+        const desiredStockInput = document.querySelector(`.rate-input[data-resource="${name}-stock"]`);
+        const userRateLimitInput = document.querySelector(`.rate-input[data-resource="${name}"]`); // Taxa MÍNIMA de COMPRA do user
+        const buyLimitPerTimeInput = document.querySelector('.rate-input[data-resource="buy-per-time"]');
+        const desiredStock = sanitizeNumber(desiredStockInput?.value) || 0;
+        const userRateLimit = sanitizeNumber(userRateLimitInput?.value) || 0;
+        const buyLimitPerTime = sanitizeNumber(buyLimitPerTimeInput?.value) || Infinity;
+        const marketSellRate = handler.getMarketValue(); // TAXA DE VENDA (base dos múltiplos)
+        return { name, desiredStock, marketRate: marketSellRate, userRateLimit, buyLimitPerTime };
+    }).filter(data => data !== null);
+
+    if (typeof currentResources === 'undefined') { console.error("[Compra vInteligente 6.0 - MAIN THREAD] currentResources não definida!"); isProcessingBuy = false; return; }
+
+    const workerData = { action: "calculateBuyAmount", data: {
+            resources: workerResourcesData,
+            effectivePP: effectivePP,
+            storageCapacity: state.storageCapacity,
+            incomingResources: mobx.toJS(state.incomingResources),
+            currentResources: mobx.toJS(currentResources)
+        }};
+    // --- Fim Montagem Worker ---
+
+    console.log("[Compra vInteligente 6.0 - MAIN THREAD] Enviando dados para o Worker:", workerData); // Log Opcional
+    worker.postMessage(workerData);
+
+    // =======================================================================
+    // === INÍCIO: NOVA CALLBACK worker.onmessage (Lida com Lista Ordenada) ===
+    // =======================================================================
+    worker.onmessage = async (e) => {
+        console.log("[Compra vInteligente 6.0 - MAIN THREAD] Mensagem recebida do Worker:", e.data); // Log principal
+
+        // Verifica hCaptcha logo ao receber a mensagem
+        if (checkAndHandleHCaptcha()) {
+             console.warn("[Compra vInteligente 6.0 - MAIN THREAD] hCaptcha detectado após receber resposta do worker. Abortando.");
+             if (isProcessingBuy) isProcessingBuy = false; // Garante reset
+             return;
+        }
+
+        // Verifica se ocorreu um erro no worker
+        if (e.data.error) {
+            console.error("[Compra vInteligente 6.0 - MAIN THREAD] Erro retornado pelo Worker:", e.data.error);
+            isProcessingBuy = false;
+            return;
+        }
+
+        // Verifica se a ação é a esperada e se temos a lista
+        if (e.data.action === "buyAmountCalculated" && Array.isArray(e.data.result?.rankedBuyOptions)) {
+            const rankedBuyOptions = e.data.result.rankedBuyOptions;
+            console.log(`[Compra vInteligente 6.0 - MAIN THREAD] Worker retornou ${rankedBuyOptions.length} opções ordenadas.`);
+
+            if (rankedBuyOptions.length === 0) {
+                console.log("[Compra vInteligente 6.0 - MAIN THREAD] Nenhuma opção de compra viável retornada pelo worker.");
+                isProcessingBuy = false;
+                return; // Sai se não houver opções
+            }
+
+            // --- ITERAÇÃO PELAS OPÇÕES ---
+            let buyExecuted = false; // Flag para saber se já executamos uma compra
+            for (const option of rankedBuyOptions) {
+                const resourceName = option.name;
+                const idealAmountFromWorker = option.idealAmount; // Quantidade já limitada por PP/Físico no worker
+                const userRateLimit = option.userRateLimit; // Taxa mínima de COMPRA definida pelo user
+                const marketSellRateWorker = option.marketRate; // Taxa de VENDA (base dos múltiplos) que o worker usou
+
+                console.log(`\n[Compra vInteligente 6.0 - MAIN THREAD] === Verificando Opção: ${resourceName.toUpperCase()} ===`);
+                console.log(` -> Ideal (Worker): ${idealAmountFromWorker}, Taxa Mín. User (Compra): ${userRateLimit}, Taxa Base Múltiplos (Venda): ${marketSellRateWorker}`);
+
+                // Verifica se já estamos processando uma venda (que pode ter iniciado enquanto iteramos)
+                if (isProcessingSell) {
+                    console.log(`[Compra vInteligente 6.0 - MAIN THREAD ${resourceName}] VENDA em andamento detectada durante a iteração. Abortando restante das compras.`);
+                    isProcessingBuy = false; // Reseta flag de compra
+                    return; // Para completamente a verificação de compra
+                }
+
+                // Pega o handler do recurso e taxas ATUAIS no main thread
+                const handler = resources[resourceName];
+                if (!handler) {
+                    console.warn(`[Compra vInteligente 6.0 - MAIN THREAD ${resourceName}] Handler não encontrado. Pulando opção.`);
+                    continue; // Pula para a próxima opção
+                }
+
+                // **OBTÉM A TAXA DE COMPRA REAL DO JOGO AGORA**
+                const currentMarketBuyRate = handler.getGameRate(); // Função que busca a taxa de COMPRA atual
+                console.log(` -> Taxa de COMPRA ATUAL (Jogo): ${currentMarketBuyRate}`);
+
+                // **VERIFICAÇÃO DA TAXA DE COMPRA MÍNIMA DO USUÁRIO**
+                if (currentMarketBuyRate <= 0 || (userRateLimit > 0 && currentMarketBuyRate < userRateLimit)) {
+                    console.log(`[Compra vInteligente 6.0 - MAIN THREAD ${resourceName}] Taxa de COMPRA (${currentMarketBuyRate}) inválida ou ABAIXO do limite do usuário (${userRateLimit}). Pulando.`);
+                    continue; // Pula para a próxima opção
+                } else {
+                     console.log(` -> Taxa de COMPRA OK (>= ${userRateLimit})`);
+                }
+
+                // Pega a taxa de VENDA atual para recalcular múltiplos (pode ter mudado desde o worker)
+                const currentMarketSellRate = handler.getMarketValue(); // Taxa de VENDA ATUAL
+                console.log(` -> Taxa de VENDA ATUAL (Múltiplos): ${currentMarketSellRate}`);
+
+                // ================================================================
+                // === INÍCIO: LÓGICA DE AJUSTE PRECISO (v1.5 - Adaptada para Loop) ===
+                // ================================================================
+
+                // 1. Verifica taxa de venda (base dos múltiplos)
+                if (currentMarketSellRate <= 0) {
+                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] Taxa de VENDA base ATUAL inválida (${currentMarketSellRate}). Pulando opção.`);
+                    continue; // Pula para a próxima opção
+                }
+
+                // 2. Busca dados de estoque/capacidade ATUAIS
+                const currentStock = currentResources[resourceName] || 0;
+                const incomingStock = state.incomingResources[resourceName] || 0;
+                const warehouseCapacity = state.storageCapacity || 0;
+
+                // 3. Calcula espaço disponível REAL
+                const availableSpace = Math.max(0, warehouseCapacity - currentStock - incomingStock);
+                console.log(` -> Espaço Disponível Real: ${availableSpace} (Cap: ${warehouseCapacity} - Atual: ${currentStock} - Chegando: ${incomingStock})`);
+
+                // 4. Define estimativa da taxa do JOGO (taxa de 5% na compra)
+                const GAME_BUY_FEE_PERCENTAGE = 0.05; // 5% (Ajustável)
+
+                // 5. Calcula espaço EFETIVO (considerando taxa jogo)
+                const effectiveAvailableSpace = Math.floor(availableSpace / (1 + GAME_BUY_FEE_PERCENTAGE));
+                console.log(` -> Espaço Efetivo (taxa jogo ${GAME_BUY_FEE_PERCENTAGE*100}%): ${effectiveAvailableSpace}`);
+
+                // 6. Determina quantidade MÁXIMA antes de múltiplos (usa espaço efetivo e o ideal do worker)
+                const maxBeforeMultiples = Math.min(idealAmountFromWorker, effectiveAvailableSpace);
+                console.log(` -> Máximo antes dos múltiplos: ${maxBeforeMultiples} (min(IdealWorker: ${idealAmountFromWorker}, EspaçoEfetivo: ${effectiveAvailableSpace}))`);
+
+                // 7. Calcula o NÚMERO MÁXIMO de pacotes (baseado na taxa de VENDA atual) que cabem
+                const maxNumMultiples = Math.floor(maxBeforeMultiples / currentMarketSellRate);
+                console.log(` -> Número Máximo de Pacotes (Taxa Venda ${currentMarketSellRate}) Possíveis: ${maxNumMultiples}`);
+
+                // 8. Verifica se cabe pelo menos um pacote
+                if (maxNumMultiples < 1) {
+                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] FALHOU: Não cabe nem 1 pacote (Máx Efetivo: ${maxBeforeMultiples} < Taxa Venda: ${currentMarketSellRate}). Pulando.`);
+                    continue; // Pula para a próxima opção
+                }
+
+                // 9. Calcula a quantidade MÁXIMA que é múltiplo e cabe
+                const amountMultipleBased = maxNumMultiples * currentMarketSellRate;
+                console.log(` -> Quantidade Máxima Baseada em Múltiplos: ${amountMultipleBased}`);
+
+                // 10. Calcula o spread do SCRIPT (usando a taxa de COMPRA atual)
+                const scriptBuySpread = calculateBuySpread(resourceName, currentMarketBuyRate, { marketTrends: mobx.toJS(state.marketTrends) });
+                console.log(` -> Spread do Script calculado: ${(scriptBuySpread * 100).toFixed(2)}% (Base Taxa Compra: ${currentMarketBuyRate})`);
+
+                // 11. Reduz a quantidade (amountMultipleBased) pelo spread do SCRIPT
+                const amountReducedBySpread = Math.floor(amountMultipleBased / (1 + scriptBuySpread));
+                console.log(` -> Quantidade Reduzida pelo Spread Script: ${amountReducedBySpread} ( ${amountMultipleBased} / ${(1 + scriptBuySpread).toFixed(3)} )`);
+
+                // 12. Reajusta para o maior múltiplo da TAXA DE VENDA que seja <= amountReducedBySpread
+                               // 12. **NOVO (v6.1):** Usa diretamente a quantidade reduzida pelo spread (sem forçar múltiplo da taxa de VENDA)
+                const finalAmountToBuy = amountReducedBySpread; // Atribuição direta
+                console.log(` -> Quantidade FINAL para INPUT (Pós-Spread): ${finalAmountToBuy}`); // Log ATUALIZADO
+
+                // 13. Última verificação
+                if (finalAmountToBuy <= 0) {
+                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] FALHOU: Quantidade final é zero ou negativa após spread/reajuste. Pulando.`);
+                    continue; // Pula para a próxima opção
+                }
+
+                // ================================================================
+                // === FIM: LÓGICA DE AJUSTE PRECISO (v1.5 - Adaptada para Loop) ===
+                // ================================================================
+
+                // ***** SUCESSO! Encontramos uma opção viável *****
+                console.log(`[Compra Inteligente 6.0 ${resourceName}] SUCESSO! Opção VÁLIDA encontrada. Quantidade: ${finalAmountToBuy}. Iniciando transação...`);
+
+                // Salva estado pré-compra no localStorage (igual a antes)
+                const currentPPLimit = sanitizeNumber(ui.getElement("premiumPointsInput")?.value) || 0;
+                const currentPPBalance = getAvailablePremiumPoints();
+                try {
+                    localStorage.setItem('aquila_ppLimitBeforeBuy', String(currentPPLimit));
+                    localStorage.setItem('aquila_ppBalanceBeforeBuy', String(currentPPBalance));
+                    console.log(` -> Salvo no localStorage - Limite: ${currentPPLimit}, Saldo: ${currentPPBalance}`);
+                } catch (storageError) {
+                    console.error(`[Compra Inteligente 6.0 ${resourceName}] Erro crítico ao salvar localStorage ANTES da compra:`, storageError);
+                    // Considerar abortar aqui? Ou deixar a compra tentar mesmo assim? Por segurança, vamos abortar.
+                    isProcessingBuy = false; // Reseta a flag
+                    return; // Aborta o onmessage
+                }
+
+                // Executa a transação com a quantidade FINAL e VÁLIDA
+                try {
+                    buyExecuted = true; // Marca que vamos executar
+                    await executeTransaction("buy", handler, finalAmountToBuy);
+                    // A flag isProcessingBuy será resetada DENTRO de executeTransaction ou em seu callback/timeout
+                    // Não precisamos resetar aqui.
+                    console.log(`[Compra Inteligente 6.0 ${resourceName}] Chamada para executeTransaction enviada.`);
+                    return; // *** IMPORTANTE: Sai do onmessage após iniciar a PRIMEIRA compra bem-sucedida ***
+                } catch (txError) {
+                    console.error(`[Compra Inteligente 6.0 ${resourceName}] Erro durante executeTransaction:`, txError);
+                    // Limpa o storage se a execução falhar
+                    localStorage.removeItem('aquila_ppBalanceBeforeBuy');
+                    localStorage.removeItem('aquila_ppBalanceBeforeBuy');
+                    buyExecuted = false; // Marca que a execução falhou
+                    // isProcessingBuy deve ser resetado dentro de executeTransaction mesmo em erro
+                    // Continua o loop para tentar a próxima opção, se houver.
+                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] Falha ao executar transação. Tentando próxima opção...`);
+                    continue; // Tenta a próxima opção do loop
+                }
+            } // --- FIM DO LOOP pelas opções ---
+
+            // Se o loop terminar e NENHUMA compra foi executada
+            if (!buyExecuted) {
+                console.log("[Compra vInteligente 6.0 - MAIN THREAD] Nenhuma opção viável encontrada após verificar todas as candidatas.");
+                isProcessingBuy = false; // Reseta a flag aqui, pois nenhuma compra foi iniciada
+            }
+
+        } else {
+            // Se a ação não for 'buyAmountCalculated' ou o resultado não for um array
+            console.warn("[Compra vInteligente 6.0 - MAIN THREAD] Resposta inesperada do Worker:", e.data);
+            isProcessingBuy = false;
+        }
+    }; // --- FIM worker.onmessage ---
+    // =======================================================================
+    // === FIM: NOVA CALLBACK worker.onmessage (Lida com Lista Ordenada) =====
+    // =======================================================================
+
+    // Mantém o onerror como estava
+    worker.onerror = (error) => {
+        console.error("[Compra Inteligente 6.0 - MAIN THREAD] Erro GERAL no Worker:", error);
+        isProcessingBuy = false;
+    };
+
+  }; // --- Fim da função processBuyBasedOnResources (vCompraInteligente 6.0) ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+  function getAvailablePremiumPoints() {
+    const premiumElement = document.querySelector("#premium_points");
+    return premiumElement ? sanitizeNumber(premiumElement.textContent.trim()) : 0;
+  }
+  const resetBuyInputs = () => ui.buyInputs.forEach((input) => input && (input.value = ""));
+  const updateMaxSpend = (change) => {
+    const currentValue = sanitizeNumber(ui.getElement("maxSpendInput").value);
+    const newValue = Math.max(0, currentValue + change);
+    ui.getElement("maxSpendInput").value = newValue;
+    localStorage.setItem("max-spend", String(newValue));
+    ////console.log(`[UpdateMaxSpend] Novo valor de maxSpend: ${newValue}`);
+  };
+  const fetchTransportData = async () => {
+    const gameData = TribalWars.getGameData();
+    const villageId = gameData.village.id;
+    const world = getActiveWorld();
+    const url = `https://${world}.tribalwars.com.br/game.php?village=${villageId}&screen=market&mode=transports`;
+    try {
+      const response = await fetchMarketData(url);
+      if (!response) throw new Error("Falha ao buscar dados de transporte");
+      const doc = new DOMParser().parseFromString(response, "text/html");
+      const transportRows = doc.querySelectorAll(".transport_row");
+      const incomingResources = {
+        wood: 0,
+        stone: 0,
+        iron: 0
+      };
+      transportRows.forEach((row) => {
+        const direction = row.querySelector(".transport_direction").textContent;
+        if (direction.includes("Para esta aldeia")) {
+          const resourceType = row.querySelector(".transport_resource").dataset.type;
+          const amount = sanitizeNumber(row.querySelector(".transport_amount").textContent);
+          incomingResources[resourceType] += amount;
+        }
+      });
+      return incomingResources;
+    } catch (error) {
+      console.error("[Transporte] Falha ao obter dados:", error);
+      return { wood: 0, stone: 0, iron: 0 };
+    }
+  };
+  const transportLogger = {
+    log: () => {
+    },
+    // Does nothing
+    error: () => {
+    },
+    // Does nothing
+    warn: () => {
+    },
+    // Does nothing
+    debug: () => {
+    }
+    // Does nothing
+  };
+  function parseIntSafeTransport(str) {
+    if (typeof str !== "string" || !str) return 0;
+    const cleanedStr = str.replace(/[.,]/g, "").replace(/[^\d]/g, "");
+    const num = parseInt(cleanedStr, 10);
+    return isNaN(num) ? 0 : num;
+  }
+  function extractResourcesFromElement(element) {
+    const resources2 = { wood: 0, stone: 0, iron: 0 };
+    if (!element) return resources2;
+    const woodIcon = element.querySelector(".icon.header.wood");
+    const stoneIcon = element.querySelector(".icon.header.stone");
+    const ironIcon = element.querySelector(".icon.header.iron");
+    const getValueNearIcon = (icon) => {
+      if (!icon) return 0;
+      let potentialValueElement = icon.nextElementSibling;
+      if (potentialValueElement && potentialValueElement.textContent.match(/[\d.,]+/)) {
+        if (!potentialValueElement.querySelector(".icon.header")) {
+          return parseIntSafeTransport(potentialValueElement.textContent);
+        }
+      }
+      let nextNode = icon.nextSibling;
+      while (nextNode && nextNode.nodeType !== Node.TEXT_NODE) {
+        if (nextNode.nodeType === Node.ELEMENT_NODE && nextNode.textContent.match(/[\d.,]+/)) {
+          if (!nextNode.querySelector(".icon.header")) {
+            return parseIntSafeTransport(nextNode.textContent);
+          }
+        }
+        nextNode = nextNode.nextSibling;
+      }
+      if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
+        const numberMatch = nextNode.textContent.trim().match(/^[\s]*([\d.,]+)/);
+        if (numberMatch) {
+          return parseIntSafeTransport(numberMatch[1]);
+        }
+      }
+      let parent = icon.parentElement;
+      if (parent && parent.textContent) {
+        const parentText = parent.textContent.trim();
+        const potentialValues = parentText.match(/([\d.,]+)/g);
+        if (potentialValues && potentialValues.length >= 1) {
+        }
+      }
+      return 0;
+    };
+    resources2.wood = getValueNearIcon(woodIcon);
+    resources2.stone = getValueNearIcon(stoneIcon);
+    resources2.iron = getValueNearIcon(ironIcon);
+    if (resources2.wood === 0 && resources2.stone === 0 && resources2.iron === 0 && (woodIcon || stoneIcon || ironIcon)) {
+      transportLogger.debug("Icon-based extraction failed, attempting text-based fallback within element:", element.textContent.substring(0, 100));
+      const textContent = element.textContent || "";
+      const numbers = (textContent.match(/[\d.,]+/g) || []).map((n) => parseIntSafeTransport(n));
+      let numIndex = 0;
+      if (woodIcon && numIndex < numbers.length) {
+        resources2.wood = numbers[numIndex];
+        numIndex++;
+      }
+      if (stoneIcon && numIndex < numbers.length) {
+        resources2.stone = numbers[numIndex];
+        numIndex++;
+      }
+      if (ironIcon && numIndex < numbers.length) {
+        resources2.iron = numbers[numIndex];
+        numIndex++;
+      }
+      transportLogger.debug(" - Text fallback results:", resources2);
+      if (numIndex === 1 && [woodIcon, stoneIcon, ironIcon].filter(Boolean).length > 1) {
+        transportLogger.warn("Single number found for multiple icons via text fallback, resetting as likely incorrect.");
+        return { wood: 0, stone: 0, iron: 0 };
+      }
+    }
+    return resources2;
+  }
+  function parseTransportData(html) {
+    transportLogger.log("Iniciando parseamento da p\xE1gina de transportes.");
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const incoming = { madeira: 0, argila: 0, ferro: 0 };
+    let foundIncomingData = false;
+    const allText = doc.body.textContent.toLowerCase();
+    if (allText.includes("n\xE3o h\xE1 transportes chegando") || allText.includes("nenhum transporte em chegada") || allText.includes("no incoming transports") || allText.includes("\u043D\u0435\u0442 \u0432\u0445\u043E\u0434\u044F\u0449\u0438\u0445 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u043E\u0432")) {
+      transportLogger.log("P\xE1gina indica explicitamente que n\xE3o h\xE1 transportes de chegada.");
+      return incoming;
+    }
+    let incomingTable = null;
+    incomingTable = doc.querySelector("#market_transports_in table.vis, #market_transports_in, #market_status_in table.vis");
+    if (!incomingTable) {
+      const headers = Array.from(doc.querySelectorAll("h2, h3, h4, .content-header, .box-header, th, .table-header"));
+      const incomingKeywords = [
+        "transportes em chegada",
+        "entrando",
+        "incoming transports",
+        "chegando",
+        "mercadores chegando",
+        "arrival",
+        "\u043F\u0440\u0438\u0431\u044B\u0432\u0430\u044E\u0449\u0438\u0435 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u044B",
+        "chegada",
+        "transporte de entrada",
+        "transporte chegando",
+        "\u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442 \u043F\u0440\u0438\u0431\u044B\u0442\u0438\u044F"
+      ];
+      for (const header of headers) {
+        const headerText = header.textContent.trim().toLowerCase();
+        if (incomingKeywords.some((keyword) => headerText.includes(keyword))) {
+          transportLogger.log(`Cabe\xE7alho de chegada encontrado: "${headerText}"`);
+          let current = header;
+          let searchLimit = 5;
+          while (current && searchLimit > 0) {
+            if (current.tagName === "TABLE" && current.classList.contains("vis")) {
+              incomingTable = current;
+              break;
+            }
+            const tableInside = current.querySelector("table.vis");
+            if (tableInside) {
+              incomingTable = tableInside;
+              break;
+            }
+            current = current.nextElementSibling;
+            searchLimit--;
+          }
+          if (incomingTable) {
+            transportLogger.log(`Tabela de chegada encontrada pr\xF3xima ao cabe\xE7alho "${headerText}"`);
+            break;
+          }
+        }
+      }
+    }
+    if (incomingTable) {
+      transportLogger.log("Processando tabela de chegada encontrada...");
+      const rows = Array.from(incomingTable.querySelectorAll("tr")).filter(
+        (row) => !row.querySelector("th") && row.cells && row.cells.length > 1
+      );
+      const summaryRow = Array.from(incomingTable.querySelectorAll("tr")).find((row) => {
+        const text = row.textContent.toLowerCase();
+        return (text.includes("total:") || text.includes("soma:") || text.includes("summe:") || text.includes("\u0438\u0442\u043E\u0433\u043E:") || text.includes("entrada:")) && !row.querySelector("th");
+      });
+      if (summaryRow) {
+        transportLogger.log("Processando linha de sum\xE1rio de chegada...");
+        const resources2 = extractResourcesFromElement(summaryRow);
+        if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+          incoming.madeira = resources2.wood;
+          incoming.argila = resources2.stone;
+          incoming.ferro = resources2.iron;
+          foundIncomingData = true;
+          transportLogger.log("Recursos extra\xEDdos da linha de sum\xE1rio:", incoming);
+        }
+      } else if (rows.length > 0) {
+        transportLogger.log(`Processando ${rows.length} linhas de dados na tabela de chegada...`);
+        rows.forEach((row, index) => {
+          const resources2 = extractResourcesFromElement(row);
+          if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+            incoming.madeira += resources2.wood;
+            incoming.argila += resources2.stone;
+            incoming.ferro += resources2.iron;
+            foundIncomingData = true;
+            transportLogger.debug(`Linha ${index}: Recursos adicionados: W=${resources2.wood}, S=${resources2.stone}, I=${resources2.iron}`);
+          }
+        });
+        transportLogger.log("Total de recursos encontrados:", incoming);
+      } else {
+        transportLogger.warn("Tabela de chegada encontrada, mas sem linhas de dados ou sum\xE1rio reconhec\xEDvel.");
+      }
+    } else {
+      transportLogger.warn("Nenhuma tabela espec\xEDfica de chegada encontrada. Tentando estrat\xE9gia alternativa...");
+    }
+    if (!foundIncomingData) {
+      transportLogger.log("Buscando linhas de transporte gerais e verificando dire\xE7\xE3o...");
+      const allPossibleRows = [
+        ...doc.querySelectorAll(".transport_row"),
+        ...doc.querySelectorAll('tr[id^="market_"]'),
+        ...doc.querySelectorAll("tr.row_a, tr.row_b"),
+        // Padrão comum de linhas alternadas
+        ...doc.querySelectorAll("table.vis tr:not(:first-child)")
+        // Todas as linhas não-cabeçalho de qualquer tabela
+      ];
+      if (allPossibleRows.length > 0) {
+        transportLogger.log(`Encontradas ${allPossibleRows.length} poss\xEDveis linhas de transporte para an\xE1lise.`);
+        allPossibleRows.forEach((row, index) => {
+          let isIncoming = false;
+          const rowText = row.textContent.toLowerCase();
+          const rowHTML = row.innerHTML.toLowerCase();
+          const incomingKeywords = [
+            "para esta aldeia",
+            "incoming",
+            "arrival",
+            "chegada",
+            "chegando",
+            "entrada",
+            "para c\xE1",
+            "entrando",
+            "recebendo"
+          ];
+          const incomingSymbols = [
+            "arrow_right",
+            "arrow_in",
+            "icon_in",
+            "\u2192",
+            "\u25B6",
+            "\u21E8"
+          ];
+          if (incomingKeywords.some((keyword) => rowText.includes(keyword)) || incomingSymbols.some((symbol) => rowHTML.includes(symbol))) {
+            isIncoming = true;
+          }
+          const directionElement = row.querySelector(".transport_direction, .direction, .movement-direction");
+          if (directionElement) {
+            const directionText = directionElement.textContent.trim().toLowerCase();
+            const directionHTML = directionElement.innerHTML.toLowerCase();
+            if (incomingKeywords.some((keyword) => directionText.includes(keyword)) || incomingSymbols.some((symbol) => directionHTML.includes(symbol))) {
+              isIncoming = true;
+            }
+          }
+          if (isIncoming) {
+            transportLogger.debug(`Linha ${index} identificada como CHEGANDO`);
+            const resourceCell = row.querySelector(".resources_sum, .res") || row;
+            const resources2 = extractResourcesFromElement(resourceCell);
+            if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+              incoming.madeira += resources2.wood;
+              incoming.argila += resources2.stone;
+              incoming.ferro += resources2.iron;
+              foundIncomingData = true;
+              transportLogger.debug(`Recursos adicionados: W=${resources2.wood}, S=${resources2.stone}, I=${resources2.iron}`);
+            }
+          }
+        });
+      } else {
+        transportLogger.error("Nenhuma linha de transporte encontrada em toda a p\xE1gina.");
+      }
+    }
+    if (!foundIncomingData) {
+      transportLogger.log("Tentando encontrar elementos de sum\xE1rio de recursos...");
+      const summaryElements = [
+        doc.querySelector("#market_status_in"),
+        doc.querySelector(".incoming-resources"),
+        doc.querySelector(".resources-incoming"),
+        ...doc.querySelectorAll(".sum_incoming"),
+        ...doc.querySelectorAll(".incoming_total")
+      ].filter(Boolean);
+      for (const element of summaryElements) {
+        const resources2 = extractResourcesFromElement(element);
+        if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
+          incoming.madeira = resources2.wood;
+          incoming.argila = resources2.stone;
+          incoming.ferro = resources2.iron;
+          foundIncomingData = true;
+          transportLogger.log("Recursos encontrados em elemento de sum\xE1rio:", incoming);
+          break;
+        }
+      }
+    }
+    if (foundIncomingData) {
+      transportLogger.log("Parseamento conclu\xEDdo com sucesso. Recursos CHEGANDO:", incoming);
+      return { madeira: incoming.madeira, argila: incoming.argila, ferro: incoming.ferro };
+    } else {
+      transportLogger.error("N\xE3o foi poss\xEDvel encontrar dados de transportes em chegada na p\xE1gina.");
+      return { madeira: 0, argila: 0, ferro: 0 };
+    }
+  }
+  async function fetchIncomingResources() {
+    return new Promise((resolve, reject) => {
+      const gameData = typeof TribalWars !== "undefined" && TribalWars.getGameData ? TribalWars.getGameData() : {};
+      const villageId = gameData.village?.id;
+      if (!villageId) {
+        transportLogger.error("[Fetch] ID da vila n\xE3o encontrado.");
+        mobx.runInAction(() => {
+          state.incomingResources.wood = 0;
+          state.incomingResources.stone = 0;
+          state.incomingResources.iron = 0;
+        });
+        return resolve({ wood: 0, stone: 0, iron: 0 });
+      }
+      const transportUrl = `https://${window.location.host}/game.php?village=${villageId}&screen=market&mode=transports`;
+      transportLogger.log(`[Fetch] Buscando dados de transporte de: ${transportUrl}`);
+      GM_xmlhttpRequest({
+        method: "GET",
+        url: transportUrl,
+        timeout: 15e3,
+        // Timeout can be adjusted
+        onload: (response) => {
+          if (response.status >= 200 && response.status < 300) {
+            transportLogger.log("[Fetch] Resposta da p\xE1gina de transporte recebida (Status OK).");
+            try {
+              const incomingData = parseTransportData(response.responseText);
+              if (incomingData === null) {
+                transportLogger.error("[Fetch] parseTransportData retornou null (falha ao encontrar/parsear dados). Resolvendo com recursos zerados.");
+                mobx.runInAction(() => {
+                  state.incomingResources.wood = 0;
+                  state.incomingResources.stone = 0;
+                  state.incomingResources.iron = 0;
+                });
+                resolve({ wood: 0, stone: 0, iron: 0 });
+              } else {
+                transportLogger.log("[Fetch] Atualizando state.incomingResources:", incomingData);
+                mobx.runInAction(() => {
+                  state.incomingResources.wood = incomingData.madeira || 0;
+                  state.incomingResources.stone = incomingData.argila || 0;
+                  state.incomingResources.iron = incomingData.ferro || 0;
+                });
+                resolve({
+                  wood: state.incomingResources.wood,
+                  // Resolve with state values
+                  stone: state.incomingResources.stone,
+                  iron: state.incomingResources.iron
+                });
+              }
+            } catch (parseError) {
+              transportLogger.error(`[Fetch] Erro durante o parseamento: ${parseError.message}`, parseError);
+              mobx.runInAction(() => {
+                state.incomingResources.wood = 0;
+                state.incomingResources.stone = 0;
+                state.incomingResources.iron = 0;
+              });
+              reject(parseError);
+            }
+          } else {
+            transportLogger.error(`[Fetch] Falha ao buscar dados de transporte. Status: ${response.status}`);
+            mobx.runInAction(() => {
+              state.incomingResources.wood = 0;
+              state.incomingResources.stone = 0;
+              state.incomingResources.iron = 0;
+            });
+            reject(new Error(`HTTP error! status: ${response.status}`));
+          }
+        },
+        onerror: (error) => {
+          transportLogger.error(`[Fetch] Erro na requisi\xE7\xE3o GM_xmlhttpRequest:`, error);
+          mobx.runInAction(() => {
+            state.incomingResources.wood = 0;
+            state.incomingResources.stone = 0;
+            state.incomingResources.iron = 0;
+          });
+          reject(error);
+        },
+        ontimeout: () => {
+          transportLogger.error("[Fetch] Requisi\xE7\xE3o para transportes expirou (timeout).");
+          mobx.runInAction(() => {
+            state.incomingResources.wood = 0;
+            state.incomingResources.stone = 0;
+            state.incomingResources.iron = 0;
+          });
+          reject(new Error("Transport request timed out"));
+        }
+      });
+    });
+  }
+  const calculateSellAmount = (resource, merchantsAvailable) => {
+    const marketValue = resource.getMarketValue();
+    const total = resource.getTotal();
+    const reserveAmount = resource.getReserved();
+    const available = Math.max(0, total - reserveAmount);
+    const minRate = resource.getReserveRate();
+    if (marketValue >= minRate) return 0;
+    const sellLimitSelector = `[data-resource="sell-limit${resource.name === "wood" ? "" : `-${resource.name}`}"]`;
+    const sellLimitInput = document.querySelector(sellLimitSelector);
+    const perTransactionLimit = sellLimitInput ? sanitizeNumber(sellLimitInput.value) : Infinity;
+    const merchantCapacity = merchantsAvailable * 1e3;
+    const grossAmount = Math.min(
+      available,
+      // Não ultrapassar recursos disponíveis
+      merchantCapacity,
+      // Limite de carga dos mercadores
+      perTransactionLimit
+      // Limite por transação do usuário
+    );
+    const netAmount = Math.floor(grossAmount * 0.9);
+    return Math.max(0, netAmount);
+  };
+  const enforceMerchantLimit = true;
+  const unitSize = 100;
+  const FIXED_FEE = 100;
+  const minProfitThreshold = 1;
+  const dataCache = /* @__PURE__ */ new Map();
+  let isProcessingSell = false;
+
+
+
+
+
+    const workerScript = `
 self.onmessage = function(e) {
     const { action, data } = e.data;
     switch (action) {
@@ -329,18 +4541,17 @@ self.onmessage = function(e) {
             self.postMessage({ action: 'sellAmountCalculated', result: sellResult });
             break;
         case 'calculateBuyAmount':
-            const buyResult = calculateBuyAmount(data); // A l\xf3gica de compra permanece a mesma
+            // Chama a NOVA versão de calculateBuyAmount que retorna a lista ranqueada
+            const buyResult = calculateBuyAmount(data);
+            // Envia a mensagem de volta com a lista
             self.postMessage({ action: 'buyAmountCalculated', result: buyResult });
             break;
         default:
-            self.postMessage({ error: 'A\xe7\xE3o desconhecida' });
+            self.postMessage({ error: 'Ação desconhecida' });
     }
 };
 
-
-
-
-
+// Função calculateSellAmount (MANTIDA COMO ANTES)
 function calculateSellAmount(data) {
     const { resources, merchantsAvailable, state, config } = data;
 
@@ -371,7 +4582,7 @@ function calculateSellAmount(data) {
             sellLimit,
             maxPossibleAdjusted,
             maxProfit,
-            exchangeRate: r.exchangeRate // Taxa de c\xe2mbio mais recente
+            exchangeRate: r.exchangeRate // Taxa de câmbio mais recente
         };
     }).filter(r => {
         const effectiveRate = r.marketRate * (1 + (state.marketTrends[r.resource.name] === 'up' ? 0.02 : -0.01));
@@ -406,13 +4617,13 @@ function calculateSellAmount(data) {
         : Infinity;
     const effectiveUserLimit = topResource.sellLimit === Infinity ? maxFromStock : topResource.sellLimit;
 
-    // Determina a quantidade m\xe1xima poss\xedvel
+    // Determina a quantidade máxima possível
     let amountToSell = Math.min(maxFromStock, maxFromMarket, maxFromMerchants, effectiveUserLimit);
     if (amountToSell <= 0) {
         return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
     }
 
-    // Garante o lucro m\xednimo e ajusta para m\xfaltiplo de exchangeRate
+    // Garante o lucro mínimo e ajusta para múltiplo de exchangeRate
     const minAmountForProfit = Math.ceil(config.minProfitThreshold * exchangeRate);
     amountToSell = Math.max(amountToSell, minAmountForProfit);
     amountToSell = Math.floor(amountToSell / config.unitSize) * config.unitSize;
@@ -421,19 +4632,19 @@ function calculateSellAmount(data) {
         return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
     }
 
-    // Ajuste otimizado para lucro inteiro e estoque dispon\xedvel
+    // Ajuste otimizado para lucro inteiro e estoque disponível
     let profit = calculateProfit(topResource.resource, amountToSell);
-    amountToSell = Math.floor(amountToSell / exchangeRate) * exchangeRate; // M\xfaltiplo de exchangeRate
+    amountToSell = Math.floor(amountToSell / exchangeRate) * exchangeRate; // Múltiplo de exchangeRate
     profit = calculateProfit(topResource.resource, amountToSell);
 
     if (profit < config.minProfitThreshold) {
         return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
     }
 
-    // Verifica e ajusta o lucro para um valor inteiro vi\xe1vel
+    // Verifica e ajusta o lucro para um valor inteiro viável
     const requiredStock = Math.ceil(amountToSell + config.FIXED_FEE + (amountToSell * dynamicFee));
     if (requiredStock > topResource.available) {
-        // Tenta ajustar para o maior lucro inteiro poss\xedvel dentro do estoque
+        // Tenta ajustar para o maior lucro inteiro possível dentro do estoque
         let targetProfit = Math.floor(profit);
         while (targetProfit >= config.minProfitThreshold) {
             amountToSell = Math.floor(targetProfit * exchangeRate);
@@ -448,7 +4659,7 @@ function calculateSellAmount(data) {
             return { amountToSell: 0, profit: 0, resourceName: topResource.resource.name };
         }
     } else if (profit > config.minProfitThreshold) {
-        // Tenta alcan\xe7ar o pr\xf3ximo PP inteiro se houver estoque
+        // Tenta alcançar o próximo PP inteiro se houver estoque
         const nextProfit = Math.ceil(profit);
         const nextAmount = Math.ceil(nextProfit * exchangeRate);
         const nextRequiredStock = Math.ceil(nextAmount + config.FIXED_FEE + (nextAmount * dynamicFee));
@@ -458,7 +4669,7 @@ function calculateSellAmount(data) {
         }
     }
 
-    // Nova l\xf3gica: Reavalia\xe7\xE3o din\xe2mica baseada em mudan\xe7as recentes do exchangeRate
+    // Nova lógica: Reavaliação dinâmica baseada em mudanças recentes do exchangeRate
     const volatility = state.marketVolatility[topResource.resource.name] || 0;
     if (volatility > 0.1) { // Se a volatilidade for alta (>10%), ajusta a venda com cautela
         const adjustmentFactor = state.marketTrends[topResource.resource.name] === 'up' ? 0.9 : 1.1;
@@ -474,23 +4685,26 @@ function calculateSellAmount(data) {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+// ============================================================
+// === INÍCIO: NOVA FUNÇÃO calculateBuyAmount (Retorna Lista) ===
+// ============================================================
 function calculateBuyAmount(data) {
+    // console.log("[Worker - calculateBuyAmount v6.0 - Ranked List] Iniciando cálculo...", data); // Log de depuração
     const { resources, effectivePP, storageCapacity, incomingResources, currentResources } = data;
+    let calculatedOptions = [];
+
+    if (effectivePP <= 0) {
+        // console.log("[Worker - calculateBuyAmount v6.0] PP efetivo zerado ou negativo."); // Log de depuração
+        return { rankedBuyOptions: [] }; // Retorna lista vazia
+    }
 
     const resourcesToConsider = resources.map(r => {
+        const marketRate = r.marketRate || 0; // Taxa de VENDA (base dos múltiplos)
+        if (marketRate <= 0) {
+
+            return null; // Ignora recurso com taxa inválida
+        }
+
         const desiredStock = r.desiredStock || 0;
         const currentStock = currentResources[r.name] || 0;
         const incomingStock = incomingResources[r.name] || 0;
@@ -498,58 +4712,80 @@ function calculateBuyAmount(data) {
 
         const deficit = Math.max(0, desiredStock - totalEffectiveStock);
         const availableCapacity = Math.max(0, storageCapacity - totalEffectiveStock);
-        const marketRate = r.marketRate || 0;
-        const userRateLimit = r.userRateLimit || 0;
+
+        const userRateLimit = r.userRateLimit || 0; // Taxa de COMPRA MÍNIMA do usuário
+        // ATENÇÃO: A taxa de COMPRA do jogo (para calcular o custo PP) não está disponível no worker.
+        // Vamos assumir uma taxa de COMPRA igual à de VENDA para *estimar* o custo PP.
+        // A verificação real se a taxa de COMPRA é >= userRateLimit deve ser feita no main thread.
+        // Por enquanto, o worker apenas calcula o *potencial* de compra.
+        const estimatedGameBuyRate = marketRate; // ESTIMATIVA - o main thread validará a taxa real
+
+        // Verifica se o recurso é desejado (tem déficit) e há espaço
+        if (deficit <= 0 || availableCapacity <= 0) {
+
+            return null;
+        }
+
+        // Calcula o máximo que PODE comprar fisicamente (sem considerar PP ainda)
         const buyLimitPerTime = r.buyLimitPerTime || Infinity;
-        const isRateAcceptable = marketRate > 0 && (userRateLimit === 0 || marketRate >= userRateLimit);
+        const maxPhysicallyPossible = Math.min(deficit, availableCapacity, buyLimitPerTime);
 
-        const costInPP = Math.ceil(deficit / marketRate);
-        const affordableAmount = Math.floor(effectivePP * marketRate);
+        // Estima o custo em PP para essa quantidade física máxima (usando a taxa de COMPRA estimada)
+        const estimatedPPCostForMax = maxPhysicallyPossible > 0 ? Math.ceil(maxPhysicallyPossible / estimatedGameBuyRate) : 0;
 
-        return {
-            name: r.name,
-            deficit,
-            availableCapacity,
-            marketRate,
-            userRateLimit,
-            isRateAcceptable,
-            canPhysicallyBuy: Math.min(deficit, availableCapacity, affordableAmount),
-            buyLimitPerTime
-        };
-    });
+        // Calcula quanto podemos comprar GASTANDO NO MÁXIMO effectivePP
+        let amountLimitedByPP = 0;
+        if (estimatedGameBuyRate > 0) {
+             // Quanto recurso custaria EXATAMENTE effectivePP
+             let affordableAmountBase = Math.floor(effectivePP * estimatedGameBuyRate);
+             let costCheck = Math.ceil(affordableAmountBase / estimatedGameBuyRate);
 
-    const buyableResources = resourcesToConsider.filter(r =>
-        r.deficit > 0 &&
-        r.availableCapacity > 0 &&
-        r.canPhysicallyBuy > 0 &&
-        r.isRateAcceptable
-    );
+             // Ajusta se o custo exceder o PP disponível devido ao ceil()
+             if (costCheck > effectivePP && effectivePP > 0) {
+                 affordableAmountBase = Math.floor((effectivePP - 1) * estimatedGameBuyRate);
+             } else if (costCheck <= effectivePP) {
+                 // Ok
+             } else {
+                 affordableAmountBase = 0; // Caso effectivePP seja 0
+             }
+             amountLimitedByPP = affordableAmountBase;
+        }
 
-    if (buyableResources.length === 0) {
-        return { amountToBuy: 0, resourceName: null };
-    }
+        // A quantidade *ideal* (limitada por PP e física) que o worker pode calcular
+        const idealAmount = Math.max(0, Math.floor(Math.min(maxPhysicallyPossible, amountLimitedByPP)));
 
-    buyableResources.sort((a, b) => b.marketRate - a.marketRate);
-    const priorityResource = buyableResources[0];
 
-    let buyAmount = Math.min(
-        priorityResource.canPhysicallyBuy,
-        priorityResource.buyLimitPerTime
-    );
+        // Só adiciona à lista se a quantidade ideal for maior que zero
+        if (idealAmount > 0) {
+            return {
+                name: r.name,
+                marketRate: marketRate, // Taxa de VENDA (para múltiplos)
+                userRateLimit: userRateLimit, // Taxa MÍNIMA de COMPRA do user
+                idealAmount: idealAmount, // Quantidade calculada (limitada por PP/Físico)
+            };
+        } else {
+            return null; // Não adiciona se não puder comprar nada
+        }
 
-    const finalCostPP = Math.ceil(buyAmount / priorityResource.marketRate);
-    if (finalCostPP > effectivePP) {
-        buyAmount = Math.floor(effectivePP * priorityResource.marketRate);
-    }
+    }).filter(r => r !== null); // Remove os nulos
 
-    buyAmount = Math.max(0, Math.floor(buyAmount));
+    // Ordena os recursos considerados:
+    // 1. Maior Taxa de Mercado (VENDA) primeiro (mantendo a lógica original de prioridade)
+    // Pode-se ajustar a ordenação aqui se necessário (ex: por déficit)
+    resourcesToConsider.sort((a, b) => b.marketRate - a.marketRate);
 
-    return { amountToBuy: buyAmount, resourceName: priorityResource.name };
+    // console.log("[Worker - calculateBuyAmount v6.0] Lista final ordenada:", resourcesToConsider); // Log de depuração
+
+    // Retorna a lista completa e ordenada
+    return { rankedBuyOptions: resourcesToConsider };
 }
+// ============================================================
+// === FIM: NOVA FUNÇÃO calculateBuyAmount (Retorna Lista) =====
+// ============================================================
 
 
 
-
+// Função calculateDynamicFee (MANTIDA COMO ANTES)
 function calculateDynamicFee(resource, state) {
     const marketRate = resource.marketRate;
     const trend = state.marketTrends[resource.name];
@@ -565,15 +4801,2115 @@ function calculateDynamicFee(resource, state) {
     return Math.min(Math.max(feePercentage, 0.04), 0.07);
 }
 
+// Função calculateProfit (MANTIDA COMO ANTES)
 function calculateProfit(resource, amountSold) {
     return Math.floor(amountSold / resource.exchangeRate);
-
 }
-`,eR=new Worker(URL.createObjectURL(new Blob([eM],{type:"text/javascript"})));function eB(){let e="gameData";if(eI.has(e))return eI.get(e);let t=e9();return t&&eI.set(e,t),t}function e9(){if("undefined"!=typeof TribalWars&&TribalWars.getGameData)try{return TribalWars.getGameData()}catch(e){}return null}function eL(e,t){let a=E.now();q.rateHistory[e].push({rate:t,timestamp:a}),q.rateHistory[e]=q.rateHistory[e].filter(e=>a.diff(e.timestamp,"minutes").minutes<=5),q.marketTrends[e]=function e(t){if(t.length<3)return"neutral";let a=t.slice(-3).map((e,t,a)=>t>0?e.rate-a[t-1].rate:0),o=a.reduce((e,t)=>e+t,0)/a.length;return o>.05?"up":o<-.05?"down":"neutral"}(q.rateHistory[e]),q.marketVolatility[e]=function e(t){if(t.length<2)return 0;let a=t.slice(-5).map((e,t,a)=>t>0?Math.abs(e.rate-a[t-1].rate):0);return(Math.max(...a)-Math.min(...a))/100}(q.rateHistory[e]),q.lastUpdate[e]=a.toLocaleString(E.DATETIME_SHORT)}function eq(e){if(!e||!e.name)return 100;let t=`#premium_exchange_rate_${e.name} > div:nth-child(1)`,a=document.querySelector(t);if(a){let o=a.textContent.trim(),r=parseFloat(o.replace(/[^0-9.]/g,""))||100;return eI.set(`rate_${e.name}`,r),eL(e.name,r),r}let n=`rate_${e.name}`;if(eI.has(n)){let i=eI.get(n);return eL(e.name,i),i}let s=eB();if(s&&s.market&&s.market.rates){let u=s.market.rates[e.name];if(void 0!==u){let l=parseFloat(u)||100;return eI.set(n,l),eL(e.name,l),l}}return eL(e.name,100),100}let e5={wood:document.querySelector("#premium_exchange_rate_wood > div:nth-child(1)"),stone:document.querySelector("#premium_exchange_rate_stone > div:nth-child(1)"),iron:document.querySelector("#premium_exchange_rate_iron > div:nth-child(1)")},ez={};function e4(e){let t=eq(e),a=q.marketTrends[e.name],o=.05;return"up"===a?o-=.01:"down"===a&&(o+=.015),t>=140&&t<=145?o=.0544:t<120?o=.06:t>150&&(o=.045),Math.min(Math.max(o,.04),.07)}function eU(e){let t=`exchange_${e.name}`,a=`#premium_exchange_rate_${e.name} .premium-exchange-sep`,o=document.querySelector(a);if(o){let r=o.textContent.trim(),n=parseFloat(r.replace(/[^0-9.]/g,""))||1;return eI.set(t,n),n}if(eI.has(t))return eI.get(t);let i=eB();if(i&&i.market&&i.market.exchangeRates){let s=i.market.exchangeRates[e.name];if(void 0!==s){let u=parseFloat(s)||1;return eI.set(t,u),u}}if(!o)return 1;let l=o.textContent.trim(),$=parseFloat(l.replace(/[^0-9.]/g,""))||1;return eI.set(t,$),$}function e8(e,t){eU(e);let a=e.exchangeRate||eU(e);return Math.floor(t/a)}function eO(){let e=document.querySelector("#market_merchant_available_count");return e?W(e.textContent):0}function eN(){if(to()){console.log("[Venda] hCaptcha detectado. Abortando venda."),eF=!1;return}let e=Date.now();if(y)return;if(!q.sellModeActive){eF=!1;return}if(eF)return;if(q.sellPausedUntil&&q.sellPausedUntil>e){new Date(q.sellPausedUntil).toLocaleString();return}let a=eO();if(a<=0){eF=!1;return}eF=!0;let o=Object.values(eY).map(e=>{if(!e||!e.name)return null;let t=e.getTotal(),a=e.getReserved(),o=function e(t){let a=t.name;try{let o=e9();if(o&&o.market&&o.market.capacities&&o.market.capacities[a]){let r=o.market.capacities[a];r.total,r.current}}catch(n){console.error(`[getMarketCapacity - ${a}] Erro ao acessar API TribalWars:`,n)}try{let i=document.querySelector(`#premium_exchange_capacity_${a}`),s=document.querySelector(`#premium_exchange_stock_${a}`);if(!i||!s)return 0;{let u=i.textContent.trim(),l=s.textContent.trim(),$=e=>parseInt(String(e||"0").replace(/[^\d]/g,""),10)||0,c=$(u),d=$(l);return Math.max(0,c-d)}}catch(p){return console.error(`[getMarketCapacity - ${a}] Erro ao ler DOM:`,p),0}}(e),r=eU(e),n=eq(e),i=e.getReserveRate(),s=function e(t){let a=`sellLimit_${t.name}`;if(eI.has(a))return eI.get(a);let o=function e(t,a){let o="wood"===t.name?`[data-resource="${a}"]`:`[data-resource="${a}-${t.name}"]`;return document.querySelector(o)}(t,"sell-limit");if(!o)return 1/0;let r=parseInt(o.value,10),n=isNaN(r)||r<=0?1/0:r;return eI.set(a,n),n}(e);return{name:e.name,marketRate:n,minRate:i,total:t,reserve:a,sellLimit:s,marketCapacityRaw:o,exchangeRate:r}}).filter(e=>null!==e),r={action:"calculateSellAmount",data:{resources:o,merchantsAvailable:a,state:{marketTrends:A.toJS(q.marketTrends),marketVolatility:A.toJS(q.marketVolatility)},config:{enforceMerchantLimit:!0,unitSize:100,FIXED_FEE:100,minProfitThreshold:1}}};try{eR.postMessage(r)}catch(n){console.error(`${t}: [Venda] Erro CR\xcdTICO ao enviar mensagem para o Worker:`,n),eF=!1;return}eR.onmessage=e=>{if(to()){console.log("[Venda - Worker Callback] hCaptcha detectado ANTES de processar resultado. Abortando.");return}if("sellAmountCalculated"===e.data.action){let{amountToSell:a,profit:o,resourceName:r}=e.data.result;if(a>0&&r&&eY[r]){let n=eY[r],i=n.getTotal(),s=n.getReserved(),u=eO();if(a<=Math.max(0,i-s)&&u>=Math.ceil(a/1e3)){y=!0,setTimeout(()=>{y=!1,q.sellModeActive&&!eF&&(!q.sellPausedUntil||q.sellPausedUntil<=Date.now())&&eN()},6e3);try{ek("sell",n,a),ei(`${T.t("profit")}: <span class="icon header premium"></span> ${o}`,"success")}catch(l){console.error(`[Venda] Erro durante executeTransaction para ${r}:`,l),y=!1}}else eF=!1}else eF=!1}else e.data.error?(console.error(`${t}: [Venda Worker Callback] Erro recebido do Worker:`,e.data.error),eF=!1):(console.warn("[Venda Worker Callback] A\xe7\xe3o inesperada recebida do Worker:",e.data.action),eF=!1)},eR.onerror=e=>{console.error(`${t}: [Venda Worker onerror] Erro GERAL na comunica\xe7\xe3o:`,e.message,e),eF=!1}}let e7=v.debounce(eN,150),eG=async()=>{!to()&&(q.buyModeActive&&await ew(),q.sellModeActive&&e7())},eH=()=>{let e={},t=document.querySelectorAll(".market-container .rate-input,#premiumPointsInput,#settingsModal .settings-input,#settingsModal .settings-checkbox,#settingsModal .aquila-select");t.forEach(t=>{if(!t)return;let a=t.id||t.dataset?.resource;if(!a)return;let o=null,r=!1,n=!1;if("checkbox"===t.type)o=t.checked,r=!0,"closeOnHCaptchaInput"===a&&void 0!==q.closeTabOnHCaptcha&&q.closeTabOnHCaptcha!==t.checked&&A.runInAction(()=>{q.closeTabOnHCaptcha=t.checked});else if("SELECT"===t.tagName)o=t.value,r=!0,"languageSelect"===a&&q.language!==t.value&&["pt","ru","en"].includes(t.value)&&A.runInAction(()=>{q.language=t.value});else{let i=t.value.trim();if("premiumPointsInput"===a){if(""===i)o="0",r=!0;else{let s=W(i);(n=!isNaN(s)&&s>=0)?(o=String(s),r=!0):(o=null,r=!1)}}else if(""===i)r=!1;else{let u=W(i);if(n=!1,n=["buyPauseDurationInput","sellPauseDurationInput"].includes(a)?!isNaN(u)&&u>=1:t.classList.contains("rate-input")?!isNaN(u)&&u>=0:!isNaN(u)){o=String(u),r=!0;try{A.runInAction(()=>{"buyPauseDurationInput"===a&&q.buyPauseDurationMinutes!==u?q.buyPauseDurationMinutes=u:"sellPauseDurationInput"===a&&q.sellPauseDurationMinutes!==u&&(q.sellPauseDurationMinutes=u)})}catch(l){}}else o=null,r=!1}}r&&null!==o?e[a]=o:e.hasOwnProperty(a)&&delete e[a]}),e.languageSelect?(e.language=e.languageSelect,delete e.languageSelect):e.language||(e.language=q.language||"pt");try{let a=JSON.stringify(e),o=LZString.compress(a);o?(localStorage.setItem("compressedConfig",o),localStorage.setItem("language",e.language)):(console.error("[PerformSaveOperation v5] ERRO CR\xcdTICO: Compress\xe3o LZString nula!"),eu("Falha grave compress\xe3o!"))}catch(r){console.error("[PerformSaveOperation v5] ERRO ao salvar no localStorage:",r),eu("Erro ao salvar configura\xe7\xf5es.")}},eV=()=>{console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Iniciando configura\xe7\xe3o de eventos..."),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'input' UI Principal..."),Object.values(eY).forEach(e=>{e.config.uiRateInput&&e.config.uiRateInput.addEventListener("input",v.debounce(()=>{console.log(`[Input Change UI] Taxa compra ${e.name}`),q.buyModeActive&&!eC&&(!q.buyPausedUntil||q.buyPausedUntil<=Date.now())&&ew()},300));let t=document.querySelector(`.rate-input[data-resource="${e.name}-stock"]`);t&&t.addEventListener("input",v.debounce(()=>{console.log(`[Input Change UI] Estoque desejado ${e.name}`),q.buyModeActive&&!eC&&(!q.buyPausedUntil||q.buyPausedUntil<=Date.now())&&ew()},300)),e.config.uiReserveRateInput&&e.config.uiReserveRateInput.addEventListener("input",v.debounce(()=>{console.log(`[Input Change UI] Taxa reserva (m\xe1x. venda) ${e.name}`),q.sellModeActive&&!eF&&(!q.sellPausedUntil||q.sellPausedUntil<=Date.now())&&eN()},300));let a=document.querySelector(`.rate-input[data-resource="reserve-${e.name}"]`);a&&a.addEventListener("input",v.debounce(()=>{console.log(`[Input Change UI] Quantidade reserva ${e.name}`),q.sellModeActive&&!eF&&(!q.sellPausedUntil||q.sellPausedUntil<=Date.now())&&eN()},300));let o=document.querySelector(`.rate-input[data-resource="sell-limit-${e.name}"]`);if(o&&o.addEventListener("input",v.debounce(()=>{console.log(`[Input Change UI] Limite venda espec\xedfico ${e.name}`),q.sellModeActive&&!eF&&(!q.sellPausedUntil||q.sellPausedUntil<=Date.now())&&eN()},300)),"wood"===e.name){let r=document.querySelector('.rate-input[data-resource="sell-limit"]');r&&r.addEventListener("input",v.debounce(()=>{console.log("[Input Change UI] Limite venda GERAL (legacy wood)"),q.sellModeActive&&!eF&&(!q.sellPausedUntil||q.sellPausedUntil<=Date.now())&&eN()},300))}});let e=document.querySelector('.rate-input[data-resource="buy-per-time"]');e&&e.addEventListener("input",v.debounce(()=>{console.log("[Input Change UI] Limite por compra (buy-per-time)"),q.buyModeActive&&!eC&&(!q.buyPausedUntil||q.buyPausedUntil<=Date.now())&&ew()},300));let t=document.querySelector('.rate-input[data-resource="storage-limit"]');t&&t.addEventListener("input",v.debounce(()=>{console.log("[Input Change UI] Limite por armaz\xe9m (storage-limit)"),q.buyModeActive&&!eC&&(!q.buyPausedUntil||q.buyPausedUntil<=Date.now())&&ew()},300));let a=document.querySelector('.rate-input[data-resource="max-spend"]');a&&a.addEventListener("input",v.debounce(()=>{console.log("[Input Change UI] Gasto m\xe1x por compra (max-spend)"),q.buyModeActive&&!eC&&(!q.buyPausedUntil||q.buyPausedUntil<=Date.now())&&ew()},300)),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'click' bot\xf5es...");let o=(e,t)=>{let a=O.getElement(e);a&&(a.removeEventListener("click",t),a.addEventListener("click",t))};o("buyModeToggle",()=>e$("buyModeActive")),o("sellModeToggle",()=>e$("sellModeActive")),o("buyPause",()=>{let e=Date.now(),t="buyPausedUntil",a="aquila_buyPauseEndTime",o=q.buyPauseDurationMinutes,r="Compra";if(console.log(`[Pause Click - ${r}] Ativo: ${q.buyModeActive}, Pausado at\xe9: ${q[t]?new Date(q[t]).toLocaleString():"N\xe3o"}`),q[t]&&q[t]>e){console.log(`[Pause Click - ${r}] A\xe7\xe3o: RETOMAR manualmente.`),z?(clearTimeout(z),z=null,console.log(" -> Timeout existente limpo.")):console.log(" -> Nenhum timeout encontrado para limpar (pode j\xe1 ter sido limpo ou nunca definido)."),A.runInAction(()=>{q[t]=null}),console.log(" -> State da pausa ('buyPausedUntil') limpo."),localStorage.removeItem(a),console.log(` -> localStorage ('${a}') limpo.`),eK(),console.log(" -> UI atualizada."),ei(T.t("statusResumedManually",{mode:T.t("buy",{defaultValue:r})})||`${r} retomado manualmente.`,"success"),console.log(" -> Notifica\xe7\xe3o de retomada enviada."),q.buyModeActive&&!eC?(console.log(" -> Modo Compra est\xe1 ativo e n\xe3o est\xe1 processando. Tentando executar 'processBuyBasedOnResources()'..."),ew()):console.log(` -> N\xe3o tentando comprar: buyModeActive=${q.buyModeActive}, isProcessingBuy=${eC}`);return}if(!q.buyModeActive){console.log(` -> Ignorado: Modo Compra est\xe1 INATIVO. N\xe3o \xe9 poss\xedvel pausar.`);return}if(o>0){let n=e+6e4*o;A.runInAction(()=>{q[t]=n}),localStorage.setItem(a,n),console.log(` -> Pausa ${r} AGENDADA at\xe9: ${new Date(n).toLocaleString()}. State e Storage atualizados.`),eK(),ei(T.t("pauseDurationSet",{mode:T.t("buy",{defaultValue:r}),duration:o}),"warning"),z&&clearTimeout(z),z=setTimeout(()=>{console.log(`[Pause Timeout Callback - ${r}] Pausa expirou naturalmente.`),A.runInAction(()=>{q[t]=null}),localStorage.removeItem(a),z=null,eK(),ei(T.t("pauseExpired",{mode:T.t("buy",{defaultValue:r})}),"success"),q.buyModeActive&&!eC&&(console.log(" -> Tentando reativar Compra p\xf3s-expira\xe7\xe3o..."),ew())},6e4*o),console.log(` -> Timeout (${z}) agendado para a expira\xe7\xe3o.`)}else eu(T.t("setPauseDurationError")),console.warn(` -> Dura\xe7\xe3o inv\xe1lida para pausar: ${o}`)}),o("sellPause",()=>{let e=Date.now(),t="sellPausedUntil",a="aquila_sellPauseEndTime",o=q.sellPauseDurationMinutes,r="Venda";if(console.log(`[Pause Click - ${r}] Ativo: ${q.sellModeActive}, Pausado at\xe9: ${q[t]?new Date(q[t]).toLocaleString():"N\xe3o"}`),q[t]&&q[t]>e){console.log(`[Pause Click - ${r}] A\xe7\xe3o: RETOMAR manualmente.`),U?(clearTimeout(U),U=null,console.log(" -> Timeout existente limpo.")):console.log(" -> Nenhum timeout encontrado para limpar."),A.runInAction(()=>{q[t]=null}),console.log(" -> State da pausa ('sellPausedUntil') limpo."),localStorage.removeItem(a),console.log(` -> localStorage ('${a}') limpo.`),eK(),console.log(" -> UI atualizada."),ei(T.t("statusResumedManually",{mode:T.t("sell",{defaultValue:r})})||`${r} retomado manualmente.`,"success"),console.log(" -> Notifica\xe7\xe3o de retomada enviada."),q.sellModeActive&&!eF?(console.log(" -> Modo Venda est\xe1 ativo e n\xe3o est\xe1 processando. Tentando executar 'updateSell()'..."),eN()):console.log(` -> N\xe3o tentando vender: sellModeActive=${q.sellModeActive}, isProcessingSell=${eF}`);return}if(!q.sellModeActive){console.log(` -> Ignorado: Modo Venda est\xe1 INATIVO. N\xe3o \xe9 poss\xedvel pausar.`);return}if(o>0){let n=e+6e4*o;A.runInAction(()=>{q[t]=n}),localStorage.setItem(a,n),console.log(` -> Pausa ${r} AGENDADA at\xe9: ${new Date(n).toLocaleString()}. State e Storage atualizados.`),eK(),ei(T.t("pauseDurationSet",{mode:T.t("sell",{defaultValue:r}),duration:o}),"warning"),U&&clearTimeout(U),U=setTimeout(()=>{console.log(`[Pause Timeout Callback - ${r}] Pausa expirou naturalmente.`),A.runInAction(()=>{q[t]=null}),localStorage.removeItem(a),U=null,eK(),ei(T.t("pauseExpired",{mode:T.t("sell",{defaultValue:r})}),"success"),q.sellModeActive&&!eF&&(console.log(" -> Tentando reativar Venda p\xf3s-expira\xe7\xe3o..."),eN())},6e4*o),console.log(` -> Timeout (${U}) agendado para a expira\xe7\xe3o.`)}else eu(T.t("setPauseDurationError")),console.warn(` -> Dura\xe7\xe3o inv\xe1lida para pausar: ${o}`)}),o("saveConfig",()=>{console.log("[SaveConfig Button Click] Acionado save manual."),eH(),es(T.t("saveSuccess"))}),o("resetAll",()=>{console.warn("[ResetAll Button Click] INICIANDO RESET GERAL..."),document.querySelectorAll(".market-container .rate-input").forEach(e=>e.value="");let e=O.getElement("premiumPointsInput");e&&(e.value=""),document.querySelectorAll("#settingsModal .settings-input").forEach(e=>{e.value=e.placeholder||""});let t=document.getElementById("autoReloadOnErrorInput");t&&(t.checked=!0);let a=document.getElementById("languageSelect");a&&(a.value="pt");let o=document.getElementById("buyPauseDurationInput");o&&(o.value=5);let r=document.getElementById("sellPauseDurationInput");r&&(r.value=5);let n=document.getElementById("checkIntervalInput");n&&(n.value=n.placeholder||30);let i=document.getElementById("sellCooldownInput");i&&(i.value=i.placeholder||6);let s=document.getElementById("merchantReserveInput");s&&(s.value=s.placeholder||0),console.log("[ResetAll] Inputs resetados na UI."),localStorage.removeItem("compressedConfig"),localStorage.removeItem("language"),localStorage.removeItem("aquila_buyPauseEndTime"),localStorage.removeItem("aquila_sellPauseEndTime"),console.log("[ResetAll] localStorage (configs, lang, pausas) limpo."),A.runInAction(()=>{q.buyModeActive=!1,q.sellModeActive=!1,q.hasExecutedBuy=!1,q.hasExecutedSell=!1,q.buyPausedUntil=null,q.sellPausedUntil=null,q.buyPauseDurationMinutes=5,q.sellPauseDurationMinutes=5,q.language="pt"}),console.log("[ResetAll] State MobX redefinido."),localStorage.setItem("buyModeActive","false"),localStorage.setItem("sellModeActive","false"),z&&(clearTimeout(z),z=null,console.log(" -> Timeout pausa compra limpo.")),U&&(clearTimeout(U),U=null,console.log(" -> Timeout pausa venda limpo.")),eK(),console.log("[ResetAll] Conclu\xeddo."),es(T.t("resetAllSuccess",{defaultValue:"Configura\xe7\xf5es resetadas com sucesso!"}))}),o("transactionsBtn",e0),o("aiAssistantBtn",()=>{let e=O.getElement("aiModal");e&&(e.style.display="flex");let t=O.getElement("aiPrompt");t&&(t.value="");let a=O.getElement("aiResponse");a&&(a.innerHTML="")}),o("settingsBtn",()=>{ta();let e=document.getElementById("buyPauseDurationInput");e&&(e.value=q.buyPauseDurationMinutes);let t=document.getElementById("sellPauseDurationInput");t&&(t.value=q.sellPauseDurationMinutes);let a=document.getElementById("checkIntervalInput");a&&(a.value=a.placeholder||30);let o=document.getElementById("sellCooldownInput");o&&(o.value=o.placeholder||6);let r=document.getElementById("merchantReserveInput");r&&(r.value=r.placeholder||0);let n=document.getElementById("autoReloadOnErrorInput");n&&(n.checked=!0);let i=document.getElementById("languageSelect");i&&(i.value=q.language||"pt"),A.runInAction(()=>{q.isSettingsModalOpen=!0});let s=O.getElement("settingsModal");s&&(s.style.display="flex"),console.log("[DEBUG setupEvents] Modal Configs aberta, inputs populados via state.")}),o("submitAI",async()=>{let e=O.getElement("aiPrompt"),t=e?e.value:"";if(!t.trim())return;let a=O.getElement("aiResponse");a&&(a.innerHTML=`<p>${T.t("aiLoading")}</p>`);try{let o=await J(t);a&&(a.innerHTML=`<p>${o.replace(/\n/g,"<br>")}</p>`)}catch(r){a&&(a.innerHTML=`<p class="error">${T.t("aiError")}: ${r.message||r}</p>`)}}),o("closeModal",()=>{let e=O.getElement("transactionsModal");e&&(e.style.display="none"),ey&&(ey.destroy(),ey=null);let t=document.getElementById("transactionsChartContainer");t&&(t.innerHTML='<canvas id="transactionsChart"></canvas>',t.style.display="none")}),o("closeAIModal",()=>{let e=O.getElement("aiModal");e&&(e.style.display="none")}),o("closeSettingsModal",()=>{A.runInAction(()=>{q.isSettingsModalOpen=!1});let e=O.getElement("settingsModal");e&&(e.style.display="none")}),o("minimizeButton",()=>{let e=O.getElement("market-container"),t=O.getElement("minimizedMarketBox");e&&t&&(A.runInAction(()=>{q.isMinimized=!0}),e.style.display="none",t.style.display="flex",localStorage.setItem("isMinimized","true"))}),o("minimizedMarketBox",()=>{let e=O.getElement("market-container"),t=O.getElement("minimizedMarketBox");e&&t&&(A.runInAction(()=>{q.isMinimized=!1}),e.style.display="block",t.style.display="none",localStorage.setItem("isMinimized","false"))}),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'change' selects...");let r=O.getElement("languageSelect");r&&(r.removeEventListener("change",ej),r.addEventListener("change",ej));let n=O.getElement("villageSelect");n&&(n.removeEventListener("change",eW),n.addEventListener("change",eW)),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando auto-save da modal...");let i=document.querySelectorAll("#settingsModal .settings-input, #settingsModal .settings-checkbox, #settingsModal .aquila-select"),s=v.debounce(()=>{console.log(`[AutoSave Triggered] Mudan\xe7a na modal detectada. Salvando ap\xf3s 1500ms...`),eH()},1500);i.forEach(e=>{let t="checkbox"===e.type?"change":"input";e.removeEventListener(t,s),e.addEventListener(t,s)}),console.log(`[DEBUG setupEvents AutoSave] Auto-save listeners adicionados (${i.length} elementos).`),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners tooltip...");let u="[data-tooltip], [data-tooltip-key]",l=document.querySelectorAll(`.market-container ${u}, .modal ${u}`);l.forEach(e=>{e.removeEventListener("mouseenter",H),e.removeEventListener("mousemove",V),e.removeEventListener("mouseleave",j),e.addEventListener("mouseenter",H),e.addEventListener("mousemove",V),e.addEventListener("mouseleave",j)}),console.log(`[DEBUG setupEvents Tooltip] Listeners adicionados/atualizados (${l.length}).`),window.removeEventListener("click",eX,!0),window.addEventListener("click",eX,!0),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Listener 'click fora modal' adicionado."),console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configura\xe7\xe3o de TODOS os eventos conclu\xedda.")};function ej(e){let t=e.target.value;["pt","ru","en"].includes(t)?(q.language!==t&&(A.runInAction(()=>{q.language=t}),console.log(`[Idioma Change] State atualizado para: ${t}`)),T.changeLanguage(t).then(()=>{localStorage.setItem("language",q.language),console.log(`[Idioma Change] i18next e localStorage atualizados para ${t}. Chamando updateUI...`),eK()}).catch(e=>{console.error(`[Idioma Change] Erro ao mudar idioma com i18next para ${t}:`,e)})):console.warn(`[Idioma Change] Idioma selecionado inv\xe1lido: ${t}`)}function eW(e){"current"===e.target.value&&et()}function eX(e){let t=(t,a=null,o=null)=>{let r=O.getElement(t);return!!r&&"flex"===r.style.display&&!r.querySelector(".modal-content")?.contains(e.target)&&(console.log(`[Click Fora] Detectado clique fora de #${t}. Fechando...`),r.style.display="none",a&&void 0!==q[a]&&A.runInAction(()=>{q[a]=!1}),"function"==typeof o&&o(),!0)},a=()=>{ey&&(ey.destroy(),ey=null);let e=document.getElementById("transactionsChartContainer");e&&(e.innerHTML='<canvas id="transactionsChart"></canvas>',e.style.display="none")};t("settingsModal","isSettingsModalOpen"),t("transactionsModal",null,a),t("aiModal")}let eK=()=>{let e=(e,t=null,a=null,o=null,r=null,n=null)=>{let i=O.getElement(e);if(i)try{null!==t&&(i.textContent=t),null!==a&&(i.innerHTML=a),null!==o&&null!==r&&("classname"===o.toLowerCase()||"class"===o.toLowerCase()?i.className=r:i.setAttribute(o,r)),null!==n&&void 0!==i.placeholder&&(i.placeholder=n)}catch(s){}};e("headerTitle",T.t("title")),e("saveConfig",null,`<i class="fa-solid fa-floppy-disk"></i> ${T.t("saveConfig")}`),e("resetAll",`\u21BB ${T.t("resetAll")}`),e("transactionsBtn",T.t("transactions")),e("settingsBtn",null,'<i class="fa-solid fa-gear"></i>'),e("aiAssistantBtn",null,'<i class="fa-solid fa-robot"></i>'),e("minimizeButton",null,'<i class="fa-solid fa-window-minimize"></i>'),e("buyStatusLabel",T.t("statusLabel")),e("sellStatusLabel",T.t("statusLabel"));let t=O.getElement("buyModeToggle");t&&(t.textContent=T.t(q.buyModeActive?"buyModeToggleOn":"buyModeToggleOff"),t.className=`black-btn toggle-btn ${q.buyModeActive?"active":"inactive"}`);let a=O.getElement("buyStatus");a&&(a.textContent=T.t(q.buyModeActive?"activated":"deactivated"),a.className=`status ${q.buyModeActive?"green":"red"}`);let o=O.getElement("sellModeToggle");o&&(o.textContent=T.t(q.sellModeActive?"sellModeToggleOn":"sellModeToggleOff"),o.className=`black-btn toggle-btn ${q.sellModeActive?"active":"inactive"}`);let r=O.getElement("sellStatus");r&&(r.textContent=T.t(q.sellModeActive?"activated":"deactivated"),r.className=`status ${q.sellModeActive?"green":"red"}`);let n=Date.now(),i=O.getElement("buyPause");if(i){if(q.buyPausedUntil&&q.buyPausedUntil>n){let s=q.buyPausedUntil,u=new Date(s).toLocaleTimeString(q.language||"pt-BR",{hour:"2-digit",minute:"2-digit"});i.innerHTML=`<i class="fas fa-hourglass-end"></i> ${T.t("pausedUntil",{time:u})}`,i.disabled=!1,i.classList.add("paused")}else i.innerHTML=`<i class="fas fa-pause"></i> ${T.t("pause")}`,i.disabled=!q.buyModeActive,i.classList.remove("paused");if(i.hasAttribute("data-tooltip-key")){let l=q.buyPausedUntil&&q.buyPausedUntil>n?"clickToResumeTooltip":"tooltipPauseBuy";i.getAttribute("data-tooltip-key")!==l&&i.setAttribute("data-tooltip-key",l)}else i.setAttribute("data-tooltip-key",q.buyPausedUntil&&q.buyPausedUntil>n?"clickToResumeTooltip":"tooltipPauseBuy")}let $=O.getElement("sellPause");if($){if(q.sellPausedUntil&&q.sellPausedUntil>n){let c=q.sellPausedUntil,d=new Date(c).toLocaleTimeString(q.language||"pt-BR",{hour:"2-digit",minute:"2-digit"});$.innerHTML=`<i class="fas fa-hourglass-end"></i> ${T.t("pausedUntil",{time:d})}`,$.disabled=!1,$.classList.add("paused")}else $.innerHTML=`<i class="fas fa-pause"></i> ${T.t("pause")}`,$.disabled=!q.sellModeActive,$.classList.remove("paused");if($.hasAttribute("data-tooltip-key")){let p=q.sellPausedUntil&&q.sellPausedUntil>n?"clickToResumeTooltip":"tooltipPauseSell";$.getAttribute("data-tooltip-key")!==p&&$.setAttribute("data-tooltip-key",p)}else $.setAttribute("data-tooltip-key",q.sellPausedUntil&&q.sellPausedUntil>n?"clickToResumeTooltip":"tooltipPauseSell")}let m=O.getElement("worldProfit");m&&(m.textContent=String(q.worldProfit||0));let g=O.getElement("languageSelect");if(g){let f=g.value;g.innerHTML=`
-            <option value="pt" ${"pt"===q.language?"selected":""}>🇧🇷 ${T.t("portuguese")}</option>
-            <option value="ru" ${"ru"===q.language?"selected":""}>🇷🇺 ${T.t("russian")}</option>
-            <option value="en" ${"en"===q.language?"selected":""}>🇬🇧 ${T.t("english")}</option>
-        `,g.value=["pt","ru","en"].includes(f)?f:q.language}let h=g?.closest(".dropdown");h&&h.hasAttribute("title");let b=O.getElement("villageSelect")?.closest(".dropdown");b&&b.hasAttribute("title");let x=e=>{let t=document.getElementById(e);if(t&&("none"!==t.style.display||"settingsModal"===e)){let a=t.querySelectorAll("[data-i18n-key]");a.forEach(e=>{let t=e.dataset.i18nKey;if(t){let a=T.t(t,{defaultValue:t});if(("INPUT"===e.tagName||"TEXTAREA"===e.tagName)&&void 0!==e.placeholder)e.placeholder!==a&&(e.placeholder=a);else if("BUTTON"===e.tagName){let o=e.querySelector("i")?.outerHTML||"",r=`${o} ${a}`;e.innerHTML.trim()!==r.trim()&&(e.innerHTML=r)}else{let n=e.querySelector("i.fas"),i=null;if(n){let s=n.nextSibling;for(;s;){if(s.nodeType===Node.TEXT_NODE&&""!==s.nodeValue.trim()){i=s;break}s=s.nextSibling}if(!i){let u=Array.from(e.childNodes);for(let l=u.length-1;l>=0;l--)if(u[l].nodeType===Node.TEXT_NODE&&""!==u[l].nodeValue.trim()){i=u[l];break}}}else(i=Array.from(e.childNodes).find(e=>e.nodeType===Node.TEXT_NODE&&""!==e.nodeValue.trim()))||1!==e.childNodes.length||e.firstChild?.nodeType!==Node.TEXT_NODE||(i=e.firstChild);if(i){let $=i.nodeValue.trim(),c=a.trim();$!==c&&(i.nodeValue=` ${a}`)}else if(n||e.textContent.trim()===a.trim()){if(n&&!i){let d=e.textContent.replace(n.outerText,"").trim();d!==a.trim()&&(Array.from(e.childNodes).forEach(t=>{t.nodeType===Node.TEXT_NODE&&e.removeChild(t)}),e.appendChild(document.createTextNode(` ${a}`)))}}else e.textContent=a}}});let o=t.querySelectorAll(".tooltip-icon[data-tooltip-key]");o.forEach(e=>{let t=e.dataset.tooltipKey;t&&T.t(t,{defaultValue:t})})}};x("transactionsModal"),x("settingsModal"),x("aiModal"),e("closeModal",T.t("close")),e("closeAIModal",T.t("close"))},eJ=()=>{console.log("[LoadConfig v5 - Remove Refs] Iniciando carregamento...");let e=localStorage.getItem("compressedConfig"),t={};if(e)try{let a=LZString.decompress(e);a?t=JSON.parse(a):console.warn("[LoadConfig v5] Descompress\xe3o nula.")}catch(o){console.error("[LoadConfig v5] Erro parsear 'compressedConfig':",o),t={},localStorage.removeItem("compressedConfig")}if(document.querySelectorAll(".market-container .rate-input").forEach(e=>{let a=e?.dataset?.resource;a&&void 0!==t[a]&&(e.value=t[a])}),void 0!==t.premiumPointsInput){let r=O.getElement("premiumPointsInput");r&&(r.value=t.premiumPointsInput)}else{let n=O.getElement("premiumPointsInput");n&&(n.value="")}console.log("[LoadConfig v5] Aplicando configs MODAL restantes e atualizando STATE...");let i=t.buyPauseDurationInput,s=W(i);A.runInAction(()=>{q.buyPauseDurationMinutes=s>0?s:5});let u=document.getElementById("buyPauseDurationInput");u&&(u.value=q.buyPauseDurationMinutes);let l=t.sellPauseDurationInput,$=W(l);A.runInAction(()=>{q.sellPauseDurationMinutes=$>0?$:5});let c=document.getElementById("sellPauseDurationInput");c&&(c.value=q.sellPauseDurationMinutes);let d=document.getElementById("closeOnHCaptchaInput");if(d){let p=t.closeOnHCaptchaInput,m="boolean"==typeof p&&p;d.checked=m,q.closeTabOnHCaptcha!==m&&A.runInAction(()=>{q.closeTabOnHCaptcha=m}),console.log(` -> MODAL: Close on hCaptcha: Lido '${p}', State/UI: ${m}`)}else console.warn("[LoadConfig v5] Checkbox #closeOnHCaptchaInput n\xe3o encontrado."),!1!==q.closeTabOnHCaptcha&&A.runInAction(()=>{q.closeTabOnHCaptcha=!1});let g=localStorage.getItem("language"),f=t.language,h=["pt","ru","en"].includes(g)?g:["pt","ru","en"].includes(f)?f:"pt";q.language!==h&&A.runInAction(()=>{q.language=h});let b=document.getElementById("languageSelect");b&&(b.value=q.language);let x=Date.now(),_=localStorage.getItem("aquila_buyPauseEndTime"),y=_?parseInt(_,10):null;y&&!isNaN(y)&&y>x?(A.runInAction(()=>{q.buyPausedUntil=y}),z&&clearTimeout(z),z=setTimeout(()=>{A.runInAction(()=>{q.buyPausedUntil=null}),localStorage.removeItem("aquila_buyPauseEndTime"),z=null,eK(),ei(T.t("pauseExpired",{mode:T.t("buy",{defaultValue:"Compra"})}),"success"),q.buyModeActive&&!eC&&ew()},y-x)):(A.runInAction(()=>{q.buyPausedUntil=null}),_&&localStorage.removeItem("aquila_buyPauseEndTime"));let v=localStorage.getItem("aquila_sellPauseEndTime"),E=v?parseInt(v,10):null;E&&!isNaN(E)&&E>x?(A.runInAction(()=>{q.sellPausedUntil=E}),U&&clearTimeout(U),U=setTimeout(()=>{A.runInAction(()=>{q.sellPausedUntil=null}),localStorage.removeItem("aquila_sellPauseEndTime"),U=null,eK(),ei(T.t("pauseExpired",{mode:T.t("sell",{defaultValue:"Venda"})}),"success"),q.sellModeActive&&!eF&&eN()},E-x)):(A.runInAction(()=>{q.sellPausedUntil=null}),v&&localStorage.removeItem("aquila_sellPauseEndTime")),console.log("[LoadConfig v5 - Remove Refs] Fun\xe7\xe3o conclu\xedda.")},eY,eQ={},eZ=()=>{["wood","stone","iron"].forEach(e=>{let t=document.getElementById(e)||document.querySelector(`#${e}`);if(t){if(eQ[e])return;let a=new MutationObserver(()=>{let a=t.textContent||"",o=W(a);if(void 0!==D&&o!==D[e]){D[e]=o;let r=Date.now();q.buyModeActive&&!eC&&(!q.buyPausedUntil||q.buyPausedUntil<=r)&&ew(),q.sellModeActive&&!eF&&(!q.sellPausedUntil||q.sellPausedUntil<=r)&&eN()}});a.observe(t,{childList:!0,subtree:!0,characterData:!0}),eQ[e]=a}})},te={wood:document.querySelector("#premium_exchange_rate_wood .premium-exchange-sep"),stone:document.querySelector("#premium_exchange_rate_stone .premium-exchange-sep"),iron:document.querySelector("#premium_exchange_rate_iron .premium-exchange-sep")},tt={};function ta(){let e=document.getElementById("settingsPlayerName"),t=document.getElementById("settingsLicenseExpiry"),a=document.getElementById("settingsScriptVersion");if(e&&(e.textContent=u||"N\xe3o Encontrado"),t){let o=b(u);if(o&&!isNaN(o.getTime()))try{t.textContent=o.toLocaleString(q.language||"pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});let r=new Date;t.classList.remove("expired"),r>o&&t.classList.add("expired")}catch(n){console.error("Erro ao formatar data de expira\xe7\xe3o:",n),t.textContent="Erro na Data",t.classList.remove("expired")}else t.textContent="N\xe3o Dispon\xedvel",t.classList.remove("expired")}if(a)try{let i="undefined"!=typeof GM_info?GM_info.script:null;i&&i.version?a.textContent=i.version:a.textContent="6.2.0_firebase_auth_persist"}catch(s){console.error("Erro ao obter vers\xe3o do script via GM_info, usando fallback:",s),a.textContent="6.2.0_firebase_auth_persist"}}function to(){if(!q.closeTabOnHCaptcha)return!1;let e=!1;for(let t of['iframe[src*="hcaptcha.com"]','iframe[title*="hCaptcha"]',"div[data-hcaptcha-widget-id]","div.h-captcha-container",'[id^="hcaptcha-challenge"]'])if(document.querySelector(t)){e=!0;break}if(e){console.warn(T.t("hCaptchaDetectedLog",{defaultValue:"hCaptcha detectado!"})),console.log(T.t("attemptingTabCloseLog",{defaultValue:"Configura\xe7\xe3o ativa - Tentando fechar a aba..."}));try{window.close()}catch(a){console.error(T.t("tabCloseErrorLog",{defaultValue:"Erro ao tentar fechar a aba (pode ser bloqueado pelo navegador):"}),a)}return!0}return!1}let tr=!1,tn=null,ti=async()=>{console.log(`${t}: Iniciando inicializa\xe7\xe3o...`);try{if(Y(),console.log("[Init] initializeUI conclu\xedda."),!ea())throw Error("Falha CR\xcdTICA ao inicializar elementos da UI RAGNAROK. O script n\xe3o pode continuar.");if(console.log("[Init] initializeElements conclu\xedda."),eZ(),Object.entries(e5).forEach(([e,t])=>{if(t){let a=new MutationObserver(()=>{let a=W(t.textContent.trim().replace(/[^0-9.]/g,""))||100;eI.set(`rate_${e}`,a),eL(e,a),q.sellModeActive&&!eF&&eN(),q.buyModeActive&&!eC&&ew()});a.observe(t,{childList:!0,subtree:!0,characterData:!0}),ez[e]=a}}),Object.entries(te).forEach(([e,t])=>{if(!t){console.error(`Elemento para ${e} n\xe3o encontrado!`);return}let a=new MutationObserver(a=>{let o=W(t.textContent.trim().replace(/[^0-9.,]/g,"").replace(",","."))||1;eI.set(`exchange_${e}`,o),q.sellModeActive&&e7()});a.observe(t,{childList:!0,subtree:!0,characterData:!0}),tt[e]=a}),!function e(){let t=document.querySelector("#market_merchant_available_count");if(t){let a=new MutationObserver(()=>{eO(),q.sellModeActive&&!eF&&eN()});a.observe(t,{childList:!0,subtree:!0,characterData:!0}),eQ.merchants=a}}(),!function e(){let t=document.querySelector("#premium_points");if(!t)return;let a=new MutationObserver(()=>{q.buyModeActive&&!eC&&ew()});a.observe(t,{childList:!0,subtree:!0,characterData:!0})}(),!function e(){let t=document.querySelector("#storage")||document.getElementById("storage");if(!t)return;let a=()=>{let e=document.getElementById("storage");if(e){let t=e.textContent||"",a=t.match(/(\d[\d.,]*)\s*\/\s*(\d[\d.,]*)/)||t.match(/(\d[\d.,]*)/);if(a&&a[2])return W(a[2].replace(/[.,]/g,""));if(a&&a[1])return W(a[1].replace(/[.,]/g,""))}return q.storageCapacity||1e3},o=new MutationObserver(()=>{let e=a();e!==q.storageCapacity&&(q.storageCapacity=e,q.buyModeActive&&!eC&&ew())});o.observe(t,{childList:!0,subtree:!0,characterData:!0})}(),console.log("[Init] Observers configurados."),et(),ts(),console.log("[Init] Informa\xe7\xf5es da vila e estilos aplicados."),eY=eo(),er(),console.log("[Init] Handlers de recursos e elementos do jogo inicializados."),eJ(),console.log("[Init] loadConfig conclu\xedda."),eV(),console.log("[Init] setupEvents conclu\xedda."),el(),eK(),console.log("[Init] Tema e UI atualizados p\xf3s-configura\xe7\xe3o."),console.log("[Init] Verificando hCaptcha na inicializa\xe7\xe3o..."),to()){console.warn("[Init] hCaptcha detectado na inicializa\xe7\xe3o e op\xe7\xe3o ativa. Interrompendo init.");return}console.log("[Init] Verifica\xe7\xe3o inicial de hCaptcha conclu\xedda (n\xe3o detectado ou op\xe7\xe3o inativa)."),console.log("[Init] Buscando dados din\xe2micos do jogo..."),await Promise.all([M(),eD()]),await eA(),console.log("[Init] Busca de dados din\xe2micos conclu\xedda."),q.intervals&&(clearInterval(q.intervals.resourceInterval),clearInterval(q.intervals.transportInterval),delete q.intervals,console.log("[Init] Intervalos antigos limpos.")),console.log("[Init] Executando verifica\xe7\xe3o inicial de compra/venda..."),await eG(),console.log("[Init] Verifica\xe7\xe3o inicial conclu\xedda."),ta(),console.log("[Init] Informa\xe7\xf5es do usu\xe1rio populadas."),console.log(`${t}: Inicializa\xe7\xe3o completa e bem-sucedida!`)}catch(e){console.error(`${t}: Erro CR\xcdTICO durante a inicializa\xe7\xe3o:`,e);let a=T.t("initError",{defaultValue:"Erro grave na inicializa\xe7\xe3o"}),o=e.message||String(e);eu(`${a}: ${o}. Verifique o console (F12) para mais detalhes.`)}};(()=>{let e=setTimeout(()=>{let e=document.querySelector("#market_merchant_available_count"),o="undefined"!=typeof TribalWars&&TribalWars.getGameData;e&&o||(clearInterval(a),alert(`${t}: N\xe3o foi poss\xedvel iniciar. Elementos essenciais do jogo n\xe3o foram encontrados ap\xf3s 5 segundos. Recarregue a p\xe1gina ou verifique se h\xe1 outros scripts conflitando.`))},5e3),a=setInterval(()=>{try{let o=document.querySelector("#market_merchant_available_count"),r="undefined"!=typeof TribalWars&&TribalWars.getGameData,n="undefined"!=typeof Sortable;o&&r&&n&&void 0!==A&&(clearInterval(a),clearTimeout(e),ti().catch(e=>{console.error(`${t}: Erro n\xe3o capturado durante a execu\xe7\xE3o de init():`,e),eu(T.t("initError",{error:e.message||String(e)})+" Erro cr\xedtico na inicializa\xe7\xe3o.")}))}catch(i){}},200)})();let ts=()=>{let e=N("link",{rel:"stylesheet",href:"https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"});document.head.appendChild(e);let t=N("link",{rel:"stylesheet",href:"https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Poppins:wght@400;500;700&display=swap"});document.head.appendChild(t);let a=N("style");a.textContent=`
+`;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  const worker = new Worker(URL.createObjectURL(new Blob([workerScript], { type: "text/javascript" })));
+  function getResourceElement(resource, selector) {
+    const base = resource.name === "wood" ? `[data-resource="${selector}"]` : `[data-resource="${selector}-${resource.name}"]`;
+    return document.querySelector(base);
+  }
+  function getGameDataCached() {
+    const cacheKey = "gameData";
+    if (dataCache.has(cacheKey)) {
+      return dataCache.get(cacheKey);
+    }
+    const gameData = getGameDataSafely();
+    if (gameData) {
+      dataCache.set(cacheKey, gameData);
+    }
+    return gameData;
+  }
+  function getGameDataSafely() {
+    if (typeof TribalWars !== "undefined" && TribalWars.getGameData) {
+      try {
+        return TribalWars.getGameData();
+      } catch (e) {
+      }
+    }
+    return null;
+  }
+  function getMarketCapacity(resource) {
+    const resourceName = resource.name;
+    try {
+      const gameData = getGameDataSafely();
+      if (gameData && gameData.market && gameData.market.capacities && gameData.market.capacities[resourceName]) {
+        const capacityData = gameData.market.capacities[resourceName];
+        const totalCapacityAPI = capacityData.total || 0;
+        const currentStockAPI = capacityData.current || 0;
+        const capacityAPI = Math.max(0, totalCapacityAPI - currentStockAPI);
+      } else {
+      }
+    } catch (e) {
+      console.error(`[getMarketCapacity - ${resourceName}] Erro ao acessar API TribalWars:`, e);
+    }
+    try {
+      const capacityEl = document.querySelector(`#premium_exchange_capacity_${resourceName}`);
+      const stockEl = document.querySelector(`#premium_exchange_stock_${resourceName}`);
+      if (capacityEl && stockEl) {
+        const capacityText = capacityEl.textContent.trim();
+        const stockText = stockEl.textContent.trim();
+        const parseNumber = (text) => parseInt(String(text || "0").replace(/[^\d]/g, ""), 10) || 0;
+        const totalCapacityDOM = parseNumber(capacityText);
+        const currentStockDOM = parseNumber(stockText);
+        const capacityDOM = Math.max(0, totalCapacityDOM - currentStockDOM);
+        return capacityDOM;
+      } else {
+        //console.warn(`[getMarketCapacity - ${resourceName}] Elementos DOM (#premium_exchange_capacity / #premium_exchange_stock) n\xE3o encontrados.`);
+        return 0;
+      }
+    } catch (e) {
+      console.error(`[getMarketCapacity - ${resourceName}] Erro ao ler DOM:`, e);
+      return 0;
+    }
+  }
+  function calculateMarketTrend(history) {
+    if (history.length < 3) return "neutral";
+    const changes = history.slice(-3).map(
+      (entry, i, arr) => i > 0 ? entry.rate - arr[i - 1].rate : 0
+    );
+    const avgChange = changes.reduce((a, b) => a + b, 0) / changes.length;
+    if (avgChange > TREND_SENSITIVITY) return "up";
+    if (avgChange < -TREND_SENSITIVITY) return "down";
+    return "neutral";
+  }
+  function calculateMarketVolatility(history) {
+    if (history.length < 2) return 0;
+    const changes = history.slice(-5).map(
+      (entry, i, arr) => i > 0 ? Math.abs(entry.rate - arr[i - 1].rate) : 0
+    );
+    const maxChange = Math.max(...changes);
+    const minChange = Math.min(...changes);
+    return (maxChange - minChange) / 100;
+  }
+  function updateMarketAnalysis(resourceName, currentRate) {
+    const now = DateTime.now();
+    state.rateHistory[resourceName].push({ rate: currentRate, timestamp: now });
+    state.rateHistory[resourceName] = state.rateHistory[resourceName].filter(
+      (entry) => now.diff(entry.timestamp, "minutes").minutes <= VOLATILITY_WINDOW
+    );
+    state.marketTrends[resourceName] = calculateMarketTrend(state.rateHistory[resourceName]);
+    state.marketVolatility[resourceName] = calculateMarketVolatility(state.rateHistory[resourceName]);
+    state.lastUpdate[resourceName] = now.toLocaleString(DateTime.DATETIME_SHORT);
+  }
+  function getMarketRate(resource) {
+    if (!resource || !resource.name) {
+      return 100;
+    }
+    const selector = `#premium_exchange_rate_${resource.name} > div:nth-child(1)`;
+    const rateElement = document.querySelector(selector);
+    if (rateElement) {
+      const rateText = rateElement.textContent.trim();
+      const rate = parseFloat(rateText.replace(/[^0-9.]/g, "")) || 100;
+      dataCache.set(`rate_${resource.name}`, rate);
+      updateMarketAnalysis(resource.name, rate);
+      return rate;
+    }
+    const cacheKey = `rate_${resource.name}`;
+    if (dataCache.has(cacheKey)) {
+      const cachedRate = dataCache.get(cacheKey);
+      updateMarketAnalysis(resource.name, cachedRate);
+      return cachedRate;
+    }
+    const gameData = getGameDataCached();
+    if (gameData && gameData.market && gameData.market.rates) {
+      const rate2 = gameData.market.rates[resource.name];
+      if (rate2 !== void 0) {
+        const parsedRate = parseFloat(rate2) || 100;
+        dataCache.set(cacheKey, parsedRate);
+        updateMarketAnalysis(resource.name, parsedRate);
+        return parsedRate;
+      }
+    }
+    updateMarketAnalysis(resource.name, 100);
+    return 100;
+  }
+  const rateElements = {
+    wood: document.querySelector("#premium_exchange_rate_wood > div:nth-child(1)"),
+    stone: document.querySelector("#premium_exchange_rate_stone > div:nth-child(1)"),
+    iron: document.querySelector("#premium_exchange_rate_iron > div:nth-child(1)")
+  };
+  const rateObservers = {};
+  function setupMarketRateObservers() {
+    Object.entries(rateElements).forEach(([resource, element]) => {
+      if (element) {
+        const observer = new MutationObserver(() => {
+          const newRate = sanitizeNumber(element.textContent.trim().replace(/[^0-9.]/g, "")) || 100;
+          dataCache.set(`rate_${resource}`, newRate);
+          updateMarketAnalysis(resource, newRate);
+          if (state.sellModeActive && !isProcessingSell) {
+            updateSell();
+          }
+          if (state.buyModeActive && !isProcessingBuy) {
+            processBuyBasedOnResources();
+          }
+        });
+        observer.observe(element, { childList: true, subtree: true, characterData: true });
+        rateObservers[resource] = observer;
+      } else {
+        //console.warn(`${SCRIPT_NAME}: Elemento da taxa de mercado para ${resource} n\xE3o encontrado.`);
+      }
+    });
+  }
+  function getSellLimit(resource) {
+    const cacheKey = `sellLimit_${resource.name}`;
+    if (dataCache.has(cacheKey)) {
+      return dataCache.get(cacheKey);
+    }
+    const sellInputEl = getResourceElement(resource, "sell-limit");
+    if (!sellInputEl) {
+      return Infinity;
+    }
+    const val = parseInt(sellInputEl.value, 10);
+    const result = isNaN(val) || val <= 0 ? Infinity : val;
+    dataCache.set(cacheKey, result);
+    return result;
+  }
+  function getDynamicFee(resource) {
+    const marketRate = getMarketRate(resource);
+    const trend = state.marketTrends[resource.name];
+    let feePercentage = 0.05;
+    if (trend === "up") {
+      feePercentage -= 0.01;
+    } else if (trend === "down") {
+      feePercentage += 0.015;
+    }
+    if (marketRate >= 140 && marketRate <= 145) {
+      feePercentage = 0.0544;
+    } else if (marketRate < 120) {
+      feePercentage = 0.06;
+    } else if (marketRate > 150) feePercentage = 0.045;
+    return Math.min(Math.max(feePercentage, 0.04), 0.07);
+  }
+  function getExchangeRate(resource) {
+    const cacheKey = `exchange_${resource.name}`;
+    const selector = `#premium_exchange_rate_${resource.name} .premium-exchange-sep`;
+    const rateEl = document.querySelector(selector);
+    if (rateEl) {
+      const rateText2 = rateEl.textContent.trim();
+      const rate2 = parseFloat(rateText2.replace(/[^0-9.]/g, "")) || 1;
+      dataCache.set(cacheKey, rate2);
+      return rate2;
+    }
+    if (dataCache.has(cacheKey)) {
+      return dataCache.get(cacheKey);
+    }
+    const gameData = getGameDataCached();
+    if (gameData && gameData.market && gameData.market.exchangeRates) {
+      const exchangeRate = gameData.market.exchangeRates[resource.name];
+      if (exchangeRate !== void 0) {
+        const parsedRate = parseFloat(exchangeRate) || 1;
+        dataCache.set(cacheKey, parsedRate);
+        return parsedRate;
+      }
+    }
+    if (!rateEl) {
+      return 1;
+    }
+    const rateText = rateEl.textContent.trim();
+    const rate = parseFloat(rateText.replace(/[^0-9.]/g, "")) || 1;
+    dataCache.set(cacheKey, rate);
+    return rate;
+  }
+  function calculateProfit(resource, amountSold) {
+    const exchangeRate = getExchangeRate(resource);
+    const rate = resource.exchangeRate || getExchangeRate(resource);
+    return Math.floor(amountSold / rate);
+  }
+  function getMerchantsAvailable() {
+    const merchantsElement = document.querySelector("#market_merchant_available_count");
+    if (merchantsElement) {
+      return sanitizeNumber(merchantsElement.textContent);
+    }
+    return 0;
+  }
+  function setupMerchantsObserver() {
+    const merchantsElement = document.querySelector("#market_merchant_available_count");
+    if (merchantsElement) {
+      const observer = new MutationObserver(() => {
+        const merchantsAvailable = getMerchantsAvailable();
+        if (state.sellModeActive && !isProcessingSell) {
+          updateSell();
+        }
+      });
+      observer.observe(merchantsElement, { childList: true, subtree: true, characterData: true });
+      resourceObservers.merchants = observer;
+    } else {
+      //console.warn(`${SCRIPT_NAME}: Elemento de contagem de mercadores (#market_merchant_available_count) n\xE3o encontrado.`);
+    }
+  }
+  function setupPremiumObserver() {
+    const premiumElement = document.querySelector("#premium_points");
+    if (!premiumElement) {
+      //console.warn(`${SCRIPT_NAME}: Elemento de Pontos Premium (#premium_points) n\xE3o encontrado para observa\xE7\xE3o.`);
+      return;
+    }
+    const premiumObserver = new MutationObserver(() => {
+      if (state.buyModeActive && !isProcessingBuy) {
+        processBuyBasedOnResources();
+      }
+    });
+    premiumObserver.observe(premiumElement, {
+      childList: true,
+      // Observa se o texto dentro muda
+      subtree: true,
+      // Observa mudanças nos filhos também (caso o número esteja em um <span>)
+      characterData: true
+      // Importante para detectar mudança no texto do nó
+    });
+  }
+  function setupStorageObserver() {
+    const storageElement = document.querySelector("#storage") || document.getElementById("storage");
+    if (!storageElement) {
+      //console.warn(`${SCRIPT_NAME}: Elemento de Armaz\xE9m (#storage) n\xE3o encontrado para observa\xE7\xE3o.`);
+      return;
+    }
+    const getStorageCapacityFromDOM = () => {
+      const capacityElement = document.getElementById("storage");
+      if (capacityElement) {
+        const text = capacityElement.textContent || "";
+        const match = text.match(/(\d[\d.,]*)\s*\/\s*(\d[\d.,]*)/) || text.match(/(\d[\d.,]*)/);
+        if (match && match[2]) {
+          return sanitizeNumber(match[2].replace(/[.,]/g, ""));
+        } else if (match && match[1]) {
+          return sanitizeNumber(match[1].replace(/[.,]/g, ""));
+        }
+      }
+      //console.warn(`${SCRIPT_NAME}: N\xE3o foi poss\xEDvel ler a capacidade m\xE1xima do armaz\xE9m do DOM.`);
+      return state.storageCapacity || 1e3;
+    };
+    const storageObserver = new MutationObserver(() => {
+      const newCapacity = getStorageCapacityFromDOM();
+      if (newCapacity !== state.storageCapacity) {
+        state.storageCapacity = newCapacity;
+        if (state.buyModeActive && !isProcessingBuy) {
+          processBuyBasedOnResources();
+        }
+      } else {
+      }
+    });
+    storageObserver.observe(storageElement, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+
+
+
+
+
+
+  // FUNÇÃO updateSell ATUALIZADA (vMutualExclusion 2.0 + Cooldown Persistente v1.0)
+  async function updateSell() {
+    // --- COOLDOWN PERSISTENTE CHECK ---
+    const COOLDOWN_DURATION = 6000; // 6 segundos
+    const lastTxTimeStr = localStorage.getItem('aquila_lastTransactionTime');
+    const lastTxTime = lastTxTimeStr ? parseInt(lastTxTimeStr, 10) : null;
+    const nowForCooldown = Date.now();
+    const timeSinceLastTx = lastTxTime && !isNaN(lastTxTime) ? nowForCooldown - lastTxTime : Infinity;
+
+    if (timeSinceLastTx < COOLDOWN_DURATION) {
+        const secondsRemaining = Math.ceil((COOLDOWN_DURATION - timeSinceLastTx) / 1000);
+        // console.log(`[Venda v2.1 + Cooldown] Cooldown ativo. Aguardando ${secondsRemaining}s.`);
+        return; // Sai cedo se estiver em cooldown
+    }
+    // --- FIM COOLDOWN PERSISTENTE CHECK ---
+
+    const initialDelay = Math.random() * 200 + 50;
+    await new Promise(resolve => setTimeout(resolve, initialDelay));
+
+    // Verifica hCaptcha e outras condições
+    if (checkAndHandleHCaptcha()) {
+        // console.log("[Venda v2.1] hCaptcha detectado. Abortando.");
+        isProcessingSell = false;
+        return;
+    }
+
+    const now = Date.now(); // Reobtém o 'now'
+
+    // --- VERIFICAÇÕES INICIAIS ---
+    // REMOVIDO: if (isSellCooldownActive) { ... }
+    if (!state.sellModeActive) { /* console.log("[Venda v2.1] Modo Venda desativado."); */ return; }
+    if (isProcessingSell) { /* console.log("[Venda v2.1] Operação de venda já em andamento."); */ return; }
+    if (state.sellPausedUntil && state.sellPausedUntil > now) { /* console.log(`[Venda v2.1] PAUSADO TEMPORARIAMENTE.`); */ return; }
+    // --- FIM VERIFICAÇÕES INICIAIS ---
+
+
+    // --- INÍCIO DA LÓGICA DE VENDA ---
+    // console.log("[Venda v2.1] Iniciando processo...");
+    const merchantsAvailableInitial = getMerchantsAvailable();
+
+    if (enforceMerchantLimit && merchantsAvailableInitial <= 0) {
+        // console.log("[Venda v2.1] Nenhum mercador disponível.");
+        return; // Sai se não houver mercadores e a verificação estiver ativa
+    }
+
+    isProcessingSell = true; // Marca como processando AGORA
+
+    // --- Preparação de Dados para o Web Worker ---
+    const resourcesDataForWorker = Object.values(resources)
+      .map((resource) => {
+          if (!resource || !resource.name) return null;
+          const currentTotal = resource.getTotal();
+          const currentReserve = resource.getReserved();
+          const currentMarketCapacity = getMarketCapacity(resource);
+          const currentExchangeRate = getExchangeRate(resource); // Taxa de câmbio atual
+          const currentMarketRate = getMarketRate(resource);     // Taxa de mercado atual (PP/unidade)
+          const currentMinRate = resource.getReserveRate();       // Taxa mínima definida pelo usuário
+          const currentSellLimit = getSellLimit(resource);       // Limite de venda por transação do usuário
+
+          // Log dos dados coletados para o worker
+          // console.log(`[Venda v2.1 - Data Prep ${resource.name}] Total: ${currentTotal}, Reserva: ${currentReserve}, CapMercado: ${currentMarketCapacity}, TaxaCambio: ${currentExchangeRate}, TaxaMercado: ${currentMarketRate}, TaxaMinUser: ${currentMinRate}, LimiteVendaUser: ${currentSellLimit}`);
+
+          return {
+                name: resource.name,
+                marketRate: currentMarketRate,
+                minRate: currentMinRate,
+                total: currentTotal,
+                reserve: currentReserve,
+                sellLimit: currentSellLimit,
+                marketCapacityRaw: currentMarketCapacity,
+                exchangeRate: currentExchangeRate // Inclui a taxa de câmbio
+          };
+      })
+      .filter(data => data !== null);
+
+    const workerData = {
+        action: "calculateSellAmount",
+        data: {
+            resources: resourcesDataForWorker,
+            merchantsAvailable: merchantsAvailableInitial,
+            state: { marketTrends: mobx.toJS(state.marketTrends), marketVolatility: mobx.toJS(state.marketVolatility) }, // Passa dados do estado
+            config: { enforceMerchantLimit, unitSize, FIXED_FEE, minProfitThreshold } // Passa configurações
+        }
+    };
+
+    // console.log("[Venda v2.1] Enviando dados para Worker:", workerData);
+
+    try {
+        worker.postMessage(workerData);
+    } catch (error) {
+        console.error(`${SCRIPT_NAME}: [Venda v2.1] Erro CRÍTICO ao enviar para Worker:`, error);
+        isProcessingSell = false; // RESET
+        return;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // --- Callback para Resposta do Worker ---
+    worker.onmessage = async (e) => {
+      // console.log("[Venda v2.1] Mensagem recebida do Worker:", e.data);
+
+      if (checkAndHandleHCaptcha()) {
+            // console.log("[Venda v2.1 - Worker Callback] hCaptcha detectado. Abortando.");
+             if (isProcessingSell) isProcessingSell = false; // Garante reset
+            return;
+      }
+
+      if (e.data.action === "sellAmountCalculated") {
+        const { amountToSell, profit, resourceName } = e.data.result;
+
+        if (amountToSell > 0 && resourceName && resources[resourceName]) {
+
+            // Verifica se COMPRA começou enquanto o worker calculava
+            if (isProcessingBuy) {
+                console.log("[Venda v2.1 - Worker Result] COMPRA em andamento detectada ANTES de executar. Abortando venda.");
+                isProcessingSell = false; // Reseta flag de venda, pois abortamos
+                return; // Não chama executeTransaction
+            }
+
+            // console.log(`[Venda v2.1 - Worker Result] Decidido vender ${amountToSell} de ${resourceName} por ${profit} PP.`);
+            const resource = resources[resourceName];
+
+            // Revalidação final antes de executar
+            const latestTotal = resource.getTotal();
+            const reserveAmount = resource.getReserved();
+            const currentAvailable = Math.max(0, latestTotal - reserveAmount);
+            const currentMerchants = getMerchantsAvailable();
+            const requiredMerchants = Math.ceil(amountToSell / 1000); // Mercadores necessários
+
+            if (amountToSell <= currentAvailable && (!enforceMerchantLimit || currentMerchants >= requiredMerchants)) {
+                // console.log(`[Venda v2.1] Pré-validação final OK (Disponível: ${currentAvailable}, Mercadores: ${currentMerchants} >= ${requiredMerchants}).`);
+
+                // REMOVIDO: isSellCooldownActive = true;
+                // REMOVIDO: const cooldownTimeoutId = setTimeout(...)
+
+                try {
+                    // executeTransaction já é async e gerencia isProcessingSell
+                    await executeTransaction("sell", resource, amountToSell);
+                    // Se chegou aqui, executeTransaction chamou scheduleReload e salvou o timestamp
+                    notifyUser(`${i18n.t("profit")}: <span class="icon header premium"></span> ${profit}`, "success");
+                    // mobx.runInAction(() => { state.hasExecutedSell = true; }); // Opcional
+                } catch (txError) {
+                     console.error(`[Venda v2.1] Erro executeTransaction ${resourceName}:`, txError);
+                     // REMOVIDO: isSellCooldownActive = false;
+                     // REMOVIDO: clearTimeout(cooldownTimeoutId);
+                     // isProcessingSell é resetado dentro de executeTransaction
+                }
+
+            } else {
+                let reason = amountToSell > currentAvailable ? `Recursos insuficientes (${currentAvailable} < ${amountToSell})` : `Mercadores insuficientes (${currentMerchants} < ${requiredMerchants})`;
+                console.warn(`[Venda v2.1] Transação CANCELADA na pré-validação final: ${reason}`);
+                isProcessingSell = false; // RESET se pré-validação falhar
+            }
+        } else {
+          // console.log("[Venda v2.1 - Worker Result] Nenhuma venda recomendada.");
+          isProcessingSell = false; // RESET se worker não recomendar venda
+        }
+
+      } else if (e.data.error) {
+        console.error(`${SCRIPT_NAME}: [Venda v2.1 Worker Callback] Erro recebido:`, e.data.error);
+        isProcessingSell = false; // RESET
+      } else {
+        console.warn("[Venda v2.1 Worker Callback] Ação inesperada:", e.data.action);
+        isProcessingSell = false; // RESET
+      }
+    }; // Fim worker.onmessage
+
+    worker.onerror = (error) => {
+      console.error(`${SCRIPT_NAME}: [Venda v2.1 Worker onerror] Erro GERAL:`, error.message, error);
+      isProcessingSell = false; // RESET
+    };
+  } // --- Fim da função updateSell (v2.1 + Cooldown) ---
+
+
+
+
+
+
+  // Debounce da função updateSell para evitar chamadas excessivas
+  const debouncedUpdateSell = _.debounce(updateSell, 150); // Aumentado ligeiramente o debounce
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ const updateAll = async () => {
+    if (checkAndHandleHCaptcha()) return; // <<< ADICIONADO: Para imediatamente se hCaptcha for detectado
+
+    // Verifica COMPRA: Só chama se o modo estiver ativo
+    if (state.buyModeActive) {
+        //console.log("[UpdateAll] Verificando Compra...");
+        await processBuyBasedOnResources();
+    }
+
+    // Verifica VENDA: Só chama se o modo estiver ativo
+    if (state.sellModeActive) {
+         //console.log("[UpdateAll] Verificando Venda (debounced)...");
+        debouncedUpdateSell();
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ================================================================
+// >> FUNÇÃO performSaveOperation (v5 - Remove Refs Configs Removidas) <<
+// ================================================================
+const performSaveOperation = () => {
+    // console.log("[PerformSaveOperation v5] Iniciando...");
+    const configData = {};
+    // O seletor agora buscará menos elementos, pois alguns foram removidos do HTML
+    const elementsToProcess = document.querySelectorAll(
+        '.market-container .rate-input,' +       // Inputs da UI principal
+        '#premiumPointsInput,' +                 // Limite de PP
+        '#settingsModal .settings-input,' +      // Inputs restantes na modal (pausas)
+        '#settingsModal .settings-checkbox,' +   // Checkboxes restantes (hCaptcha)
+        '#settingsModal .aquila-select'          // Select de idioma
+    );
+    // console.log(`[PerformSaveOperation v5] ${elementsToProcess.length} elementos encontrados para salvar.`);
+
+    elementsToProcess.forEach((element) => {
+        if (!element) return;
+        const key = element.id || element.dataset?.resource;
+        if (!key) return;
+
+        let valueToSave = null;
+        let isValidForSaving = false;
+        let isValid = false;
+
+        // --- Processamento ---
+        if (element.type === 'checkbox') {
+            // Trata TODOS os checkboxes restantes (atualmente só o hCaptcha)
+            valueToSave = element.checked;
+            isValidForSaving = true;
+
+            // Atualiza state MobX correspondente
+            if (key === 'closeOnHCaptchaInput' && typeof state.closeTabOnHCaptcha !== 'undefined') {
+                if (state.closeTabOnHCaptcha !== element.checked) {
+                     mobx.runInAction(() => { state.closeTabOnHCaptcha = element.checked; });
+                 }
+            }
+            // REMOVIDO: Lógica para autoReloadOnErrorInput
+
+        } else if (element.tagName === 'SELECT') {
+            valueToSave = element.value;
+            isValidForSaving = true;
+            // Atualização MobX State (Exemplo: language)
+            if (key === 'languageSelect') {
+                 if (state.language !== element.value && ["pt", "ru", "en"].includes(element.value)) {
+                     mobx.runInAction(() => { state.language = element.value; });
+                 }
+             }
+        } else { // Inputs numéricos/textuais
+            const rawValue = element.value.trim();
+
+            if (key === 'premiumPointsInput') { // Tratamento PP
+                if (rawValue === "") {
+                    valueToSave = "0";
+                    isValidForSaving = true;
+                } else {
+                    const sanitizedValue = sanitizeNumber(rawValue);
+                    isValid = !isNaN(sanitizedValue) && sanitizedValue >= 0;
+                    if (isValid) {
+                        valueToSave = String(sanitizedValue);
+                        isValidForSaving = true;
+                    } else {
+                        valueToSave = null;
+                        isValidForSaving = false;
+                    }
+                }
+            }
+            else if (rawValue === "") { // Não salva outros inputs vazios
+                 isValidForSaving = false;
+            } else { // Outros inputs numéricos (pausas, UI principal)
+                const sanitizedValue = sanitizeNumber(rawValue);
+                isValid = false;
+
+                if (['buyPauseDurationInput', 'sellPauseDurationInput'].includes(key)) {
+                     isValid = !isNaN(sanitizedValue) && sanitizedValue >= 1;
+                } else if (element.classList.contains('rate-input')) { // Inputs da UI principal
+                     isValid = !isNaN(sanitizedValue) && sanitizedValue >= 0;
+                } else { // Fallback (se houver outros)
+                     isValid = !isNaN(sanitizedValue);
+                }
+                // REMOVIDO: Validações para checkIntervalInput, sellCooldownInput, merchantReserveInput
+
+                 if (isValid) {
+                    valueToSave = String(sanitizedValue);
+                    isValidForSaving = true;
+                    // Atualização MobX State para pausas
+                    try {
+                        mobx.runInAction(() => {
+                            if (key === 'buyPauseDurationInput' && state.buyPauseDurationMinutes !== sanitizedValue) state.buyPauseDurationMinutes = sanitizedValue;
+                            else if (key === 'sellPauseDurationInput' && state.sellPauseDurationMinutes !== sanitizedValue) state.sellPauseDurationMinutes = sanitizedValue;
+                        });
+                    } catch (stateError) { /* Silenciar */ }
+                } else {
+                    valueToSave = null;
+                    isValidForSaving = false;
+                }
+            }
+        } // Fim do else (Inputs)
+
+        // Adiciona ao configData SE for válido
+        if (isValidForSaving && valueToSave !== null) {
+            configData[key] = valueToSave;
+        } else if (configData.hasOwnProperty(key)) {
+            delete configData[key];
+        }
+    }); // Fim do loop forEach
+
+    // Garante chave 'language'
+     if (configData.languageSelect) { configData.language = configData.languageSelect; delete configData.languageSelect; }
+     else if (!configData.language) { configData.language = state.language || 'pt'; }
+
+    // console.log("[PerformSaveOperation v5] configData FINAL:", configData);
+
+    // Salva no localStorage
+    try {
+        const configJson = JSON.stringify(configData);
+        const compressedConfig = LZString.compress(configJson);
+        if (compressedConfig) {
+            localStorage.setItem("compressedConfig", compressedConfig);
+            localStorage.setItem("language", configData.language);
+        } else { console.error("[PerformSaveOperation v5] ERRO CRÍTICO: Compressão LZString nula!"); notifyError("Falha grave compressão!"); }
+    } catch (error) { console.error("[PerformSaveOperation v5] ERRO ao salvar no localStorage:", error); notifyError("Erro ao salvar configurações."); }
+};
+// =====================================================================
+// >> FIM performSaveOperation (v5 - Remove Refs Configs Removidas) <<
+// =====================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ================================================================
+// ===       FUNÇÃO setupEvents (vPausa Persist + AutoSave)      ===
+// ===     Listeners de Pausa, Auto-Save, Toggles, Modais...    ===
+// ================================================================
+const setupEvents = () => {
+    const debounceDelay = 300; // Delay (ms) para inputs da UI principal reagirem
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Iniciando configuração de eventos...");
+
+    // --- 1. Listeners de Input da UI Principal (Debounced) ---
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'input' UI Principal...");
+    Object.values(resources).forEach((resource) => {
+        // Listener: Taxa Compra Mínima (userRateTooltip)
+        if (resource.config.uiRateInput) {
+            resource.config.uiRateInput.addEventListener("input", _.debounce(() => {
+                //console.log(`[Input Change UI] Taxa compra ${resource.name}`);
+                if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) {
+                    processBuyBasedOnResources(); // Reavalia compra
+                }
+            }, debounceDelay));
+        }
+        // Listener: Estoque Desejado (stockDesiredTooltip)
+        const desiredStockInput = document.querySelector(`.rate-input[data-resource="${resource.name}-stock"]`);
+        if (desiredStockInput) {
+            desiredStockInput.addEventListener("input", _.debounce(() => {
+                //console.log(`[Input Change UI] Estoque desejado ${resource.name}`);
+                if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) {
+                    processBuyBasedOnResources(); // Reavalia compra
+                }
+            }, debounceDelay));
+        }
+        // Listener: Taxa Venda Máxima (reserveRateTooltip)
+        if (resource.config.uiReserveRateInput) {
+            resource.config.uiReserveRateInput.addEventListener("input", _.debounce(() => {
+                //console.log(`[Input Change UI] Taxa reserva (máx. venda) ${resource.name}`);
+                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
+                    updateSell(); // Reavalia venda
+                }
+            }, debounceDelay));
+        }
+        // Listener: Reserva Mínima (reserveAmountTooltip)
+        const reserveAmountInput = document.querySelector(`.rate-input[data-resource="reserve-${resource.name}"]`);
+        if (reserveAmountInput) {
+            reserveAmountInput.addEventListener("input", _.debounce(() => {
+                //console.log(`[Input Change UI] Quantidade reserva ${resource.name}`);
+                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
+                    updateSell(); // Reavalia venda
+                }
+            }, debounceDelay));
+        }
+        // Listener: Limite Venda Específico (sellLimitTooltip)
+        const specificSellLimitInput = document.querySelector(`.rate-input[data-resource="sell-limit-${resource.name}"]`);
+        if (specificSellLimitInput) {
+           specificSellLimitInput.addEventListener("input", _.debounce(() => {
+                //console.log(`[Input Change UI] Limite venda específico ${resource.name}`);
+                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
+                    updateSell(); // Reavalia venda
+                }
+            }, debounceDelay));
+        }
+        // Listener: Limite Venda Legado ('sell-limit' para wood)
+        if (resource.name === 'wood') {
+            const legacySellLimitInput = document.querySelector('.rate-input[data-resource="sell-limit"]');
+            if (legacySellLimitInput) {
+                 legacySellLimitInput.addEventListener("input", _.debounce(() => {
+                     //console.log(`[Input Change UI] Limite venda GERAL (legacy wood)`);
+                    if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
+                        updateSell(); // Reavalia venda
+                    }
+                 }, debounceDelay));
+            }
+        }
+    });
+
+    // Listeners: Inputs Gerais da UI Principal (buyPerTime, storageLimit, maxSpend)
+    const buyPerTimeInput = document.querySelector('.rate-input[data-resource="buy-per-time"]');
+    if (buyPerTimeInput) { buyPerTimeInput.addEventListener("input", _.debounce(() => { //console.log("[Input Change UI] Limite por compra (buy-per-time)");
+
+
+                                                                                       if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
+    const storageLimitInput = document.querySelector('.rate-input[data-resource="storage-limit"]');
+    if (storageLimitInput) { storageLimitInput.addEventListener("input", _.debounce(() => { //console.log("[Input Change UI] Limite por armazém (storage-limit)");
+                                                                                           if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
+    const maxSpendInput = document.querySelector('.rate-input[data-resource="max-spend"]');
+    if (maxSpendInput) { maxSpendInput.addEventListener("input", _.debounce(() => { //console.log("[Input Change UI] Gasto máx por compra (max-spend)");
+                                                                                   if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
+
+    // --- 2. Listeners de Botões (Click) ---
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'click' botões...");
+
+    const setupClickListener = (elementId, handler) => {
+        const element = ui.getElement(elementId);
+        if (element) {
+            element.removeEventListener('click', handler); // Previne duplicados
+            element.addEventListener('click', handler);
+        } // else { console.warn(`[setupEvents] Elemento #${elementId} não encontrado.`); }
+    };
+
+    // Botões Ativar/Desativar Modo
+    setupClickListener("buyModeToggle", () => toggleMode("buyModeActive")); // Usa a função toggleMode atualizada
+    setupClickListener("sellModeToggle", () => toggleMode("sellModeActive")); // Usa a função toggleMode atualizada
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       // Botões Pausar Compra/Venda (com persistência via localStorage)
+    setupClickListener("buyPause", () => {
+        const now = Date.now();
+        const pauseStateKey = 'buyPausedUntil';
+        const storageKey = 'aquila_buyPauseEndTime';
+        const durationMinutes = state.buyPauseDurationMinutes;
+        const modeString = 'Compra'; // Para logs e notificações
+
+        console.log(`[Pause Click - ${modeString}] Ativo: ${state.buyModeActive}, Pausado até: ${state[pauseStateKey] ? new Date(state[pauseStateKey]).toLocaleString() : 'Não'}`);
+
+        // *** PASSO 1: INÍCIO DA MODIFICAÇÃO ***
+        // Verifica PRIMEIRO se JÁ está pausado
+        if (state[pauseStateKey] && state[pauseStateKey] > now) {
+            // ESTÁ PAUSADO -> LÓGICA DE RETOMAR
+            console.log(`[Pause Click - ${modeString}] Ação: RETOMAR manualmente.`);
+
+            // 1. Limpa o timeout agendado
+            if (buyPauseTimeoutId) {
+                clearTimeout(buyPauseTimeoutId);
+                buyPauseTimeoutId = null; // Limpa a referência do ID
+                console.log(" -> Timeout existente limpo.");
+            } else {
+                 console.log(" -> Nenhum timeout encontrado para limpar (pode já ter sido limpo ou nunca definido).");
+            }
+
+            // 2. Limpa o estado da pausa no MobX
+            mobx.runInAction(() => {
+                state[pauseStateKey] = null;
+            });
+            console.log(" -> State da pausa ('buyPausedUntil') limpo.");
+
+            // 3. Limpa a pausa do localStorage
+            localStorage.removeItem(storageKey);
+            console.log(` -> localStorage ('${storageKey}') limpo.`);
+
+            // 4. Atualiza a UI imediatamente para refletir a retomada
+            updateUI();
+            console.log(" -> UI atualizada.");
+
+            // 5. Notifica o usuário
+            // Use uma chave de tradução específica ou texto direto
+            notifyUser(i18n.t("statusResumedManually", { mode: i18n.t('buy', {defaultValue: modeString}) }) || `${modeString} retomado manualmente.`, "success");
+             console.log(" -> Notificação de retomada enviada.");
+
+            // 6. Opcional: Tenta executar a ação de compra imediatamente se o modo ainda estiver ativo
+            if (state.buyModeActive && !isProcessingBuy) {
+                 console.log(" -> Modo Compra está ativo e não está processando. Tentando executar 'processBuyBasedOnResources()'...");
+                processBuyBasedOnResources();
+            } else {
+                console.log(` -> Não tentando comprar: buyModeActive=${state.buyModeActive}, isProcessingBuy=${isProcessingBuy}`);
+            }
+
+            return; // Sai do listener após retomar a pausa
+        }
+        // *** PASSO 1: FIM DA MODIFICAÇÃO ***
+
+        // --- LÓGICA ORIGINAL DE AGENDAR A PAUSA ---
+        // (O código que verifica !state.buyModeActive, durationMinutes, calcula pauseEndTime,
+        // agenda o setTimeout, etc., continua aqui ABAIXO da nova lógica de retomar)
+
+        // Verifica se o modo principal está inativo (antes de tentar pausar)
+        if (!state.buyModeActive) {
+            console.log(` -> Ignorado: Modo Compra está INATIVO. Não é possível pausar.`);
+            return;
+        }
+
+        // Verifica se a duração é válida
+        if (durationMinutes > 0) {
+            // LÓGICA ORIGINAL de cálculo de pauseEndTime, set state, localStorage, etc.
+            const pauseEndTime = now + durationMinutes * 60 * 1000;
+            mobx.runInAction(() => { state[pauseStateKey] = pauseEndTime; });
+            localStorage.setItem(storageKey, pauseEndTime);
+            console.log(` -> Pausa ${modeString} AGENDADA até: ${new Date(pauseEndTime).toLocaleString()}. State e Storage atualizados.`);
+            updateUI(); // Atualiza a UI para mostrar "Pausado até..."
+            notifyUser(i18n.t("pauseDurationSet", { mode: i18n.t('buy', { defaultValue: modeString }), duration: durationMinutes }), "warning");
+
+            // Limpa timeout antigo (se houver) e agenda novo
+            if (buyPauseTimeoutId) clearTimeout(buyPauseTimeoutId);
+            buyPauseTimeoutId = setTimeout(() => {
+                console.log(`[Pause Timeout Callback - ${modeString}] Pausa expirou naturalmente.`);
+                mobx.runInAction(() => { state[pauseStateKey] = null; });
+                localStorage.removeItem(storageKey);
+                buyPauseTimeoutId = null;
+                updateUI();
+                notifyUser(i18n.t("pauseExpired", { mode: i18n.t('buy', { defaultValue: modeString }) }), "success");
+                if (state.buyModeActive && !isProcessingBuy) {
+                     console.log(" -> Tentando reativar Compra pós-expiração...");
+                    processBuyBasedOnResources();
+                }
+            }, durationMinutes * 60 * 1000); // Usa a duração correta
+            console.log(` -> Timeout (${buyPauseTimeoutId}) agendado para a expiração.`);
+
+        } else { // Se duração inválida
+            notifyError(i18n.t("setPauseDurationError"));
+            console.warn(` -> Duração inválida para pausar: ${durationMinutes}`);
+        }
+    }); // Fim do listener buyPause
+
+
+
+
+
+
+
+
+
+  // DENTRO da função setupEvents:
+
+    setupClickListener("sellPause", () => {
+        const now = Date.now();
+        const pauseStateKey = 'sellPausedUntil';        // <--- Variável correta para Venda
+        const storageKey = 'aquila_sellPauseEndTime';   // <--- Variável correta para Venda
+        const durationMinutes = state.sellPauseDurationMinutes; // <--- Variável correta para Venda
+        const modeString = 'Venda';                     // <--- Texto correto para logs/notificações
+
+        console.log(`[Pause Click - ${modeString}] Ativo: ${state.sellModeActive}, Pausado até: ${state[pauseStateKey] ? new Date(state[pauseStateKey]).toLocaleString() : 'Não'}`);
+
+        // *** VERIFICAÇÃO INICIAL: JÁ ESTÁ PAUSADO? -> RETOMAR ***
+        if (state[pauseStateKey] && state[pauseStateKey] > now) {
+            // ESTÁ PAUSADO -> LÓGICA DE RETOMAR (Igual à de Compra, mas com vars de Venda)
+            console.log(`[Pause Click - ${modeString}] Ação: RETOMAR manualmente.`);
+
+            // 1. Limpa o timeout agendado (usa sellPauseTimeoutId)
+            if (sellPauseTimeoutId) {
+                clearTimeout(sellPauseTimeoutId);
+                sellPauseTimeoutId = null;
+                console.log(" -> Timeout existente limpo.");
+            } else {
+                 console.log(" -> Nenhum timeout encontrado para limpar.");
+            }
+
+            // 2. Limpa o estado da pausa no MobX (usa state.sellPausedUntil)
+            mobx.runInAction(() => {
+                state[pauseStateKey] = null; // Define sellPausedUntil como null
+            });
+            console.log(" -> State da pausa ('sellPausedUntil') limpo.");
+
+            // 3. Limpa a pausa do localStorage (usa a storageKey correta)
+            localStorage.removeItem(storageKey);
+            console.log(` -> localStorage ('${storageKey}') limpo.`);
+
+            // 4. Atualiza a UI
+            updateUI();
+            console.log(" -> UI atualizada.");
+
+            // 5. Notifica o usuário
+           notifyUser(i18n.t("statusResumedManually", { mode: i18n.t('sell', {defaultValue: modeString}) }) || `${modeString} retomado manualmente.`, "success");
+            console.log(" -> Notificação de retomada enviada.");
+
+            // 6. Opcional: Tenta executar a ação de VENDA imediatamente (usa state.sellModeActive, !isProcessingSell, updateSell)
+            if (state.sellModeActive && !isProcessingSell) {
+                 console.log(" -> Modo Venda está ativo e não está processando. Tentando executar 'updateSell()'...");
+                updateSell(); // ou debouncedUpdateSell() se preferir
+            } else {
+                 console.log(` -> Não tentando vender: sellModeActive=${state.sellModeActive}, isProcessingSell=${isProcessingSell}`);
+            }
+
+            return; // Sai do listener após retomar a pausa
+        }
+        // *** FIM DA LÓGICA DE RETOMAR ***
+
+
+        // --- LÓGICA ORIGINAL DE AGENDAR A PAUSA DE VENDA ---
+        // (Só executa se a condição 'if' acima for falsa)
+
+        // Verifica se o modo principal está inativo (usa state.sellModeActive)
+        if (!state.sellModeActive) {
+            console.log(` -> Ignorado: Modo Venda está INATIVO. Não é possível pausar.`);
+            return;
+        }
+
+        // Verifica se a duração é válida
+        if (durationMinutes > 0) {
+            const pauseEndTime = now + durationMinutes * 60 * 1000;
+            mobx.runInAction(() => { state[pauseStateKey] = pauseEndTime; }); // Define sellPausedUntil
+            localStorage.setItem(storageKey, pauseEndTime);
+            console.log(` -> Pausa ${modeString} AGENDADA até: ${new Date(pauseEndTime).toLocaleString()}. State e Storage atualizados.`);
+            updateUI();
+            notifyUser(i18n.t("pauseDurationSet", { mode: i18n.t('sell', { defaultValue: modeString }), duration: durationMinutes }), "warning");
+
+            // Limpa timeout antigo (usa sellPauseTimeoutId) e agenda novo
+            if (sellPauseTimeoutId) clearTimeout(sellPauseTimeoutId);
+            sellPauseTimeoutId = setTimeout(() => {
+                console.log(`[Pause Timeout Callback - ${modeString}] Pausa expirou naturalmente.`);
+                mobx.runInAction(() => { state[pauseStateKey] = null; }); // Limpa sellPausedUntil
+                localStorage.removeItem(storageKey);
+                sellPauseTimeoutId = null;
+                updateUI();
+                notifyUser(i18n.t("pauseExpired", { mode: i18n.t('sell', { defaultValue: modeString }) }), "success");
+                // Tenta VENDER após expirar (usa state.sellModeActive, !isProcessingSell, updateSell)
+                if (state.sellModeActive && !isProcessingSell) {
+                     console.log(" -> Tentando reativar Venda pós-expiração...");
+                    updateSell();
+                }
+            }, durationMinutes * 60 * 1000); // Usa a duração correta
+            console.log(` -> Timeout (${sellPauseTimeoutId}) agendado para a expiração.`);
+
+        } else { // Se duração inválida
+            notifyError(i18n.t("setPauseDurationError"));
+            console.warn(` -> Duração inválida para pausar: ${durationMinutes}`);
+        }
+    }); // Fim do listener sellPause
+
+
+
+
+
+
+
+
+
+
+    // Botão Salvar Config (Manual)
+    setupClickListener("saveConfig", () => {
+        console.log("[SaveConfig Button Click] Acionado save manual.");
+        performSaveOperation(); // Salva estado atual da UI Principal E Modal Configs
+        notifySuccess(i18n.t("saveSuccess"));
+    });
+
+    // Botão Resetar Tudo (Limpa UI, Storage, State e Timeouts)
+    setupClickListener("resetAll", () => {
+        console.warn("[ResetAll Button Click] INICIANDO RESET GERAL...");
+        // Limpa inputs UI principal
+        document.querySelectorAll('.market-container .rate-input').forEach(input => input.value = "");
+        const premiumInput = ui.getElement("premiumPointsInput"); if (premiumInput) premiumInput.value = "";
+        // Reset inputs modal UI para defaults/placeholders
+        document.querySelectorAll('#settingsModal .settings-input').forEach(input => { input.value = input.placeholder || ""; });
+        const autoReloadCheck = document.getElementById('autoReloadOnErrorInput'); if (autoReloadCheck) autoReloadCheck.checked = true;
+        const langSelect = document.getElementById('languageSelect'); if (langSelect) langSelect.value = 'pt';
+        const buyPauseInputEl = document.getElementById('buyPauseDurationInput'); if (buyPauseInputEl) buyPauseInputEl.value = 5;
+        const sellPauseInputEl = document.getElementById('sellPauseDurationInput'); if (sellPauseInputEl) sellPauseInputEl.value = 5;
+        const checkIntInputModal = document.getElementById('checkIntervalInput'); if (checkIntInputModal) checkIntInputModal.value = checkIntInputModal.placeholder || 30;
+        const sellCoolInputModal = document.getElementById('sellCooldownInput'); if (sellCoolInputModal) sellCoolInputModal.value = sellCoolInputModal.placeholder || 6;
+        const merchResInputModal = document.getElementById('merchantReserveInput'); if (merchResInputModal) merchResInputModal.value = merchResInputModal.placeholder || 0;
+        console.log("[ResetAll] Inputs resetados na UI.");
+        // Remove configs salvas e pausas
+        localStorage.removeItem("compressedConfig"); localStorage.removeItem("language");
+        localStorage.removeItem('aquila_buyPauseEndTime'); localStorage.removeItem('aquila_sellPauseEndTime');
+        console.log("[ResetAll] localStorage (configs, lang, pausas) limpo.");
+        // Reseta state MobX
+        mobx.runInAction(() => {
+            state.buyModeActive = false; state.sellModeActive = false;
+            state.hasExecutedBuy = false; state.hasExecutedSell = false;
+            state.buyPausedUntil = null; state.sellPausedUntil = null;
+            state.buyPauseDurationMinutes = 5; state.sellPauseDurationMinutes = 5;
+            state.language = 'pt';
+            // Resetar outros states MobX se aplicável
+        });
+        console.log("[ResetAll] State MobX redefinido.");
+        // Reseta flags de modo no storage
+        localStorage.setItem("buyModeActive", "false"); localStorage.setItem("sellModeActive", "false");
+        // Limpa timeouts de pausa
+        if (buyPauseTimeoutId) { clearTimeout(buyPauseTimeoutId); buyPauseTimeoutId = null; console.log(" -> Timeout pausa compra limpo."); }
+        if (sellPauseTimeoutId) { clearTimeout(sellPauseTimeoutId); sellPauseTimeoutId = null; console.log(" -> Timeout pausa venda limpo."); }
+        updateUI(); // Atualiza UI
+        console.log("[ResetAll] Concluído.");
+        notifySuccess(i18n.t("resetAllSuccess", { defaultValue: "Configurações resetadas com sucesso!" }));
+    });
+
+    // Botões Abrir Modais
+    setupClickListener("transactionsBtn", showTransactions);
+    setupClickListener("aiAssistantBtn", () => {
+        const aiModal = ui.getElement("aiModal"); if (aiModal) aiModal.style.display = "flex";
+        const aiPrompt = ui.getElement("aiPrompt"); if(aiPrompt) aiPrompt.value = "";
+        const aiResponse = ui.getElement("aiResponse"); if (aiResponse) aiResponse.innerHTML = "";
+    });
+    setupClickListener("settingsBtn", () => {
+        populateUserInfo(); // Atualiza Nick, Licença, etc.
+        // Aplica VALORES ATUAIS DO STATE aos inputs da modal
+        const buyPauseInput = document.getElementById('buyPauseDurationInput'); if (buyPauseInput) buyPauseInput.value = state.buyPauseDurationMinutes;
+        const sellPauseInput = document.getElementById('sellPauseDurationInput'); if (sellPauseInput) sellPauseInput.value = state.sellPauseDurationMinutes;
+        const checkIntInput = document.getElementById('checkIntervalInput'); if (checkIntInput) checkIntInput.value = checkIntInput.placeholder || 30; // TODO: Pegar do state se existir
+        const sellCoolInput = document.getElementById('sellCooldownInput'); if (sellCoolInput) sellCoolInput.value = sellCoolInput.placeholder || 6; // TODO: Pegar do state se existir
+        const merchResInput = document.getElementById('merchantReserveInput'); if (merchResInput) merchResInput.value = merchResInput.placeholder || 0; // TODO: Pegar do state se existir
+        const autoRelCheck = document.getElementById('autoReloadOnErrorInput'); if (autoRelCheck) autoRelCheck.checked = true; // TODO: Pegar do state se existir
+        const langSelectModal = document.getElementById('languageSelect'); if (langSelectModal) langSelectModal.value = state.language || 'pt';
+        mobx.runInAction(() => { state.isSettingsModalOpen = true; }); // Marca como aberta
+        const settingsModal = ui.getElement("settingsModal"); if(settingsModal) settingsModal.style.display = "flex"; // Exibe
+        console.log("[DEBUG setupEvents] Modal Configs aberta, inputs populados via state.");
+    });
+
+    // Botões DENTRO das Modais
+    setupClickListener("submitAI", async () => {
+         const promptInput = ui.getElement("aiPrompt"); const prompt = promptInput ? promptInput.value : ""; if (!prompt.trim()) return;
+         const responseArea = ui.getElement("aiResponse"); if(responseArea) responseArea.innerHTML = `<p>${i18n.t("aiLoading")}</p>`;
+         try { const response = await callGeminiAPI(prompt); if (responseArea) responseArea.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`;
+         } catch (error) { if(responseArea) responseArea.innerHTML = `<p class="error">${i18n.t("aiError")}: ${error.message || error}</p>`; }
+    });
+    setupClickListener("closeModal", () => { // Fecha Modal Transações
+        const modal = ui.getElement("transactionsModal"); if (modal) modal.style.display = "none";
+        if (chartInstance) { chartInstance.destroy(); chartInstance = null; } // Limpa gráfico
+        const chartContainer = document.getElementById("transactionsChartContainer");
+        if (chartContainer) { chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>'; chartContainer.style.display = 'none'; }
+    });
+    setupClickListener("closeAIModal", () => { const modal = ui.getElement("aiModal"); if (modal) modal.style.display = "none"; });
+    setupClickListener("closeSettingsModal", () => { // Fecha Modal Configs
+        mobx.runInAction(() => { state.isSettingsModalOpen = false; });
+        const modal = ui.getElement("settingsModal"); if (modal) modal.style.display = "none";
+    });
+
+    // Botões Minimizar/Restaurar
+    setupClickListener("minimizeButton", () => { const c=ui.getElement("market-container"), b=ui.getElement("minimizedMarketBox"); if(c&&b){ mobx.runInAction(() => { state.isMinimized = true; }); c.style.display="none"; b.style.display="flex"; localStorage.setItem("isMinimized", "true"); }});
+    setupClickListener("minimizedMarketBox", () => { const c=ui.getElement("market-container"), b=ui.getElement("minimizedMarketBox"); if(c&&b){ mobx.runInAction(() => { state.isMinimized = false; }); c.style.display="block"; b.style.display="none"; localStorage.setItem("isMinimized", "false"); }});
+
+    // --- 3. Listeners de Select (Idioma e Aldeia) ---
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'change' selects...");
+    const languageSelect = ui.getElement("languageSelect"); if (languageSelect) { languageSelect.removeEventListener("change", handleLanguageChange); languageSelect.addEventListener("change", handleLanguageChange); }
+    const villageSelect = ui.getElement("villageSelect"); if (villageSelect) { villageSelect.removeEventListener("change", handleVillageChange); villageSelect.addEventListener("change", handleVillageChange); }
+
+    // --- 4. SEÇÃO AUTO-SAVE para Modal Configs ---
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando auto-save da modal...");
+    const modalConfigElementsSelector = '#settingsModal .settings-input, #settingsModal .settings-checkbox, #settingsModal .aquila-select';
+    const modalConfigElements = document.querySelectorAll(modalConfigElementsSelector);
+    const autoSaveDelay = 1500; // Delay de 1.5s
+    const debouncedAutoSave = _.debounce(() => { // Cria função debounced
+        //console.log(`[AutoSave Triggered] Mudança na modal detectada. Salvando após ${autoSaveDelay}ms...`);
+        performSaveOperation(); // Chama a função que salva TUDO
+    }, autoSaveDelay);
+    modalConfigElements.forEach(element => { // Adiciona listener a cada controle
+        const eventType = (element.type === 'checkbox') ? 'change' : 'input';
+        element.removeEventListener(eventType, debouncedAutoSave); // Limpa anterior
+        element.addEventListener(eventType, debouncedAutoSave);    // Adiciona novo
+    });
+    //console.log(`[DEBUG setupEvents AutoSave] Auto-save listeners adicionados (${modalConfigElements.length} elementos).`);
+    // --- FIM AUTO-SAVE MODAL ---
+
+    // --- 5. Listeners para Tooltip ---
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners tooltip...");
+    const tooltipTriggerSelector = '[data-tooltip], [data-tooltip-key]';
+    const tooltipElements = document.querySelectorAll(`.market-container ${tooltipTriggerSelector}, .modal ${tooltipTriggerSelector}`);
+    tooltipElements.forEach((element) => {
+        element.removeEventListener("mouseenter", showTooltip); element.removeEventListener("mousemove", updateTooltipPosition); element.removeEventListener("mouseleave", hideTooltip);
+        element.addEventListener("mouseenter", showTooltip); element.addEventListener("mousemove", updateTooltipPosition); element.addEventListener("mouseleave", hideTooltip);
+    });
+    //console.log(`[DEBUG setupEvents Tooltip] Listeners adicionados/atualizados (${tooltipElements.length}).`);
+
+    // --- 6. Listener para fechar modais com clique fora ---
+    window.removeEventListener('click', handleOutsideModalClick, true);
+    window.addEventListener('click', handleOutsideModalClick, true); // Usa handler externo
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Listener 'click fora modal' adicionado.");
+
+    // --- 7. Conclusão ---
+    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configuração de TODOS os eventos concluída.");
+}; // --- Fim da função setupEvents ---
+
+
+// ========================================================
+// === FUNÇÕES AUXILIARES (Handlers de Eventos Externos) ===
+// ========================================================
+// (Coloque este bloco DEPOIS do final de 'const setupEvents = () => {', mas ANTES de 'const init = async () => {')
+
+// Handler para mudança de Idioma no Select das Configurações
+function handleLanguageChange(event) {
+    const newLang = event.target.value; // Pega valor selecionado (ex: 'pt', 'en', 'ru')
+    if (["pt", "ru", "en"].includes(newLang)) { // Valida se é um idioma suportado
+        // Atualiza o state do MobX SÓ se o idioma realmente mudou
+        if (state.language !== newLang) {
+            mobx.runInAction(() => { state.language = newLang; }); // Atualiza state reativamente
+            console.log(`[Idioma Change] State atualizado para: ${newLang}`);
+        }
+        // Tenta aplicar a mudança no i18next para tradução
+        i18n.changeLanguage(newLang).then(() => {
+            localStorage.setItem("language", state.language); // Salva no localStorage APÓS sucesso
+            console.log(`[Idioma Change] i18next e localStorage atualizados para ${newLang}. Chamando updateUI...`);
+            updateUI(); // Atualiza TODOS os textos da interface principal e modais abertas
+        }).catch(error => { // Se i18next falhar
+            console.error(`[Idioma Change] Erro ao mudar idioma com i18next para ${newLang}:`, error);
+            // O state ainda foi atualizado, mas a UI não refletirá imediatamente
+        });
+    } else {
+        console.warn(`[Idioma Change] Idioma selecionado inválido: ${newLang}`);
+    }
+}
+
+// Handler para mudança de Aldeia no Select do Cabeçalho
+function handleVillageChange(event) {
+   //console.log(`[Village Change] Seleção alterada para: ${event.target.value}`);
+    // Exemplo: Se tiver múltiplas aldeias, poderia carregar dados da selecionada.
+    // Por enquanto, se selecionar "current", apenas atualiza info da aldeia atual.
+    if (event.target.value === "current") {
+        updateVillageInfo(); // Função que pega nome/coords da aldeia atual do jogo
+        // Poderia disparar re-cálculo de lucro aqui: fetchAndUpdateProfit();
+    }
+    // Adicionar lógica para `else` se houver outras aldeias no select
+}
+
+// Handler para cliques na janela (detecta clique fora das modais para fechá-las)
+function handleOutsideModalClick(event) {
+    // Função interna para verificar e fechar UMA modal específica
+    const checkAndClose = (modalId, stateKey = null, cleanupFn = null) => {
+        const modalElement = ui.getElement(modalId); // Busca modal pelo ID
+
+        // Condições para fechar:
+        // 1. Modal existe no DOM.
+        // 2. Modal está visível (display: flex).
+        // 3. O alvo do clique (event.target) NÃO está contido dentro do elemento .modal-content da modal.
+        if (modalElement && modalElement.style.display === 'flex' && !modalElement.querySelector('.modal-content')?.contains(event.target))
+        {
+            console.log(`[Click Fora] Detectado clique fora de #${modalId}. Fechando...`);
+            modalElement.style.display = 'none'; // Esconde a modal
+
+            // Atualiza o state MobX (se stateKey foi fornecido) para 'false'
+            // Ex: state.isSettingsModalOpen = false;
+            if (stateKey && typeof state[stateKey] !== 'undefined') {
+                 mobx.runInAction(() => { state[stateKey] = false; });
+                 //console.log(` -> State '${stateKey}' definido como false.`);
+            }
+            // Executa função de limpeza (ex: destruir gráfico) se foi fornecida
+            if (typeof cleanupFn === 'function') {
+                 cleanupFn();
+                 //console.log(` -> Função de cleanup executada para #${modalId}.`);
+            }
+            return true; // Indica que fechou
+        }
+        return false; // Indica que não fechou
+    };
+
+    // Função de limpeza específica para a modal de Transações
+    const transactionsCleanup = () => {
+        if (chartInstance) { // Se existe uma instância do gráfico
+            chartInstance.destroy(); // Destroi para liberar memória
+            chartInstance = null;    // Limpa a referência
+            //console.log(" -> Instância do gráfico destruída.");
+        }
+        const chartContainer = document.getElementById("transactionsChartContainer"); // Pega o container
+        if (chartContainer) { // Limpa o container e recria o canvas vazio, escondendo-o
+            chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>';
+            chartContainer.style.display = 'none';
+            //console.log(" -> Container do gráfico limpo.");
+        }
+    };
+
+    // Chama checkAndClose para cada modal
+    checkAndClose("settingsModal", "isSettingsModalOpen");        // Passa chave do state MobX
+    checkAndClose("transactionsModal", null, transactionsCleanup); // Passa função de limpeza
+    checkAndClose("aiModal");                                       // Sem state ou cleanup específico
+}
+// --- FIM DAS FUNÇÕES AUXILIARES ---
+
+
+
+
+
+
+
+
+// ================================================================
+// ===        FUNÇÃO updateUI COMPLETA E ATUALIZADA (v14.3 - Remove Title Pausa) ===
+// ================================================================
+const updateUI = () => {
+    // console.log("[DEBUG updateUI v14.3 - Remove Title Pausa] Iniciando...");
+
+    const updateElement = (elementId, textContent = null, innerHTML = null, attribute = null, attributeValue = null, placeholder = null) => {
+        const element = ui.getElement(elementId);
+        if (element) {
+            try {
+                if (textContent !== null) element.textContent = textContent;
+                if (innerHTML !== null) element.innerHTML = innerHTML;
+                if (attribute !== null && attributeValue !== null) {
+                     if (attribute.toLowerCase() === 'classname' || attribute.toLowerCase() === 'class') {
+                        element.className = attributeValue;
+                    } else {
+                         element.setAttribute(attribute, attributeValue);
+                    }
+                }
+                 if (placeholder !== null && typeof element.placeholder !== 'undefined') {
+                    element.placeholder = placeholder;
+                }
+            } catch (e) {
+                //console.warn(`[DEBUG updateUI] Erro ao atualizar elemento #${elementId}:`, e);
+            }
+        }
+    };
+
+    // --- Atualizações Gerais ---
+    updateElement("headerTitle", i18n.t("title"));
+    updateElement("saveConfig", null, `<i class="fa-solid fa-floppy-disk"></i> ${i18n.t("saveConfig")}`);
+    updateElement("resetAll", `\u21BB ${i18n.t("resetAll")}`);
+    updateElement("transactionsBtn", i18n.t("transactions"));
+    updateElement("settingsBtn", null, `<i class="fa-solid fa-gear"></i>`); // Title removido
+    updateElement("aiAssistantBtn", null, `<i class="fa-solid fa-robot"></i>`); // Title removido
+    updateElement("minimizeButton", null, `<i class="fa-solid fa-window-minimize"></i>`); // Title removido
+    updateElement("buyStatusLabel", i18n.t("statusLabel"));
+    updateElement("sellStatusLabel", i18n.t("statusLabel"));
+
+    // --- Toggles e Status Compra/Venda ---
+    const buyToggle = ui.getElement("buyModeToggle");
+    if (buyToggle) {
+        buyToggle.textContent = i18n.t(state.buyModeActive ? "buyModeToggleOn" : "buyModeToggleOff");
+        buyToggle.className = `black-btn toggle-btn ${state.buyModeActive ? "active" : "inactive"}`;
+    }
+    const buyStatus = ui.getElement("buyStatus");
+    if (buyStatus) {
+        buyStatus.textContent = i18n.t(state.buyModeActive ? "activated" : "deactivated");
+        buyStatus.className = `status ${state.buyModeActive ? "green" : "red"}`;
+    }
+    const sellToggle = ui.getElement("sellModeToggle");
+    if (sellToggle) {
+        sellToggle.textContent = i18n.t(state.sellModeActive ? "sellModeToggleOn" : "sellModeToggleOff");
+         sellToggle.className = `black-btn toggle-btn ${state.sellModeActive ? "active" : "inactive"}`;
+    }
+    const sellStatus = ui.getElement("sellStatus");
+    if (sellStatus) {
+        sellStatus.textContent = i18n.t(state.sellModeActive ? "activated" : "deactivated");
+         sellStatus.className = `status ${state.sellModeActive ? "green" : "red"}`;
+    }
+
+    // --- ATUALIZAÇÃO BOTÕES PAUSAR (SEM title attribute) ---
+    const now = Date.now();
+    const buyPauseBtn = ui.getElement("buyPause");
+    if (buyPauseBtn) {
+        if (state.buyPausedUntil && state.buyPausedUntil > now) {
+            const resumeTimestamp = state.buyPausedUntil;
+            const resumeTimeFormatted = new Date(resumeTimestamp).toLocaleTimeString(state.language || 'pt-BR', { hour: '2-digit', minute: '2-digit' });
+            buyPauseBtn.innerHTML = `<i class="fas fa-hourglass-end"></i> ${i18n.t('pausedUntil', { time: resumeTimeFormatted })}`;
+            buyPauseBtn.disabled = false;
+            buyPauseBtn.classList.add("paused");
+            // buyPauseBtn.setAttribute('title', i18n.t('clickToResumeTooltip')); // REMOVIDO - usa data-tooltip-key
+        } else {
+            buyPauseBtn.innerHTML = `<i class="fas fa-pause"></i> ${i18n.t('pause')}`;
+            buyPauseBtn.disabled = !state.buyModeActive;
+            buyPauseBtn.classList.remove("paused");
+            // buyPauseBtn.setAttribute('title', i18n.t('tooltipPauseBuy')); // REMOVIDO - usa data-tooltip-key
+        }
+        // Garante que o data-tooltip-key original do HTML não seja removido
+        if (!buyPauseBtn.hasAttribute('data-tooltip-key')) {
+             buyPauseBtn.setAttribute('data-tooltip-key', (state.buyPausedUntil && state.buyPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseBuy');
+        } else {
+            // Atualiza a chave se o estado mudou
+            const expectedKey = (state.buyPausedUntil && state.buyPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseBuy';
+            if (buyPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) {
+                 buyPauseBtn.setAttribute('data-tooltip-key', expectedKey);
+            }
+        }
+    }
+
+    const sellPauseBtn = ui.getElement("sellPause");
+    if (sellPauseBtn) {
+        if (state.sellPausedUntil && state.sellPausedUntil > now) {
+            const resumeTimestamp = state.sellPausedUntil;
+            const resumeTimeFormatted = new Date(resumeTimestamp).toLocaleTimeString(state.language || 'pt-BR', { hour: '2-digit', minute: '2-digit' });
+            sellPauseBtn.innerHTML = `<i class="fas fa-hourglass-end"></i> ${i18n.t('pausedUntil', { time: resumeTimeFormatted })}`;
+            sellPauseBtn.disabled = false;
+            sellPauseBtn.classList.add("paused");
+            // sellPauseBtn.setAttribute('title', i18n.t('clickToResumeTooltip')); // REMOVIDO
+        } else {
+            sellPauseBtn.innerHTML = `<i class="fas fa-pause"></i> ${i18n.t('pause')}`;
+            sellPauseBtn.disabled = !state.sellModeActive;
+            sellPauseBtn.classList.remove("paused");
+            // sellPauseBtn.setAttribute('title', i18n.t('tooltipPauseSell')); // REMOVIDO
+        }
+         // Garante que o data-tooltip-key original do HTML não seja removido
+         if (!sellPauseBtn.hasAttribute('data-tooltip-key')) {
+              sellPauseBtn.setAttribute('data-tooltip-key', (state.sellPausedUntil && state.sellPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseSell');
+         } else {
+            // Atualiza a chave se o estado mudou
+            const expectedKey = (state.sellPausedUntil && state.sellPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseSell';
+            if (sellPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) {
+                 sellPauseBtn.setAttribute('data-tooltip-key', expectedKey);
+            }
+         }
+     }
+    // --- FIM da Atualização dos Botões "Pausar" ---
+
+    // --- Lucro e Idioma ---
+    const worldProfitEl = ui.getElement("worldProfit");
+    if (worldProfitEl) worldProfitEl.textContent = String(state.worldProfit || 0);
+
+    const languageSelect = ui.getElement("languageSelect");
+    if (languageSelect) {
+      const currentLangValue = languageSelect.value;
+      languageSelect.innerHTML = `
+            <option value="pt" ${state.language === "pt" ? "selected" : ""}>🇧🇷 ${i18n.t("portuguese")}</option>
+            <option value="ru" ${state.language === "ru" ? "selected" : ""}>🇷🇺 ${i18n.t("russian")}</option>
+            <option value="en" ${state.language === "en" ? "selected" : ""}>🇬🇧 ${i18n.t("english")}</option>
+        `;
+       languageSelect.value = ["pt", "ru", "en"].includes(currentLangValue) ? currentLangValue : state.language;
+       // REMOVIDO: languageSelect.removeAttribute('title'); // Garante que não haja title no select
+    }
+    // Verifica o container do select de idioma para remover title, se houver
+    const langDropdown = languageSelect?.closest('.dropdown');
+    if (langDropdown && langDropdown.hasAttribute('title')) {
+        // langDropdown.removeAttribute('title'); // Comentado pois ele tem data-tooltip-key
+    }
+    // Verifica o container do select de aldeia
+    const villageDropdown = ui.getElement("villageSelect")?.closest('.dropdown');
+    if (villageDropdown && villageDropdown.hasAttribute('title')) {
+        // villageDropdown.removeAttribute('title'); // Comentado pois ele tem data-tooltip-key
+    }
+
+
+    // --- Atualização do Conteúdo Textual das Modais ---
+    const updateModalContent = (modalId) => {
+        const modalElement = document.getElementById(modalId);
+        if (modalElement && (modalElement.style.display !== 'none' || modalId === 'settingsModal')) {
+            const elementsToTranslate = modalElement.querySelectorAll("[data-i18n-key]");
+
+            elementsToTranslate.forEach((el) => {
+                const key = el.dataset.i18nKey;
+                if (key) {
+                     const translation = i18n.t(key, { defaultValue: key });
+
+                     if ((el.tagName === "INPUT" || el.tagName === "TEXTAREA") && typeof el.placeholder !== 'undefined') {
+                        if(el.placeholder !== translation) el.placeholder = translation;
+                    } else if (el.tagName === "BUTTON") {
+                         const iconHTML = el.querySelector('i')?.outerHTML || '';
+                         const newButtonHTML = `${iconHTML} ${translation}`;
+                         if(el.innerHTML.trim() !== newButtonHTML.trim()) el.innerHTML = newButtonHTML;
+                     }
+                     else {
+                         const iconElement = el.querySelector('i.fas');
+                         let textNodeToUpdate = null;
+                         if (iconElement) {
+                             let sibling = iconElement.nextSibling;
+                             while (sibling) {
+                                 if (sibling.nodeType === Node.TEXT_NODE && sibling.nodeValue.trim() !== '') {
+                                     textNodeToUpdate = sibling; break;
+                                 }
+                                 sibling = sibling.nextSibling;
+                             }
+                             if (!textNodeToUpdate) {
+                                 const childNodes = Array.from(el.childNodes);
+                                 for (let i = childNodes.length - 1; i >= 0; i--) {
+                                     if (childNodes[i].nodeType === Node.TEXT_NODE && childNodes[i].nodeValue.trim() !== '') {
+                                         textNodeToUpdate = childNodes[i]; break;
+                                     }
+                                 }
+                             }
+                         } else {
+                             textNodeToUpdate = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== '');
+                             if (!textNodeToUpdate && el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE) {
+                                 textNodeToUpdate = el.firstChild;
+                             }
+                         }
+
+                         if (textNodeToUpdate) {
+                            const currentText = textNodeToUpdate.nodeValue.trim();
+                            const translatedText = translation.trim();
+                            if (currentText !== translatedText) {
+                                textNodeToUpdate.nodeValue = ` ${translation}`;
+                            }
+                         } else if (!iconElement && el.textContent.trim() !== translation.trim()) {
+                             el.textContent = translation;
+                         } else if (iconElement && !textNodeToUpdate){
+                             const currentTextContent = el.textContent.replace(iconElement.outerText, '').trim();
+                             if(currentTextContent !== translation.trim()){
+                                Array.from(el.childNodes).forEach(node => {
+                                    if(node.nodeType === Node.TEXT_NODE) { el.removeChild(node); }
+                                });
+                                el.appendChild(document.createTextNode(` ${translation}`));
+                             }
+                         }
+                     }
+                }
+            });
+
+                   // Atualiza tooltips (atributo title) APENAS para os ícones de informação
+        const tooltipIcons = modalElement.querySelectorAll(".tooltip-icon[data-tooltip-key]");
+        tooltipIcons.forEach((el) => {
+            const key = el.dataset.tooltipKey;
+             if (key) {
+                const titleText = i18n.t(key, { defaultValue: key });
+                 // LINHA REMOVIDA
+             }
+        });
+        }
+    };
+
+    updateModalContent("transactionsModal");
+    updateModalContent("settingsModal");
+    updateModalContent("aiModal");
+
+    updateElement("closeModal", i18n.t("close"));
+    updateElement("closeAIModal", i18n.t("close"));
+
+    // console.log("[DEBUG updateUI v14.3] Atualização completa da UI concluída.");
+  }; // --- Fim da função updateUI (Modificada v14.3) ---
+
+
+
+
+
+
+
+
+// ===========================================================
+// === FUNÇÃO loadConfig (v5 - Remove Refs Configs Removidas) ===
+// ===========================================================
+const loadConfig = () => {
+    //console.log("[LoadConfig v5 - Remove Refs] Iniciando carregamento...");
+    const compressedConfig = localStorage.getItem("compressedConfig");
+    const DEFAULT_PAUSE_DURATION_MINUTES = 5;
+    let configData = {};
+
+    // 1. Descomprime Configs Gerais
+    if (compressedConfig) {
+        try {
+            const decompressedConfig = LZString.decompress(compressedConfig);
+            if (decompressedConfig) {
+                configData = JSON.parse(decompressedConfig);
+            } else { console.warn("[LoadConfig v5] Descompressão nula."); }
+        } catch (error) {
+            console.error(`[LoadConfig v5] Erro parsear 'compressedConfig':`, error);
+            configData = {};
+            localStorage.removeItem("compressedConfig");
+        }
+    } else { /* console.log("[LoadConfig v5] Nenhuma 'compressedConfig' salva."); */ }
+
+    // 2. Carrega Configs UI Principal
+    document.querySelectorAll(".market-container .rate-input").forEach((input) => {
+        const key = input?.dataset?.resource;
+        if (key && configData[key] !== undefined) {
+            input.value = configData[key];
+        }
+    });
+    if (configData.premiumPointsInput !== undefined) {
+        const premiumInput = ui.getElement("premiumPointsInput");
+        if (premiumInput) premiumInput.value = configData.premiumPointsInput;
+    } else {
+         const premiumInput = ui.getElement("premiumPointsInput");
+         if (premiumInput) premiumInput.value = "";
+    }
+
+    // 3. Carrega Configs da MODAL (Restantes)
+    //console.log("[LoadConfig v5] Aplicando configs MODAL restantes e atualizando STATE...");
+
+    // Duração Pausa Compra
+    const loadedBuyPauseStr = configData.buyPauseDurationInput;
+    const loadedBuyPauseNum = sanitizeNumber(loadedBuyPauseStr);
+    mobx.runInAction(() => { state.buyPauseDurationMinutes = loadedBuyPauseNum > 0 ? loadedBuyPauseNum : DEFAULT_PAUSE_DURATION_MINUTES; });
+    const buyPauseInputEl = document.getElementById('buyPauseDurationInput');
+    if (buyPauseInputEl) buyPauseInputEl.value = state.buyPauseDurationMinutes;
+    // console.log(` -> MODAL: Compra Pause Duration: State/UI: ${state.buyPauseDurationMinutes}`);
+
+    // Duração Pausa Venda
+    const loadedSellPauseStr = configData.sellPauseDurationInput;
+    const loadedSellPauseNum = sanitizeNumber(loadedSellPauseStr);
+    mobx.runInAction(() => { state.sellPauseDurationMinutes = loadedSellPauseNum > 0 ? loadedSellPauseNum : DEFAULT_PAUSE_DURATION_MINUTES; });
+    const sellPauseInputEl = document.getElementById('sellPauseDurationInput');
+    if (sellPauseInputEl) sellPauseInputEl.value = state.sellPauseDurationMinutes;
+    // console.log(` -> MODAL: Venda Pause Duration: State/UI: ${state.sellPauseDurationMinutes}`);
+
+    // REMOVIDO: Carregamento de checkIntervalInput
+    // REMOVIDO: Carregamento de autoReloadOnErrorInput (state.autoReloadOnError é sempre true agora)
+    // REMOVIDO: Carregamento de sellCooldownInput
+    // REMOVIDO: Carregamento de merchantReserveInput
+
+    // Carrega Configuração hCaptcha
+    const closeOnHCaptchaCheckboxEl = document.getElementById('closeOnHCaptchaInput');
+    if (closeOnHCaptchaCheckboxEl) {
+        const loadedCloseOnHCaptcha = configData.closeOnHCaptchaInput;
+        const valueToApply = typeof loadedCloseOnHCaptcha === 'boolean' ? loadedCloseOnHCaptcha : false;
+        closeOnHCaptchaCheckboxEl.checked = valueToApply;
+        if (state.closeTabOnHCaptcha !== valueToApply) {
+             mobx.runInAction(() => { state.closeTabOnHCaptcha = valueToApply; });
+        }
+        //console.log(` -> MODAL: Close on hCaptcha: Lido '${loadedCloseOnHCaptcha}', State/UI: ${valueToApply}`);
+    } else {
+         console.warn("[LoadConfig v5] Checkbox #closeOnHCaptchaInput não encontrado.");
+         if(state.closeTabOnHCaptcha !== false) {
+            mobx.runInAction(() => { state.closeTabOnHCaptcha = false; });
+         }
+    }
+
+    // 4. Carrega Idioma
+    const langFromStorage = localStorage.getItem("language");
+    const langFromConfig = configData.language;
+    const langToLoad = ["pt", "ru", "en"].includes(langFromStorage) ? langFromStorage : (["pt", "ru", "en"].includes(langFromConfig) ? langFromConfig : 'pt');
+    if (state.language !== langToLoad) {
+        mobx.runInAction(() => { state.language = langToLoad; });
+    }
+    const langSelectModalEl = document.getElementById('languageSelect'); if (langSelectModalEl) langSelectModalEl.value = state.language;
+
+    // 5. Restaura Pausas Ativas
+    const now = Date.now();
+    // Pausa Compra
+    const savedBuyPauseEndStr = localStorage.getItem('aquila_buyPauseEndTime');
+    const buyPauseEndTs = savedBuyPauseEndStr ? parseInt(savedBuyPauseEndStr, 10) : null;
+    if (buyPauseEndTs && !isNaN(buyPauseEndTs) && buyPauseEndTs > now) {
+        mobx.runInAction(() => { state.buyPausedUntil = buyPauseEndTs; });
+        const remainingDurationMs = buyPauseEndTs - now;
+        if (buyPauseTimeoutId) { clearTimeout(buyPauseTimeoutId); }
+        buyPauseTimeoutId = setTimeout(() => {
+            mobx.runInAction(() => { state.buyPausedUntil = null; });
+            localStorage.removeItem('aquila_buyPauseEndTime');
+            buyPauseTimeoutId = null; updateUI();
+            notifyUser(i18n.t("pauseExpired", { mode: i18n.t('buy', { defaultValue: 'Compra' }) }), "success");
+            if (state.buyModeActive && !isProcessingBuy) { processBuyBasedOnResources(); }
+        }, remainingDurationMs);
+    } else {
+        mobx.runInAction(() => { state.buyPausedUntil = null; });
+        if (savedBuyPauseEndStr) { localStorage.removeItem('aquila_buyPauseEndTime'); }
+    }
+    // Pausa Venda
+    const savedSellPauseEndStr = localStorage.getItem('aquila_sellPauseEndTime');
+    const sellPauseEndTs = savedSellPauseEndStr ? parseInt(savedSellPauseEndStr, 10) : null;
+    if (sellPauseEndTs && !isNaN(sellPauseEndTs) && sellPauseEndTs > now) {
+        mobx.runInAction(() => { state.sellPausedUntil = sellPauseEndTs; });
+        const remainingDurationMs = sellPauseEndTs - now;
+        if (sellPauseTimeoutId) { clearTimeout(sellPauseTimeoutId); }
+        sellPauseTimeoutId = setTimeout(() => {
+            mobx.runInAction(() => { state.sellPausedUntil = null; });
+            localStorage.removeItem('aquila_sellPauseEndTime');
+            sellPauseTimeoutId = null; updateUI();
+            notifyUser(i18n.t("pauseExpired", { mode: i18n.t('sell', { defaultValue: 'Venda' }) }), "success");
+            if (state.sellModeActive && !isProcessingSell) { updateSell(); }
+        }, remainingDurationMs);
+    } else {
+        mobx.runInAction(() => { state.sellPausedUntil = null; });
+        if (savedSellPauseEndStr) { localStorage.removeItem('aquila_sellPauseEndTime'); }
+    }
+
+    //console.log("[LoadConfig v5 - Remove Refs] Função concluída.");
+};
+// --- FIM Função loadConfig (v5 - Remove Refs Configs Removidas) ---
+
+
+
+
+
+
+
+
+
+
+// (O restante do código que você colou, como resources, resourceObservers, etc., permanece como está)
+let resources; // <<< MANTIDO
+const resourceObservers = {}; // Mantém a definição <<< MANTIDO
+
+const setupResourceObservers = () => { // <<< MANTIDO
+    // (código original de setupResourceObservers aqui)
+    const resourceIds = ["wood", "stone", "iron"];
+    resourceIds.forEach((resource) => {
+      const element = document.getElementById(resource) || document.querySelector(`#${resource}`);
+      if (element) {
+        if (resourceObservers[resource]) {
+           return;
+        }
+        const observer = new MutationObserver(() => {
+          const amountText = element.textContent || "";
+          const amount = sanitizeNumber(amountText);
+          if (typeof currentResources !== 'undefined' && amount !== currentResources[resource]) {
+                currentResources[resource] = amount;
+                const now = Date.now();
+                if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= now)) {
+                    processBuyBasedOnResources();
+                }
+                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= now)) {
+                    updateSell();
+                }
+          }
+        });
+        observer.observe(element, { childList: true, subtree: true, characterData: true });
+        resourceObservers[resource] = observer;
+      } else {
+        // console.warn(...);
+      }
+    });
+};
+
+const exchangeRateElements = { // <<< MANTIDO
+    wood: document.querySelector("#premium_exchange_rate_wood .premium-exchange-sep"),
+    stone: document.querySelector("#premium_exchange_rate_stone .premium-exchange-sep"),
+    iron: document.querySelector("#premium_exchange_rate_iron .premium-exchange-sep")
+};
+const exchangeRateObservers = {}; // <<< MANTIDO
+// A função setupExchangeRateObservers() (se existir) continuaria aqui... <<< MANTIDO
+
+
+
+
+
+
+
+
+
+  function setupExchangeRateObservers() {
+    Object.entries(exchangeRateElements).forEach(([resource, element]) => {
+      if (!element) {
+        console.error(`Elemento para ${resource} n\xE3o encontrado!`);
+        return;
+      }
+      const observer = new MutationObserver((mutations) => {
+        const newRate = sanitizeNumber(
+          element.textContent.trim().replace(/[^0-9.,]/g, "").replace(",", ".")
+          // Converte vírgula para ponto decimal
+        ) || 1;
+        dataCache.set(`exchange_${resource}`, newRate);
+        if (state.sellModeActive) {
+          debouncedUpdateSell();
+        }
+      });
+      observer.observe(element, {
+        childList: true,
+        subtree: true,
+        characterData: true
+        // Observa mudanças no texto
+      });
+      exchangeRateObservers[resource] = observer;
+    });
+  }
+  function populateUserInfo() {
+    const playerNameEl = document.getElementById("settingsPlayerName");
+    const licenseExpiryEl = document.getElementById("settingsLicenseExpiry");
+    const scriptVersionEl = document.getElementById("settingsScriptVersion");
+    if (playerNameEl) {
+      playerNameEl.textContent = currentPlayerNickname || "N\xE3o Encontrado";
+    }
+    if (licenseExpiryEl) {
+      const storedExpiration = getStoredExpiration(currentPlayerNickname);
+      if (storedExpiration && !isNaN(storedExpiration.getTime())) {
+        try {
+          licenseExpiryEl.textContent = storedExpiration.toLocaleString(state.language || "pt-BR", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          const now = /* @__PURE__ */ new Date();
+          licenseExpiryEl.classList.remove("expired");
+          if (now > storedExpiration) {
+            licenseExpiryEl.classList.add("expired");
+            //console.warn("Licen\xE7a expirada detectada ao popular UI.");
+          }
+        } catch (e) {
+          console.error("Erro ao formatar data de expira\xE7\xE3o:", e);
+          licenseExpiryEl.textContent = "Erro na Data";
+          licenseExpiryEl.classList.remove("expired");
+        }
+      } else {
+        licenseExpiryEl.textContent = "N\xE3o Dispon\xEDvel";
+        licenseExpiryEl.classList.remove("expired");
+      }
+    }
+    if (scriptVersionEl) {
+      try {
+        const scriptInfo = typeof GM_info !== "undefined" ? GM_info.script : null;
+        if (scriptInfo && scriptInfo.version) {
+          scriptVersionEl.textContent = scriptInfo.version;
+        } else {
+          scriptVersionEl.textContent = "6.2.0_firebase_auth_persist";
+        }
+      } catch (e) {
+        console.error("Erro ao obter vers\xE3o do script via GM_info, usando fallback:", e);
+        scriptVersionEl.textContent = "6.2.0_firebase_auth_persist";
+      }
+    }
+  }
+  const GAME_LOAD_TIMEOUT = 5e3;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  /**
+ * Verifica a presença de elementos hCaptcha na página e, se a configuração
+ * estiver ativa, tenta fechar a aba.
+ * @returns {boolean} Retorna true se o hCaptcha foi detectado e a tentativa de fechar foi feita, false caso contrário.
+ */
+function checkAndHandleHCaptcha() {
+    // 1. Verifica se a funcionalidade está desativada no estado
+    if (!state.closeTabOnHCaptcha) {
+        return false; // Não faz nada se a opção não estiver marcada
+    }
+
+    // 2. Define seletores comuns para elementos hCaptcha
+    //    (Estes podem precisar de ajuste dependendo de como o TW implementa)
+    const hCaptchaSelectors = [
+        'iframe[src*="hcaptcha.com"]',         // Iframe do hCaptcha
+        'iframe[title*="hCaptcha"]',           // Iframe por título
+        'div[data-hcaptcha-widget-id]',        // Div que geralmente contém o widget
+        'div.h-captcha-container',             // Um possível container
+        '[id^="hcaptcha-challenge"]',          // Elementos com ID começando com hcaptcha-challenge
+        // Adicione outros seletores se encontrar elementos diferentes
+    ];
+
+    // 3. Procura por qualquer um dos elementos no DOM
+    let captchaDetected = false;
+    for (const selector of hCaptchaSelectors) {
+        if (document.querySelector(selector)) {
+            captchaDetected = true;
+            // console.debug(`[hCaptcha Check] Elemento encontrado com seletor: ${selector}`); // Log de depuração (opcional)
+            break; // Sai do loop assim que encontrar o primeiro
+        }
+    }
+
+    // 4. Se um elemento hCaptcha foi detectado
+    if (captchaDetected) {
+        console.warn(i18n.t('hCaptchaDetectedLog', { defaultValue: "hCaptcha detectado!" })); // Log usando tradução
+
+        // 5. Tenta fechar a aba
+        console.log(i18n.t('attemptingTabCloseLog', { defaultValue: "Configuração ativa - Tentando fechar a aba..." }));
+        try {
+            // Importante: window.close() só funciona de forma confiável se
+            // o script abriu a janela/aba. Caso contrário, o navegador
+            // geralmente bloqueia por segurança.
+            window.close();
+
+            // Se window.close() não lançar erro, mas a aba não fechar (comum),
+            // não há muito mais que o script possa fazer.
+            // Poderíamos tentar um alert, mas isso pode ser irritante.
+            // alert("hCaptcha detectado! Tentei fechar a aba, mas pode ter sido bloqueado pelo navegador.");
+
+        } catch (error) {
+            console.error(i18n.t('tabCloseErrorLog', { defaultValue: "Erro ao tentar fechar a aba (pode ser bloqueado pelo navegador):" }), error);
+            // Notificar o usuário sobre o erro pode ser útil aqui, mas opcional
+            // notifyError("hCaptcha detectado! Falha ao tentar fechar a aba.");
+        }
+        return true; // Indica que o captcha foi detectado e a ação foi tentada
+    }
+
+    // 6. Se nenhum hCaptcha foi encontrado
+    return false; // Indica que está tudo limpo (ou a opção está desativada)
+}
+
+
+
+
+
+
+
+
+
+
+ /// Variável global para rastrear se Chart.js foi carregado
+let isChartJsLoaded = false;
+let chartJsLoadingPromise = null; // Para evitar múltiplas tentativas de carregamento
+
+// Função para carregar Chart.js dinamicamente usando GM_xmlhttpRequest
+function loadChartJsDynamically() {
+    // Se já está carregado, retorna imediatamente uma Promise resolvida
+    if (isChartJsLoaded) {
+        // console.log("[Chart.js Loader] Já carregado."); // Log opcional
+        return Promise.resolve();
+    }
+    // Se já está carregando, retorna a Promise existente
+    if (chartJsLoadingPromise) {
+        // console.log("[Chart.js Loader] Carregamento já em progresso."); // Log opcional
+        return chartJsLoadingPromise;
+    }
+
+    console.log("[Chart.js Loader] Iniciando carregamento dinâmico...");
+    // Cria a Promise que controlará o carregamento
+    chartJsLoadingPromise = new Promise((resolve, reject) => { // <--- Promise criada aqui
+        const chartJsUrl = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: chartJsUrl,
+            timeout: 10000,
+            onload: function(response) { // <--- O callback onload começa aqui
+                if (response.status >= 200 && response.status < 300) {
+                    console.log("[Chart.js Loader] Script baixado com sucesso.");
+                    try {
+                        console.log("[Chart.js Loader] Tentando injetar script no <head>...");
+                        const scriptElement = document.createElement('script');
+                        scriptElement.textContent = response.responseText; // USA O response AQUI DENTRO
+                        scriptElement.setAttribute('data-chartjs-loaded', 'true');
+
+                        const oldScript = document.querySelector('script[data-chartjs-loaded="true"]');
+                        if (oldScript) {
+                            oldScript.remove();
+                            console.log("[Chart.js Loader] Script antigo removido.");
+                        }
+
+                        document.head.appendChild(scriptElement);
+                        console.log("[Chart.js Loader] Script injetado no <head>.");
+
+                        setTimeout(() => {
+                            if (typeof Chart !== 'undefined') { // Verifica Chart global
+                                console.log("[Chart.js Loader] Chart.js carregado e 'Chart' definido globalmente com sucesso!");
+                                isChartJsLoaded = true;
+                                chartJsLoadingPromise = null;
+                                resolve(); // <--- Resolve a Promise externa AQUI
+                            } else {
+                                console.error("[Chart.js Loader] Script injetado, mas 'Chart' não foi definido globalmente após atraso.");
+                                if (scriptElement.parentNode) { scriptElement.remove(); }
+                                chartJsLoadingPromise = null;
+                                reject(new Error("Falha ao definir Chart globalmente após injeção do script.")); // <--- Rejeita a Promise externa AQUI
+                            }
+                        }, 100);
+
+                    } catch (e) {
+                        console.error("[Chart.js Loader] Erro durante a injeção do script Chart.js:", e);
+                        chartJsLoadingPromise = null;
+                        reject(e); // <--- Rejeita a Promise externa AQUI
+                    }
+                } else {
+                    console.error(`[Chart.js Loader] Falha ao baixar Chart.js. Status: ${response.status}`);
+                    chartJsLoadingPromise = null;
+                    reject(new Error(`Falha ao baixar Chart.js (Status: ${response.status})`)); // <--- Rejeita a Promise externa AQUI
+                }
+            }, // <--- Fim do callback onload
+            onerror: function(error) {
+                console.error("[Chart.js Loader] Erro de rede ao baixar Chart.js:", error);
+                chartJsLoadingPromise = null;
+                reject(error); // <--- Rejeita a Promise externa AQUI
+            },
+            ontimeout: function() {
+                console.error("[Chart.js Loader] Timeout ao baixar Chart.js");
+                chartJsLoadingPromise = null;
+                reject(new Error("Timeout ao baixar Chart.js")); // <--- Rejeita a Promise externa AQUI
+            }
+        }); // <--- Fim do objeto GM_xmlhttpRequest
+    }); // <--- Fim da criação da new Promise
+    return chartJsLoadingPromise;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ================================================================
+// ===           FUNÇÃO init ATUALIZADA (v8 - Final UI Update)  ===
+// ================================================================
+const init = async () => {
+    // Removendo logs novamente para clareza, exceto o inicial e final de sucesso/erro
+    console.log(`[Init v8] ${SCRIPT_NAME}: Iniciando inicialização...`);
+    try {
+        // 1. Inicializa a Interface Gráfica Base
+        initializeUI();
+
+        // 2. Mapeia e Cacheia Elementos Essenciais da UI do Script
+        if (!initializeElements()) {
+            throw new Error("Falha CRÍTICA ao inicializar elementos da UI RAGNAROK. O script não pode continuar.");
+        }
+
+        // 3. Configura Observadores
+        setupResourceObservers();
+        setupMarketRateObservers();
+        setupExchangeRateObservers();
+        setupMerchantsObserver();
+        setupPremiumObserver();
+        setupStorageObserver();
+
+        // 4. Busca Informações Iniciais e Aplica Estilos
+        updateVillageInfo();
+        applyStyles();
+
+        // 5. Inicializa Handlers de Recursos e Cacheia Botões do Jogo
+        resources = initializeResources();
+        updateGameElements();
+
+        // 6. Carrega Configurações Salvas
+        loadConfig();
+
+        // 7. Configura Listeners de Eventos
+        setupEvents();
+
+        // 8. Aplica Tema e Atualiza UI (primeira vez)
+        updateTheme();
+        updateUI();
+
+        // 9. Verifica hCaptcha
+        if (checkAndHandleHCaptcha()) {
+             console.warn("[Init v8] hCaptcha detectado na inicialização. Interrompendo.");
+             return;
+        }
+
+        // 10. Busca Dados Dinâmicos do Jogo
+        await Promise.all([
+            fetchResources(),
+            fetchIncomingResources()
+        ]);
+        await fetchPremiumLogs(); // Esta função já atualiza state.worldProfit e chama updateUI internamente
+
+        // 11. Limpa Intervalos Antigos (se necessário)
+        // if (state.someOldIntervalId) { clearInterval(state.someOldIntervalId); delete state.someOldIntervalId; }
+
+        // 12. Executa a Primeira Verificação de Compra/Venda
+        await updateAll();
+
+        // 13. Popula Informações do Usuário na Modal
+        populateUserInfo();
+
+        // 14. *** CHAMA updateUI NOVAMENTE NO FINAL ***
+        //     Garante que a UI reflita o estado final após todas as operações assíncronas.
+        updateUI();
+        console.log("[Init v8] Chamada final de updateUI executada.");
+
+        // 15. Log Final de Sucesso
+        console.log(`[Init v8] ${SCRIPT_NAME}: Inicialização completa e bem-sucedida!`);
+
+    } catch (error) {
+        console.error(`${SCRIPT_NAME}: Erro CRÍTICO durante a inicialização:`, error);
+        const errorMessage = i18n.t("initError", { defaultValue: "Erro grave na inicialização" });
+        const detail = error.message || String(error);
+        notifyError(`${errorMessage}: ${detail}. Verifique o console (F12) para mais detalhes.`);
+        const container = ui.getElement("market-container");
+        if (container) container.style.display = 'none';
+    }
+}; // --- Fim da função init (v8 - Final UI Update) ---
+
+
+
+
+
+
+  const checkGameLoaded = () => {
+    const timeoutId = setTimeout(() => {
+      const merchantsElement = document.querySelector("#market_merchant_available_count");
+      const isTribalWarsLoaded = typeof TribalWars !== "undefined" && TribalWars.getGameData;
+      if (!(merchantsElement && isTribalWarsLoaded)) {
+        clearInterval(gameCheckInterval);
+        alert(`${SCRIPT_NAME}: N\xE3o foi poss\xEDvel iniciar. Elementos essenciais do jogo n\xE3o foram encontrados ap\xF3s ${GAME_LOAD_TIMEOUT / 1e3} segundos. Recarregue a p\xE1gina ou verifique se h\xE1 outros scripts conflitando.`);
+      }
+    }, GAME_LOAD_TIMEOUT);
+    const gameCheckInterval = setInterval(() => {
+      try {
+        const merchantsElement = document.querySelector("#market_merchant_available_count");
+        const isTribalWarsLoaded = typeof TribalWars !== "undefined" && TribalWars.getGameData;
+        const isSortableLoaded = typeof Sortable !== "undefined";
+        const isMobxLoaded = typeof mobx !== "undefined";
+
+        if (merchantsElement && isTribalWarsLoaded && isSortableLoaded && isMobxLoaded) {
+          clearInterval(gameCheckInterval);
+          clearTimeout(timeoutId);
+          ////console.log(`${SCRIPT_NAME}: Jogo e depend\xEAncias carregados. Iniciando o script...`);
+          init().catch((error) => {
+            console.error(`${SCRIPT_NAME}: Erro n\xE3o capturado durante a execu\xE7\xE3o de init():`, error);
+            notifyError(i18n.t("initError", { error: error.message || String(error) }) + " Erro cr\xEDtico na inicializa\xE7\xE3o.");
+          });
+        }
+      } catch (error) {
+      }
+    }, 200);
+  };
+  checkGameLoaded();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ // ================================================================
+// ===      FUNÇÃO applyStyles ATUALIZADA (v1.3 - Refine Input Width) ===
+// ================================================================
+const applyStyles = () => {
+    const robotoFontLink = createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" });
+    document.head.appendChild(robotoFontLink);
+    const aquilaFontsLink = createElement("link", { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Poppins:wght@400;500;700&display=swap" });
+    document.head.appendChild(aquilaFontsLink);
+    const style = createElement("style");
+    style.textContent = `
 
 /* ====================================================== */
 /* ===                ESTILOS GLOBAIS                 === */
@@ -585,7 +6921,7 @@ function calculateProfit(resource, amountSold) {
     box-sizing: border-box;
 }
 
-/* === Estilos para o Sum\xe1rio de Lucro Filtrado === */
+/* === Estilos para o Sumário de Lucro Filtrado === */
 .filtered-profit-summary {
     background-color: rgba(14, 21, 37, 0.9); color: #D4AF37; font-weight: bold;
     text-align: center; padding: 10px 15px; margin-bottom: 15px;
@@ -597,7 +6933,7 @@ function calculateProfit(resource, amountSold) {
     margin-left: 5px; margin-right: 2px; position: relative; top: -2px;
 }
 
-/* \xcdcone Premium Point Global */
+/* Ícone Premium Point Global */
 .icon.header.premium {
     display: inline-block; width: 18px; height: 18px;
     background-image: url('https://dsus.innogamescdn.com/asset/95eda994/graphic/icons/header.png');
@@ -620,7 +6956,7 @@ function calculateProfit(resource, amountSold) {
 }
 
 /* ====================================================== */
-/* === Estilos Espec\xedficos da Modal de Transa\xe7\xf5es     === */
+/* === Estilos Específicos da Modal de Transações     === */
 /* ====================================================== */
 .modal#transactionsModal {
     position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 2147483646;
@@ -700,7 +7036,7 @@ function calculateProfit(resource, amountSold) {
 .aquila-btn i.fas { margin-right: 5px; }
 
 /* ========================================================================== */
-/* === ESTILOS MODAL CONFIGURA\xc7\xd5ES, GERAIS, ETC                             === */
+/* === ESTILOS MODAL CONFIGURAÇÕES, GERAIS, ETC                             === */
 /* ========================================================================== */
 .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); z-index: 2147483646; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(4px); opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0s linear 0.3s; }
 .modal[style*="display: flex"] { opacity: 1; visibility: visible; transition: opacity 0.3s ease, visibility 0s linear 0s; }
@@ -822,7 +7158,7 @@ function calculateProfit(resource, amountSold) {
 .market-container .num-input { display: flex; align-items: center; gap: 5px; flex-shrink: 0; background-color: rgba(5, 8, 15, 0.6); padding: 3px 5px; border-radius: 4px; border: 1px solid #182030; height: 30px; box-sizing: border-box; }
  .num-input .resource-icon { width: 18px; height: 18px; opacity: 0.8; vertical-align: middle; }
  .num-input input { height: 100%; padding: 4px 6px; /* Herda width da regra .resource-card input */ }
-  /* Esconde spinners tamb\xe9m no input num\xe9rico com \xedcone */
+  /* Esconde spinners também no input numérico com ícone */
  .market-container .num-input input[type="number"] { -moz-appearance: textfield; }
  .market-container .num-input input[type="number"]::-webkit-outer-spin-button,
  .market-container .num-input input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -894,4 +7230,7 @@ function calculateProfit(resource, amountSold) {
 }
 /* === FIM Media Queries === */
 
-    `,document.head.appendChild(a)}}();
+    `;
+    document.head.appendChild(style);
+}; // --- Fim da função applyStyles (v1.3 - Refine Input Width & Hide Spinners) ---
+})();
