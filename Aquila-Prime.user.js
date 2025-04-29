@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.3
+// @version      0.0.1
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -29,6 +29,7 @@
 // @icon         https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico
 // @downloadURL  https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/main/Aquila-Prime.user.js
 // @updateURL    https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/main/Aquila-Prime.user.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js
 // @connect      firebaseio.com
 // @connect      cloudfunctions.net
 // @connect      googleapis.com
@@ -43,8 +44,6 @@
 // @require      https://cdn.jsdelivr.net/npm/luxon@3.3.0/build/global/luxon.min.js
 // @require      https://unpkg.com/mobx@6.9.0/dist/mobx.umd.production.min.js
 // @require      https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js
-// @require      https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js
-// @require      https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addElement
 // @grant        GM_addStyle
@@ -432,7 +431,6 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
 
 
 
-
 // Função fetchMarketData ATUALIZADA para garantir o servidor correto
 async function fetchMarketData(url) {
     // 1. Obtém informações do servidor atual
@@ -440,64 +438,74 @@ async function fetchMarketData(url) {
     let currentWorld = '';
     try {
         const gameData = TribalWars.getGameData();
-        currentServer = window.location.hostname; // Ex: br.tribalwars.com.br
-        currentWorld = gameData.world || 'unknown'; // Ex: br123
+        currentServer = window.location.hostname; // Ex: nl.tribalwars.nl
+        currentWorld = gameData.world || 'unknown'; // Ex: nlXX
     } catch (e) {
-        console.error("[fetchMarketData] Erro ao obter dados do servidor:", e);
+        console.error("[RAG-DEBUG-FetchMarketData] Erro ao obter dados do servidor:", e);
         throw new Error("Não foi possível identificar o servidor atual.");
     }
 
     // 2. Valida se a URL pertence ao servidor atual
     if (!url.includes(currentServer)) {
-        console.warn(`[fetchMarketData] URL (${url}) não corresponde ao servidor atual (${currentServer}).`);
-        throw new Error("URL inválida para o servidor atual.");
+        // >> Log Adicionado <<
+        console.warn(`[RAG-DEBUG-FetchMarketData] URL (${url}) NÃO corresponde ao servidor ATUAL (${currentServer}). Chamada IGNORADA.`);
+        // Idealmente, isso não deveria acontecer, mas é bom registrar.
+        throw new Error(`URL inválida para o servidor atual (${currentServer}).`);
+        // Considerar retornar null ou algo que indique falha controlada? Por enquanto, lançar erro parece OK.
     }
 
     // 3. Cria uma chave de cache única incluindo o mundo
     const cacheKey = `${currentWorld}:${url}`;
     const cachedData = requestCache.get(cacheKey);
     if (cachedData) {
-        console.log(`[fetchMarketData] Cache HIT para ${cacheKey}`);
+        // >> Log Adicionado <<
+        // console.log(`[RAG-DEBUG-FetchMarketData] Cache HIT para ${cacheKey}. Retornando dados cacheados.`);
         return cachedData;
     }
 
-    console.log(`[fetchMarketData] Buscando dados do servidor ${currentServer}, mundo ${currentWorld}: ${url}`);
+    // >> Log Adicionado <<
+    console.log(`[RAG-DEBUG-FetchMarketData] Buscando dados para [${cacheKey}]: ${url}`);
     return new Promise((resolve, reject) => {
         GM_xmlhttpRequest({
             method: "GET",
             url: url,
             headers: {
                 "X-Requested-With": "XMLHttpRequest",
+                 // Poderíamos adicionar 'Accept-Language' mas geralmente não é necessário para estrutura HTML
+                 // 'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8' // Exemplo
             },
             timeout: 7000,
             onload: function(response) {
                 if (response.status >= 200 && response.status < 300) {
                     try {
                         const responseData = response.responseText;
+                        // >> Log Adicionado (Trecho da Resposta) <<
+                        console.log(`[RAG-DEBUG-FetchMarketData] Dados recebidos OK para [${cacheKey}]. Trecho Inicial:`, responseData.substring(0, 300) + "..."); // Loga os primeiros 300 caracteres
                         requestCache.set(cacheKey, responseData); // Usa cacheKey com mundo
-                        console.log(`[fetchMarketData] Dados recebidos e cacheados para ${cacheKey}`);
                         resolve(responseData);
                     } catch (e) {
-                        console.error(`[fetchMarketData] Erro ao processar resposta de ${url}:`, e);
-                        reject(new Error("Erro ao processar resposta do servidor"));
+                        console.error(`[RAG-DEBUG-FetchMarketData] Erro ao processar resposta de [${cacheKey}]:`, e);
+                        reject(new Error(`Erro ao processar resposta do servidor para ${cacheKey}`)); // Mais detalhe
                     }
                 } else {
-                    console.error(`[fetchMarketData] Erro HTTP ${response.status} para ${url}`);
-                    reject(new Error(`Erro HTTP ${response.status}`));
+                    // >> Log Adicionado <<
+                    console.error(`[RAG-DEBUG-FetchMarketData] Erro HTTP ${response.status} para [${cacheKey}]: ${response.statusText}. Resposta:`, response.responseText.substring(0, 500)); // Loga um trecho da resposta em caso de erro
+                    reject(new Error(`Erro HTTP ${response.status} para ${cacheKey}`));
                 }
             },
             onerror: function(error) {
-                console.error(`[fetchMarketData] Erro de rede para ${url}:`, error);
-                reject(new Error("Erro de rede ao buscar dados"));
+                // >> Log Adicionado <<
+                console.error(`[RAG-DEBUG-FetchMarketData] Erro de REDE para [${cacheKey}]:`, error);
+                reject(new Error(`Erro de rede ao buscar dados para ${cacheKey}`));
             },
             ontimeout: function() {
-                console.error(`[fetchMarketData] Timeout para ${url}`);
-                reject(new Error("Timeout ao buscar dados"));
+                // >> Log Adicionado <<
+                console.error(`[RAG-DEBUG-FetchMarketData] TIMEOUT para [${cacheKey}]`);
+                reject(new Error(`Timeout ao buscar dados para ${cacheKey}`));
             }
         });
     });
 }
-
 
 
 
@@ -821,118 +829,7 @@ const translations = {
            sell: "Selling",
            // === FIM: Chaves Buy/Sell EN ===
         }
-      },
-   nl: {
-        translation: {
-          // --- Textos Gerais da UI ---
-          title: "RAGNAROK RESOURCE HANDEL",
-          buyModeToggleOn: "Kopen Uitschakelen",
-          buyModeToggleOff: "Kopen Inschakelen",
-          sellModeToggleOn: "Verkopen Uitschakelen",
-          sellModeToggleOff: "Verkopen Inschakelen",
-          saveConfig: "Opslaan",
-          resetAll: "Alles Resetten",
-          pause: "Pauze",
-          transactions: "Transacties",
-          aiAssistant: "Ragnarok AI Assistent",
-          settings: "Instellingen",
-          saveSuccess: "Instellingen succesvol opgeslagen!",
-          portuguese: "Portugees",
-          russian: "Russisch",
-          english: "Engels",
-          dutch: "Nederlands", // <<< Adicionado nome do idioma
-          activated: "Geactiveerd",
-          deactivated: "Gedeactiveerd",
-          transactionInProgress: "Transactie verwerken...",
-          transactionSuccess: "Transactie succesvol voltooid!",
-          transactionError: "Transactiefout. Probeer opnieuw.",
-          domError: "Fout bij toegang tot spel elementen. Vernieuwen...",
-          noTransactions: "Geen transacties gevonden.",
-          // --- Modal de Transacties ---
-          transactionsHeader: "Transactiegeschiedenis",
-          transaction: "Transactie",
-          date: "Datum",
-          type: "Type",
-          change: "Wijziging",
-          world: "Wereld",
-          newPremiumPoints: "Nieuwe Premium Punten",
-          close: "Sluiten",
-          filters: "Filters",
-          dateFrom: "Startdatum",
-          dateTo: "Einddatum",
-          worldFilter: "Filter op Wereld",
-          sortAsc: "Sorteer Oplopend",
-          sortDesc: "Sorteer Aflopend",
-          page: "Pagina",
-          next: "Volgende",
-          previous: "Vorige",
-          chartTitle: "Wijzigingen Over Tijd",
-          expenses: "Kosten", // Ou Uitgaven
-          sales: "Opbrengsten", // Ou Winst/Inkomsten
-          profit: "Winst",
-          filteredPeriodProfitLabel: "Nettowinst (Periode)",
-          // --- Modal IA ---
-          aiPrompt: "Typ uw vraag voor de AI Assistent",
-          aiLoading: "Antwoord laden...",
-          aiError: "Fout bij ophalen van AI antwoord",
-          // --- Tooltips ---
-          tooltipMinimize: "Venster Minimaliseren",
-          tooltipSettings: "Instellingen Openen",
-          tooltipAIAssistant: "AI Assistent Openen",
-          stockDesiredTooltip: "Stelt de maximale hoeveelheid {{resource}} in, rekening houdend met de som van beschikbare middelen in het dorp en onderweg.",
-          userRateTooltip: "Minimumtarief (premium punten per eenheid) om {{resource}} te kopen. Het script koopt alleen als de markt gelijk of hoger is.",
-          buyPerTimeTooltip: "Maximale hoeveelheid per aankoop/transactie. Script overschrijdt dit niet.",
-          reserveAmountTooltip: "Minimale hoeveelheid {{resource}} om te behouden. Script verkoopt niet als voorraad gelijk of lager is.",
-          reserveRateTooltip: "Maximumtarief (premium punten per eenheid) om {{resource}} te verkopen. Script verkoopt alleen als de markt gelijk of lager is.",
-          sellLimitTooltip: "Maximale hoeveelheid per verkoop/transactie. Script overschrijdt dit niet.",
-          tooltipVillageSelect: "Toont actief dorp en coördinaten.",
-          tooltipPauseBuy: "Kopen pauzeren voor duur ingesteld in Instellingen.",
-          tooltipPauseSell: "Verkopen pauzeren voor duur ingesteld in Instellingen.",
-          clickToResumeTooltip: "Klik om te hervatten",
-          tooltipSaveConfig: "Slaat huidige instellingen op in lokale browser opslag.",
-          tooltipTransactions: "Opent Premium Punten transactiegeschiedenis.",
-          tooltipPremiumLimit: "MAXIMALE PP-limiet die het script kan UITGEVEN aan aankopen.",
-          tooltipWorldProfit: "Toont het NETTO Premium Punten saldo behaald in deze wereld (Totale Inkomsten - Totale Kosten, gebaseerd op geschiedenis).",
-          resourceNames: {
-            wood: "hout",
-            stone: "leem",
-            iron: "ijzer"
-          },
-          // --- Configuraties ---
-          settingsSectionAccount: "Accountinformatie",
-          settingsSectionLanguage: "Taal",
-          settingsSectionGeneral: "Algemeen",
-          settingsSectionPause: "Pauze Instellingen",
-          settingsLabelBuyPauseDuration: "Pauzeduur Kopen (min):",
-          settingsLabelSellPauseDuration: "Pauzeduur Verkopen (min):",
-          settingsLabelPlayer: "Speler:",
-          settingsLabelLicense: "Licentie Vervalt op:",
-          settingsLabelVersion: "Script Versie:",
-          settingsLabelInterfaceLang: "Interface Taal:",
-          settingsLabelCloseOnHCaptcha: "Tabblad Sluiten bij hCaptcha:",
-          hCaptchaDetectedLog: "hCaptcha gedetecteerd!",
-          attemptingTabCloseLog: "Instelling actief - Poging tabblad te sluiten...",
-          tabCloseErrorLog: "Fout bij poging tabblad te sluiten (mogelijk geblokkeerd door browser):",
-          tooltipInterfaceLang: "Selecteer de taal voor de Aquila Prime interface.",
-          tooltipBuyPauseDuration: "Tijd (in minuten) dat koopmodus gepauzeerd wordt bij klikken op 'Pauze'. Functie wordt automatisch hervat na deze periode.",
-          tooltipSellPauseDuration: "Tijd (in minuten) dat verkoopmodus gepauzeerd wordt bij klikken op 'Pauze'. Functie wordt automatisch hervat na deze periode.",
-          tooltipCloseOnHCaptcha: "Indien aangevinkt, probeert script tabblad automatisch te sluiten als hCaptcha challenge gedetecteerd wordt op deze pagina.",
-          statusLabel: "Status:",
-          premiumExchange: "Premium Beurs",
-          // --- Dynamische teksten ---
-          pausedUntil: "Gepauzeerd tot {{time}}",
-          pauseDurationSet: "{{mode}} Pauze ingesteld voor {{duration}} minuut/minuten.",
-          pauseExpired: "{{mode}} Pauze verlopen. Functie opnieuw geactiveerd.",
-          statusResumedManually: "{{mode}} handmatig hervat.",
-          setPauseDurationError: "Stel pauzeduur in (> 0) in instellingen.",
-          buy: "Kopen",
-          sell: "Verkopen",
-          loadingShort: 'Laden...' // <<< ADICIONADO NL
-        }
       }
-      // ============================================
-      // === FIM: Nova Seção Holandês (nl) ======
-      // ============================================
     }
 };
 
@@ -958,16 +855,16 @@ const translations = {
     i18n.addResourceBundle("pt", "translation", translations.resources.pt.translation, true, true);
     i18n.addResourceBundle("ru", "translation", translations.resources.ru.translation, true, true);
     i18n.addResourceBundle("en", "translation", translations.resources.en.translation, true, true);
-    i18n.addResourceBundle("nl", "translation", translations.resources.nl.translation, true, true); // <<< ADICIONAR
     const currentLang = localStorage.getItem("language") || "pt";
     if (i18n.language !== currentLang) {
       i18n.changeLanguage(currentLang).catch((err) => console.error("Erro ao mudar l\xEDngua no i18next j\xE1 inicializado:", err));
     }
   }
   i18n.init({
-   lng: ["pt", "ru", "en", "nl"].includes(localStorage.getItem("language")) ? localStorage.getItem("language") : "pt", // <<< MODIFICAR fallback seguro
-   fallbackLng: "en",
-   resources: translations.resources,
+    lng: localStorage.getItem("language") || "pt",
+    // Keep using saved language or default
+    fallbackLng: "en",
+    resources: translations.resources,
     // Use the updated resources object
     debug: false
     // Set to true for i18next debugging if needed
@@ -1010,6 +907,13 @@ const translations = {
     }
     return 1e3;
   }
+
+
+
+
+
+
+
   async function fetchResources() {
     const villageId = TribalWars.getGameData().village.id;
     const overviewUrl = `https://${window.location.host}/game.php?village=${villageId}&screen=overview`;
@@ -1024,59 +928,187 @@ const translations = {
     }
     state.storageCapacity = getStorageCapacity();
   }
+ // === INÍCIO DA ATUALIZAÇÃO ResourceHandler (v2 - Adiciona getMarketStockAvailable) ===
   class ResourceHandler {
     constructor(name, config) {
       this.name = name;
       this.config = config;
       this.elementCache = /* @__PURE__ */ new Map();
+      // Log no construtor para confirmar criação
+      // console.log(`[RAG-DEBUG-Handler ${this.name}] Handler Criado. Config:`, config);
     }
+
+    // Função auxiliar interna para buscar elementos DOM
     getDomElement(selector) {
+      // Log para depuração da busca de elementos (opcional, pode ficar barulhento)
+      // console.log(`[RAG-DEBUG-Handler ${this.name}] Buscando elemento DOM com seletor: ${selector}`);
       if (!this.elementCache.has(selector)) {
         const element = document.querySelector(selector);
-        this.elementCache.set(selector, element);
+        // console.log(`[RAG-DEBUG-Handler ${this.name}] -> Cache MISS para '${selector}'. Elemento encontrado: ${!!element}`);
+        this.elementCache.set(selector, element); // Cacheia mesmo se for null para evitar buscas repetidas
         return element;
       }
+      // console.log(`[RAG-DEBUG-Handler ${this.name}] -> Cache HIT para '${selector}'.`);
       return this.elementCache.get(selector);
     }
+
+    // Função auxiliar interna para limpar e converter números
     sanitizeNumber(value) {
-      return _.parseInt(value, 10) || 0;
+      // Adiciona log para o valor de entrada e saída (pode ser útil para depurar NaNs)
+      const originalValue = value;
+      const sanitized = _.parseInt(String(value || '0').replace(/[.,]/g, ''), 10) || 0; // Trata null/undefined e remove pontos/vírgulas
+      // console.log(`[RAG-DEBUG-Handler ${this.name} sanitizeNumber] Entrada: '${originalValue}', Saída: ${sanitized}`);
+      return sanitized;
     }
+
+    // Obtém o SEU estoque atual na visão do Mercado Premium
     getStock() {
-      return this.sanitizeNumber(this.getDomElement(this.config.stockSelector)?.textContent.trim());
+        const element = this.getDomElement(this.config.stockSelector);
+        const value = element ? element.textContent.trim() : '0';
+        // Log específico para getStock
+        // console.log(`[RAG-DEBUG-Handler ${this.name} getStock] Elemento: ${!!element}, Texto: '${value}'`);
+        return this.sanitizeNumber(value);
     }
+
+    // >>> NOVA FUNÇÃO: Obtém o ESTOQUE DISPONÍVEL PARA COMPRA NO MERCADO <<<
+    getMarketStockAvailable() {
+        const logPrefix = `[RAG-DEBUG-Handler ${this.name} getMarketStockAvailable v1.0]`;
+        // O seletor é o mesmo do getStock, pois ambos são lidos da mesma área na UI do jogo
+        const selector = this.config.stockSelector;
+        // console.log(`${logPrefix} Buscando estoque do MERCADO com seletor: ${selector}`);
+        const stockElement = this.getDomElement(selector); // Reusa getDomElement que tem cache
+
+        if (stockElement) {
+            const stockText = stockElement.textContent || '0';
+            const availableStock = this.sanitizeNumber(stockText); // Reusa sanitizeNumber com log
+            console.log(`${logPrefix} -> Elemento encontrado. Texto: '${stockText}'. Estoque Mercado: ${availableStock}`);
+            return availableStock;
+        } else {
+            console.warn(`${logPrefix} -> Elemento de estoque do mercado (${selector}) NÃO ENCONTRADO. Retornando 0.`);
+            return 0; // Retorna 0 se o elemento não for encontrado
+        }
+    }
+    // >>> FIM DA NOVA FUNÇÃO <<<
+
+    // Obtém a TAXA DE COMPRA atual do jogo (PP por 1000 unidades)
     getGameRate() {
-      return this.sanitizeNumber(this.getDomElement(this.config.rateSelector)?.textContent.trim().replace(/\D/g, ""));
+        const element = this.getDomElement(this.config.rateSelector);
+        let value = '0';
+        if (element) {
+            value = element.textContent?.trim() || '0';
+        }
+        // Log específico para getGameRate (taxa de COMPRA)
+        // console.log(`[RAG-DEBUG-Handler ${this.name} getGameRate] Elemento Taxa Compra: ${!!element}, Texto: '${value}'`);
+        return this.sanitizeNumber(value.replace(/\D/g, "")); // Remove não dígitos antes de sanitizar
     }
+
+    // Obtém a TAXA DE COMPRA mínima definida pelo usuário na UI do script
     getUserRate() {
-      return this.sanitizeNumber(this.config.uiRateInput?.value);
+      const value = this.config.uiRateInput ? this.config.uiRateInput.value : '0';
+      // Log para taxa do usuário
+      // console.log(`[RAG-DEBUG-Handler ${this.name} getUserRate] Valor input UI: '${value}'`);
+      return this.sanitizeNumber(value);
     }
+
+    // Obtém o SEU estoque TOTAL na aldeia (lido de currentResources)
     getTotal() {
-      return currentResources[this.name];
+        const total = currentResources[this.name] || 0; // Usa o objeto global atualizado por fetchResources
+        // console.log(`[RAG-DEBUG-Handler ${this.name} getTotal] Valor de currentResources: ${total}`);
+        return total; // Já é número, não precisa sanitizar
     }
+
+    // Obtém a quantidade de RESERVA definida pelo usuário na UI do script (para Venda)
     getReserved() {
-      return this.sanitizeNumber(this.config.uiReserveInput?.value);
+      const value = this.config.uiReserveInput ? this.config.uiReserveInput.value : '0';
+      // Log para reserva do usuário
+      // console.log(`[RAG-DEBUG-Handler ${this.name} getReserved] Valor input Reserva UI: '${value}'`);
+      return this.sanitizeNumber(value);
     }
+
+    // Obtém a TAXA DE VENDA (MÚLTIPLOS) do mercado (ex: 64 recursos / 1 PP)
+    // getMarketValue ATUALIZADO v6.3 - Parseia SOMENTE o primeiro número encontrado
     getMarketValue() {
-      const marketImg = this.getDomElement(this.config.marketImg);
-      if (!marketImg) {
-        return 0;
-      }
-      const valueText = marketImg.parentElement?.textContent.trim();
-      if (!valueText) {
-        return 0;
-      }
-      return this.sanitizeNumber(valueText.replace(/[^0-9]/g, "")) || 0;
-    }
+        const logPrefix = `[RAG-DEBUG-Handler ${this.name} getMarketValue v6.3]`; // Versão no Log
+        // console.log(`${logPrefix} Iniciando busca por marketRate (Taxa VENDA).`);
+
+        const iconSelector = `${this.config.marketImg}, img[title*='${this.name}' i], span.resource_icon_${this.name}`;
+        const marketIcon = document.querySelector(iconSelector);
+
+        if (!marketIcon) {
+            // console.warn(`${logPrefix} ÍCONE NÃO ENCONTRADO. Tentando fallback taxa COMPRA.`);
+            const buyRate = this.getGameRate(); // Obtém a taxa de compra (PP/1000)
+            // console.warn(`${logPrefix} -> Ícone Venda NÃO encontrado. Usando Taxa Compra (${buyRate}) como fallback para lógica de VENDA.`);
+            // A lógica de venda precisa do "exchange rate", não da taxa de compra. Isso aqui provavelmente não funciona bem.
+            // Melhor retornar 0 para Venda se não achar o ícone.
+            console.error(`${logPrefix} -> Ícone de Venda não encontrado. Retornando 0 para getMarketValue.`); return 0;
+
+        }
+
+        // console.log(`${logPrefix} Ícone ENCONTRADO. Buscando valor na CÉLULA (TD).`);
+        const tableCell = marketIcon.closest('td');
+
+        if (!tableCell) {
+             console.warn(`${logPrefix} FALHOU: Ícone encontrado, mas não está dentro de uma célula TD? Retornando 0.`);
+             return 0; // Retorna 0 se não achar célula
+        }
+
+        const cellText = tableCell.textContent.trim();
+        // console.log(`${logPrefix}   -> Texto Bruto da Célula TD: '${cellText}'`);
+
+        // Usa regex para encontrar o PRIMEIRO conjunto de dígitos (pode incluir ponto ou vírgula como separador decimal/milhar)
+        const numberMatch = cellText.match(/([\d.,]+)/); // Encontra a primeira sequência de dígitos, pontos ou vírgulas
+
+        if (numberMatch && numberMatch[1]) {
+            const extractedNumberString = numberMatch[1];
+            // console.log(`${logPrefix}   -> Primeira sequência numérica encontrada: '${extractedNumberString}'`);
+            // Usa parseIntSafeTransport para limpar e converter
+            const rate = parseIntSafeTransport(extractedNumberString); // parseIntSafeTransport foi fornecido antes
+
+            if (rate > 0) {
+                 // console.log(`${logPrefix} SUCESSO: Rate extraído (1º número) = ${rate}`);
+                 return rate;
+             } else {
+                  console.warn(`${logPrefix} FALHOU: Primeiro número encontrado ('${extractedNumberString}'), mas parseado para ${rate}. Retornando 0.`);
+                  return 0;
+              }
+        } else {
+            console.warn(`${logPrefix} FALHOU: Nenhum número encontrado na célula TD '${cellText}'. Retornando 0.`);
+            return 0;
+        }
+    } // Fim getMarketValue
+
+
+    // Obtém a TAXA DE VENDA máxima definida pelo usuário na UI do script
     getReserveRate() {
-      return this.sanitizeNumber(this.config.uiReserveRateInput?.value);
+      const value = this.config.uiReserveRateInput ? this.config.uiReserveRateInput.value : '0';
+      // Log para taxa reserva do usuário
+      // console.log(`[RAG-DEBUG-Handler ${this.name} getReserveRate] Valor input Taxa Reserva UI: '${value}'`);
+      return this.sanitizeNumber(value);
     }
+
+    // Obtém o elemento input de COMPRA no jogo
     getBuyInput() {
       return this.getDomElement(this.config.buyInputSelector);
     }
+
+    // Obtém o elemento input de VENDA no jogo
     getSellInput() {
       return this.getDomElement(this.config.sellInputSelector);
     }
   }
+// === FIM DA ATUALIZAÇÃO ResourceHandler ===
+
+
+
+
+
+
+
+
+
+
+
+
   const resourceTemplate = (name, outputDefault) => ({
     stockSelector: `#premium_exchange_stock_${name}`,
     rateSelector: `#premium_exchange_rate_${name} > div:nth-child(1)`,
@@ -1100,8 +1132,7 @@ const translations = {
 
 
 
-
-
+// Atualização do objeto state (sem transações, lucro, chart, etc.)
 const state = mobx.observable({
     resources: {
         storageCapacity: 1e3,
@@ -1114,62 +1145,48 @@ const state = mobx.observable({
         stone: 0,
         iron: 0
     },
-    marketRates: {},
-    transactions: [],
+    marketRates: {}, // Mantido para análise de mercado se necessário
     buyModeActive: localStorage.getItem("buyModeActive") === "true",
     sellModeActive: localStorage.getItem("sellModeActive") === "true",
-
-    // >> Propriedades de Estado para Pausa Temporizada <<
     buyPausedUntil: null,
     sellPausedUntil: null,
     buyPauseDurationMinutes: 5,
     sellPauseDurationMinutes: 5,
-    // >> FIM Propriedades de Estado <<
-
     hasExecutedBuy: false,
     hasExecutedSell: false,
     reloadPending: false,
-    autoReloadOnError: true, // Mantido o exemplo, ajuste se necessário
-    lastKnownPPLimitBeforeBuy: null,
-    lastKnownPPBalanceBeforeBuy: null,
-
-    // =======================================
-    // === INÍCIO: NOVA PROPRIEDADE hCAPTCHA ===
-    // =======================================
-    closeTabOnHCaptcha: false, // Inicializa como desativado por padrão
-    // =====================================
-    // === FIM: NOVA PROPRIEDADE hCAPTCHA ===
-    // =====================================
-
+    autoReloadOnError: true, // Mantido
+    lastKnownPPLimitBeforeBuy: null, // Mantido para lógica pós-compra
+    lastKnownPPBalanceBeforeBuy: null, // Mantido para lógica pós-compra
+    closeTabOnHCaptcha: false,
     isDarkMode: window.matchMedia("(prefers-color-scheme: dark)").matches,
     currentVillage: null,
-    worldProfit: 0,
+    // REMOVIDO: worldProfit
     language: localStorage.getItem("language") || "pt",
     optimizedRates: mobx.computed(function() {
-      // Certifique-se de que this.marketRates existe antes de acessá-lo
-      return this.marketRates || {};
+        return this.marketRates || {};
     }),
     rateHistory: {
         wood: [],
         stone: [],
         iron: []
-    },
+    }, // Mantido para análise de mercado
     marketTrends: {
         wood: "neutral",
         stone: "neutral",
         iron: "neutral"
-    },
+    }, // Mantido para análise de mercado
     marketVolatility: {
         wood: 0,
         stone: 0,
         iron: 0
-    },
+    }, // Mantido para análise de mercado
     lastUpdate: {
         wood: null,
         stone: null,
         iron: null
-    },
-    marketConditions: mobx.computed(function() {
+    }, // Mantido para análise de mercado
+    marketConditions: mobx.computed(function() { // Mantido para análise de mercado
         return {
             wood: {
                 trend: this.marketTrends.wood,
@@ -1188,11 +1205,12 @@ const state = mobx.observable({
             }
         };
     }),
-    allTransactionsFetched: false,
-    isUpdating: false,
+    // REMOVIDO: allTransactionsFetched
+    // REMOVIDO: isUpdating (relacionado a transações)
     isSettingsModalOpen: false,
-    isMinimized: false // Adicionado para consistência, se não existia antes
+    isMinimized: false
 });
+
 
 
 
@@ -1557,29 +1575,23 @@ const callGeminiAPI = async (prompt) => {
 
 
 
+
 // ================================================================
-// ===   FUNÇÃO initializeUI ATUALIZADA (v18 - Add Log Fetch Status) ===
+// ===        FUNÇÃO initializeUI ATUALIZADA (v18 - Sem Logs/Transações) ===
 // ================================================================
 const initializeUI = () => {
     const container = createElement("div", {
         className: "market-container draggable",
         style: "position: fixed; top: 50px; left: 50px; z-index: 2147483647; overflow: hidden;"
     });
-    // Limpa cache antigo do container se existir para garantir nova renderização
-    const oldContainer = document.querySelector('.market-container.draggable');
-    if (oldContainer) {
-        elementCache.delete("market-container");
-        oldContainer.remove();
-    }
     elementCache.set("market-container", container);
     ui.elements.set("market-container", container);
 
-    // --- HTML da Interface (Com novo div#logFetchStatus) ---
+    // --- HTML da Interface (Sem botão Transações, sem Modal Transações, sem Lucro Mundo) ---
     container.innerHTML = `
         <div class="market-container">
             <div class="header">
                 <h2 id="headerTitle">${i18n.t("title")}</h2>
-                <div id="logFetchStatus" class="log-fetch-status" style="display: none;"></div> <!-- <<< NOVO ELEMENTO AQUI -->
                 <div class="dropdowns">
                     <div class="dropdown" data-tooltip-key="tooltipVillageSelect">
                         <span class="village-icon">
@@ -1590,9 +1602,7 @@ const initializeUI = () => {
                         <select id="villageSelect"><option value="current">Carregando...</option></select>
                     </div>
 
-                    <div class="profit-info" data-tooltip-key="tooltipWorldProfit">
-                        <span class="icon header premium"></span> <span id="worldProfit">0</span>
-                    </div>
+                    <!-- REMOVIDO: Div de Lucro do Mundo -->
                 </div>
                 <div class="header-buttons">
                     <div class="btn-group-left">
@@ -1624,13 +1634,16 @@ const initializeUI = () => {
                         ${createResourceCard("iron", "buy", "https://dsus.innogamescdn.com/asset/95eda994/graphic/premium/features/IronProduction_large.png", ["200", "2000", { key: "max-spend", value: "5000" }])}
                     </div>
 
+
                     <div class="buttons buy-buttons">
-                        ${createButton("buyModeToggle", i18n.t(state.buyModeActive ? "buyModeToggleOn" : "buyModeToggleOff"), "black-btn toggle-btn")}
-                        ${createButton("buyPause", `<i class="fas fa-pause"></i> ${i18n.t("pause")}`, "black-btn", {"data-tooltip-key": "tooltipPauseBuy"})}
-                        <span class="spinner" id="buySpinner" style="display: none;"></span>
-                    </div>
+                       ${createButton("buyModeToggle", i18n.t(state.buyModeActive ? "buyModeToggleOn" : "buyModeToggleOff"), "black-btn toggle-btn")}
+                       ${createButton("buyPause", `<i class="fas fa-pause"></i> ${i18n.t("pause")}`, "black-btn", {"data-tooltip-key": "tooltipPauseBuy"})}
+                       <span class="spinner" id="buySpinner" style="display: none;"></span>
+                   </div>
 
                 </div>
+
+
 
                 <div class="section sell" id="sellSection">
 
@@ -1650,33 +1663,15 @@ const initializeUI = () => {
             <div class="footer">
                 <div class="footer-buttons-row">
                     ${createButton("resetAll", `\u21BB ${i18n.t("resetAll")}`, "black-btn")}
-                    ${createButton("transactionsBtn", i18n.t("transactions"), "black-btn", {"data-tooltip-key": "tooltipTransactions"})}
+                    <!-- REMOVIDO: Botão Transações -->
                     ${createButton("saveConfig", `<i class="fa-solid fa-floppy-disk"></i> ${i18n.t("saveConfig")}`, "black-btn", {"data-tooltip-key": "tooltipSaveConfig"})}
                 </div>
             </div>
 
-             <!-- MODAL TRANSAÇÕES (Estrutura principal) -->
-            <div class="modal aquila-prime-modal" id="transactionsModal" style="display: none; z-index: 50;">
-                <div class="modal-content aquila-prime-panel">
-                    <h3 class="aquila-modal-header">
-                         <span class="aquila-icon"><img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;"></span>
-                         <span data-i18n-key="transactionsHeader">${i18n.t("transactionsHeader")}</span>
-                    </h3>
-                    <div class="modal-scrollable-body">
-                       <div id="filterSection"></div>
-                       <div id="filteredProfitSummary" class="filtered-profit-summary" style="display: none;"></div>
-                       <div id="transactionsTableContainer"></div>
-                       <div class="aquila-chart" id="transactionsChartContainer"><canvas id="transactionsChart"></canvas></div>
-                    </div>
-                    <div class="modal-footer-controls">
-                       <div id="paginationControls"></div>
-                       <div>${createButton("closeModal", i18n.t("close"), "aquila-btn")}</div>
-                    </div>
-                 </div>
-            </div>
+            <!-- REMOVIDO: MODAL TRANSAÇÕES -->
 
-            <!-- MODAL IA (Estrutura principal) -->
-            <div class="modal" id="aiModal" style="display: none; z-index: 50;">
+            <!-- MODAL IA (Conteúdo Mantido) -->
+             <div class="modal" id="aiModal" style="display: none; z-index: 50;">
                  <div class="modal-content">
                   <h3 data-i18n-key="aiAssistant">${i18n.t("aiAssistant")}</h3>
                   <div style="padding: 20px; flex-grow: 1; overflow-y: auto;">
@@ -1690,16 +1685,71 @@ const initializeUI = () => {
                 </div>
             </div>
 
-             <!-- MODAL CONFIGS (Estrutura principal e preenchimento do body) -->
+             <!-- MODAL CONFIGURAÇÕES (Conteúdo Mantido) -->
             <div class="modal aquila-modal" id="settingsModal" style="display: none; z-index: 50;">
                  <div class="modal-content settings-content aquila-panel">
                     <div class="settings-header aquila-header">
-                       <span class="aquila-icon"><img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;"></span>
+                       <span class="aquila-icon">
+                          <img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;">
+                       </span>
                        <h3 data-i18n-key="settings">Configurações Aquila</h3>
                        <button id="closeSettingsModal" class="close-btn aquila-close-btn">×</button>
                     </div>
                     <div class="settings-body aquila-body">
-                       {/* <!-- Conteúdo da modal será preenchido dinamicamente abaixo --> */}
+
+                       <div class="settings-section aquila-section user-info-section">
+                          <h4 data-i18n-key="settingsSectionAccount"><i class="fas fa-user-astronaut"></i> Status Operacional</h4>
+                           <div class="info-row aquila-info-item">
+                             <span class="info-label aquila-label" data-i18n-key="settingsLabelPlayer"><i class="fas fa-user-circle"></i> Operador:</span>
+                             <span class="info-value aquila-value" id="settingsPlayerName">--</span>
+                          </div>
+                          <div class="info-row aquila-info-item">
+                              <span class="info-label aquila-label" data-i18n-key="settingsLabelLicense"><i class="fas fa-calendar-check"></i> Validade da Licença:</span>
+                              <span class="info-value aquila-value" id="settingsLicenseExpiry">--</span>
+                          </div>
+                           <div class="info-row aquila-info-item">
+                              <span class="info-label aquila-label" data-i18n-key="settingsLabelVersion"><i class="fas fa-code-branch"></i> Versão do Protocolo:</span>
+                              <span class="info-value aquila-value" id="settingsScriptVersion">--</span>
+                          </div>
+                       </div>
+
+                       <div class="settings-section aquila-section language-settings">
+                           <h4 data-i18n-key="settingsSectionLanguage"><i class="fas fa-globe-americas"></i> Interface & Idioma</h4>
+                           <div class="setting-item aquila-setting-item">
+                                <label for="languageSelect" class="aquila-label" data-i18n-key="settingsLabelInterfaceLang"><i class="fas fa-language"></i> Idioma Tático:</label>
+                                <select id="languageSelect" class="aquila-select"></select>
+                                <span class="tooltip-icon" data-tooltip-key="tooltipInterfaceLang"><i class="fas fa-info-circle"></i></span>
+                           </div>
+                       </div>
+
+                       <div class="settings-section aquila-section general-settings">
+                           <h4 data-i18n-key="settingsSectionGeneral"><i class="fas fa-sliders-h"></i> Parâmetros Gerais</h4>
+
+                           <div class="setting-item aquila-setting-item checkbox-item">
+                               <input type="checkbox" class="settings-checkbox aquila-checkbox" id="closeOnHCaptchaInput">
+                               <label for="closeOnHCaptchaInput" class="aquila-label checkbox-label" data-i18n-key="settingsLabelCloseOnHCaptcha"><i class="fas fa-window-close"></i> Fechar Aba no hCaptcha:</label>
+                               <span class="tooltip-icon" data-tooltip-key="tooltipCloseOnHCaptcha"><i class="fas fa-info-circle"></i></span>
+                           </div>
+                       </div>
+
+                       <div class="settings-section aquila-section pause-settings">
+                           <h4 data-i18n-key="settingsSectionPause"><i class="fas fa-hourglass-half"></i> Configurações de Pausa</h4>
+                           <div class="setting-item aquila-setting-item">
+                               <label for="buyPauseDurationInput" class="aquila-label" data-i18n-key="settingsLabelBuyPauseDuration">
+                                   <i class="fas fa-shopping-cart"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Duração Pausa Compra (min):
+                               </label>
+                               <input type="number" class="settings-input aquila-input number-input" id="buyPauseDurationInput" min="1" step="1" placeholder="5">
+                               <span class="tooltip-icon" data-tooltip-key="tooltipBuyPauseDuration"><i class="fas fa-info-circle"></i></span>
+                           </div>
+                           <div class="setting-item aquila-setting-item">
+                               <label for="sellPauseDurationInput" class="aquila-label" data-i18n-key="settingsLabelSellPauseDuration">
+                                    <i class="fas fa-dollar-sign"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Duração Pausa Venda (min):
+                                </label>
+                               <input type="number" class="settings-input aquila-input number-input" id="sellPauseDurationInput" min="1" step="1" placeholder="5">
+                               <span class="tooltip-icon" data-tooltip-key="tooltipSellPauseDuration"><i class="fas fa-info-circle"></i></span>
+                           </div>
+                       </div>
+
                     </div>
                     <div class="settings-footer aquila-footer">
                          <span class="aquila-motto">Ex Caelo Vis</span>
@@ -1707,45 +1757,44 @@ const initializeUI = () => {
                  </div>
             </div>
 
-            {/* Elemento Tooltip */}
-             <div id="aquilaTooltip" class="tooltip aquila-tooltip" style="display: none; position: absolute; z-index: 100;"></div>
         </div>
+         <div id="aquilaTooltip" class="tooltip aquila-tooltip" style="display: none; position: absolute; z-index: 100;"></div>
     `;
     // --- FIM DO HTML ---
 
-    // Adiciona o container principal ao body
+    // Adiciona tooltip e notifications (restante da função igual)
+    const tooltipElement = container.querySelector("#aquilaTooltip");
+    if(tooltipElement) ui.elements.set("tooltip", tooltipElement);
+
     document.body.appendChild(container);
 
-    // Adiciona elemento de notificação
     const notificationElement = createElement("div", {
-        id: "notification", className: "notification", style: "display: none; opacity: 0;"
+        id: "notification",
+        className: "notification",
+        style: "display: none; opacity: 0;"
     });
     document.body.appendChild(notificationElement);
     elementCache.set("notification", notificationElement);
     ui.elements.set("notification", notificationElement);
 
-    // Adiciona caixa minimizada
     const minimizedBox = createElement("div", {
-        id: "minimizedMarketBox", className: "minimized-box"
+        id: "minimizedMarketBox",
+        className: "minimized-box"
     });
     document.body.appendChild(minimizedBox);
     ui.elements.set("minimizedMarketBox", minimizedBox);
 
-    // Define estado inicial de minimização
     const isMinimized = localStorage.getItem("isMinimized") === "true";
     if (typeof state !== 'undefined') { state.isMinimized = isMinimized; }
     container.style.display = isMinimized ? "none" : "block";
     minimizedBox.style.display = isMinimized ? "flex" : "none";
 
-    // Configura Drag and Drop e Sortable
     if (typeof addDragAndDropListeners === "function") {
         addDragAndDropListeners(container);
     }
     if (typeof initializeSortable === "function") {
         initializeSortable();
     }
-
-    // Restaura posição salva
     try {
         const savedPos = JSON.parse(localStorage.getItem("marketContainerPosition"));
         if (savedPos && savedPos.left && savedPos.top) {
@@ -1755,76 +1804,7 @@ const initializeUI = () => {
     } catch (e) {
         localStorage.removeItem("marketContainerPosition");
     }
-
-    // Preenche o conteúdo do corpo da modal de configurações
-    const settingsBody = container.querySelector('.settings-body');
-    if (settingsBody) {
-        settingsBody.innerHTML = `
-             <div class="settings-section aquila-section user-info-section">
-                <h4 data-i18n-key="settingsSectionAccount"><i class="fas fa-user-astronaut"></i> Status Operacional</h4>
-                 <div class="info-row aquila-info-item">
-                   <span class="info-label aquila-label" data-i18n-key="settingsLabelPlayer"><i class="fas fa-user-circle"></i> Operador:</span>
-                   <span class="info-value aquila-value" id="settingsPlayerName">--</span>
-                </div>
-                <div class="info-row aquila-info-item">
-                    <span class="info-label aquila-label" data-i18n-key="settingsLabelLicense"><i class="fas fa-calendar-check"></i> Validade da Licença:</span>
-                    <span class="info-value aquila-value" id="settingsLicenseExpiry">--</span>
-                </div>
-                 <div class="info-row aquila-info-item">
-                    <span class="info-label aquila-label" data-i18n-key="settingsLabelVersion"><i class="fas fa-code-branch"></i> Versão do Protocolo:</span>
-                    <span class="info-value aquila-value" id="settingsScriptVersion">--</span>
-                </div>
-             </div>
-
-             <div class="settings-section aquila-section language-settings">
-                 <h4 data-i18n-key="settingsSectionLanguage"><i class="fas fa-globe-americas"></i> Interface & Idioma</h4>
-                 <div class="setting-item aquila-setting-item">
-                      <label for="languageSelect" class="aquila-label" data-i18n-key="settingsLabelInterfaceLang"><i class="fas fa-language"></i> Idioma Tático:</label>
-                      <select id="languageSelect" class="aquila-select"></select>
-                      <span class="tooltip-icon" data-tooltip-key="tooltipInterfaceLang"><i class="fas fa-info-circle"></i></span>
-                 </div>
-             </div>
-
-             <div class="settings-section aquila-section general-settings">
-                 <h4 data-i18n-key="settingsSectionGeneral"><i class="fas fa-sliders-h"></i> Parâmetros Gerais</h4>
-                 <div class="setting-item aquila-setting-item checkbox-item">
-                     <input type="checkbox" class="settings-checkbox aquila-checkbox" id="closeOnHCaptchaInput">
-                     <label for="closeOnHCaptchaInput" class="aquila-label checkbox-label" data-i18n-key="settingsLabelCloseOnHCaptcha"><i class="fas fa-window-close"></i> Fechar Aba no hCaptcha:</label>
-                     <span class="tooltip-icon" data-tooltip-key="tooltipCloseOnHCaptcha"><i class="fas fa-info-circle"></i></span>
-                 </div>
-             </div>
-
-             <div class="settings-section aquila-section pause-settings">
-                 <h4 data-i18n-key="settingsSectionPause"><i class="fas fa-hourglass-half"></i> Configurações de Pausa</h4>
-                 <div class="setting-item aquila-setting-item">
-                     <label for="buyPauseDurationInput" class="aquila-label" data-i18n-key="settingsLabelBuyPauseDuration">
-                         <i class="fas fa-shopping-cart"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Duração Pausa Compra (min):
-                     </label>
-                     <input type="number" class="settings-input aquila-input number-input" id="buyPauseDurationInput" min="1" step="1" placeholder="5">
-                     <span class="tooltip-icon" data-tooltip-key="tooltipBuyPauseDuration"><i class="fas fa-info-circle"></i></span>
-                 </div>
-                 <div class="setting-item aquila-setting-item">
-                     <label for="sellPauseDurationInput" class="aquila-label" data-i18n-key="settingsLabelSellPauseDuration">
-                          <i class="fas fa-dollar-sign"></i><i class="fas fa-pause-circle" style="margin-left: 4px; opacity: 0.7;"></i> Duração Pausa Venda (min):
-                      </label>
-                     <input type="number" class="settings-input aquila-input number-input" id="sellPauseDurationInput" min="1" step="1" placeholder="5">
-                     <span class="tooltip-icon" data-tooltip-key="tooltipSellPauseDuration"><i class="fas fa-info-circle"></i></span>
-                 </div>
-             </div>
-         `;
-    }
-
-    // Registra o elemento de tooltip (que estava faltando no final)
-    const tooltipElement = container.querySelector("#aquilaTooltip");
-    if (tooltipElement) {
-        ui.elements.set("tooltip", tooltipElement);
-    } else {
-         console.warn("[initializeUI] Elemento #aquilaTooltip não encontrado após renderização.");
-    }
-
-
-}; // --- Fim da função initializeUI (v18 Completa) ---
-
+}; // --- Fim da função initializeUI (v18 - Sem Logs/Transações) ---
 
 
 
@@ -1927,15 +1907,22 @@ const initializeUI = () => {
     state.currentVillage = { name: "Desconhecido", coordinates: "N/A", world: getActiveWorld() };
     ui.getElement("villageSelect").innerHTML = `<option value="current">Carregando...</option>`;
   };
-  const initializeElements = () => {
+
+
+
+
+
+
+// Atualizado para remover IDs de transações
+const initializeElements = () => {
     const elementsToCache = [
       "headerTitle",
-      "worldProfit",
+      // "worldProfit", // REMOVIDO
       "buyModeToggle",
       "sellModeToggle",
       "saveConfig",
       "resetAll",
-      "transactionsBtn",
+      // "transactionsBtn", // REMOVIDO
       "aiAssistantBtn",
       "settingsBtn",
       "languageSelect",
@@ -1947,66 +1934,65 @@ const initializeUI = () => {
       "buySpinner",
       "sellSpinner",
       "notification",
-      "transactionsModal",
-      "transactionsTableContainer",
-      "filterSection",
-      "paginationControls",
-      "transactionsChart",
-      "closeModal",
+      // "transactionsModal", // REMOVIDO
+      // "transactionsTableContainer", // REMOVIDO
+      // "filterSection", // REMOVIDO
+      // "paginationControls", // REMOVIDO
+      // "transactionsChart", // REMOVIDO
+      // "closeModal", // REMOVIDO (agora é handled por IDs específicos)
       "aiModal",
       "aiPrompt",
       "aiResponse",
       "submitAI",
-      "closeAIModal",
+      "closeAIModal", // ID do botão de fechar da modal IA
       "minimizeButton",
       "minimizedMarketBox",
       "settingsModal",
-      "closeSettingsModal",
-      "premiumPointsInput",
-      "logFetchStatus" // <<< ADICIONE ESTA LINHA
+      "closeSettingsModal", // ID do botão de fechar da modal Configs
+      "premiumPointsInput"
     ];
+
+    // Itera sobre os IDs e tenta buscar e guardar cada elemento
     elementsToCache.forEach((id) => {
       const element = document.querySelector(`#${id}`);
       if (element) {
         ui.elements.set(id, element);
         elementCache.set(id, element);
+      } else {
+        // Opcional: Adicionar um log se um elemento não for encontrado pode ajudar na depuração futura
+        // console.warn(`[initializeElements] Elemento com ID "${id}" não encontrado no DOM.`);
       }
     });
+
+    // Cacheia outros elementos importantes (inputs de recursos)
     ui.elements.set("inputs", Array.from(document.querySelectorAll(".rate-input")));
     ui.elements.set("buyPerTimeInput", document.querySelector('.rate-input[data-resource="buy-per-time"]'));
     ui.elements.set("storageLimitInput", document.querySelector('.rate-input[data-resource="storage-limit"]'));
     ui.elements.set("maxSpendInput", document.querySelector('.rate-input[data-resource="max-spend"]'));
     ui.elements.set("sellLimitInput", document.querySelector('.rate-input[data-resource="sell-limit"]'));
-    return Array.from(ui.elements.values()).every((el) => el !== null);
-  };
-  const initializeResources = () => {
-    const resources2 = Object.keys(resourceConfigs).reduce((acc, name) => {
-      const config = { ...resourceConfigs[name] };
-      config.uiRateInput = document.querySelector(`.rate-input[data-resource="${name}"]`);
-      config.uiReserveInput = document.querySelector(`.rate-input[data-resource="reserve-${name}"]`);
-      config.uiReserveRateInput = document.querySelector(`.rate-input[data-resource="reserve-${name}-rate"]`);
-      acc[name] = new ResourceHandler(name, config);
-      return acc;
-    }, {});
-    Object.keys(resources2).forEach((name) => {
-      ui.buyInputs.set(name, resources2[name].getBuyInput());
-      ui.sellInputs.set(name, resources2[name].getSellInput());
-      const buyInput = ui.buyInputs.get(name);
-      if (buyInput && !buyInput.dataset.default) {
-        buyInput.dataset.default = "1000";
-      }
-    });
-    return resources2;
-  };
-  const updateGameElements = () => {
-    ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
-    ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
-    ui.gameElements.set("calculateButton", document.querySelector("input.btn-premium-exchange-buy"));
-    ui.gameElements.set("sellButton", document.querySelector("#premium_exchange_form > input"));
-  };
 
+    // Verifica se TODOS os elementos restantes definidos como essenciais foram encontrados
+    // Adapte esta lista se houver outros elementos absolutamente necessários para o script funcionar
+    const essentialElements = [
+        "buyModeToggle", "sellModeToggle", "saveConfig", "resetAll", "aiAssistantBtn",
+        "settingsBtn", "languageSelect", "villageSelect", "buyPause", "sellPause",
+        "aiModal", "aiPrompt", "aiResponse", "submitAI", "closeAIModal",
+        "settingsModal", "closeSettingsModal", "premiumPointsInput", "minimizeButton",
+        "minimizedMarketBox", "notification"
+        // Adicione outros IDs essenciais aqui, se houver
+    ];
 
+    const allEssentialsFound = essentialElements.every(id => ui.elements.has(id) && ui.elements.get(id) !== null);
 
+    if (!allEssentialsFound) {
+        console.error("Nem todos os elementos essenciais da UI foram encontrados. O script pode não funcionar corretamente.");
+        // Você pode querer lançar um erro aqui ou tomar outra ação,
+        // mas por enquanto, apenas logamos o erro.
+    }
+
+    return allEssentialsFound; // Retorna true se todos os essenciais foram encontrados, false caso contrário
+};
+// --- Fim da função initializeElements (corrigida) ---
 
 
 
@@ -2075,2116 +2061,335 @@ const scheduleReload = () => {
   };
   let isFetching = false;
   let cachedTransactions = {};
-  const checkForUpdates = async () => {
-    try {
-      const { transactions: firstPageTransactions } = await fetchPage(1);
-      if (firstPageTransactions.length === 0) {
-        return false;
-      }
-      const latestServerDate = firstPageTransactions[0].date;
-      const currentPlayerCache = cachedTransactions[currentPlayerNickname];
-      if (!currentPlayerCache || currentPlayerCache.length === 0) {
-        return true;
-      }
-      const latestSavedDate = currentPlayerCache[0].date;
-      return latestServerDate > latestSavedDate;
-    } catch (error) {
-      console.error("[checkForUpdates] Erro ao verificar atualiza\xE7\xF5es:", error);
-      return true;
-    }
-  };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ================================================================
-// ===      fetchAllPagesParallel ATUALIZADA (v1.0 - Concorrência) ===
-// ================================================================
-/**
- * Busca todas as páginas de log de forma paralela para acelerar o processo.
- * @param {number} maxConcurrency - O número máximo de requisições simultâneas.
- * @param {number} maxPagesToFetch - O número máximo de páginas a tentar buscar.
- * @returns {Promise<Array<Object>>} - Uma Promise que resolve com a lista completa e ordenada de transações.
- */
-async function fetchAllPagesParallel(maxConcurrency = 15, maxPagesToFetch = 1000) {
-    let allTransactions = [];
-    let activePromises = new Map(); // Mapeia Promise -> pageNum para rastrear ativas
-    let currentPage = 1;
-    let fetchMore = true; // Flag para parar de iniciar novas buscas se encontrarmos o fim
-    const MAX_LOG_PAGES_TO_FETCH = maxPagesToFetch; // Limite máximo de segurança
-
-    console.log(`[fetchAllPagesParallel v1] Iniciando busca paralela (concorrência: ${maxConcurrency}, limite pág: ${MAX_LOG_PAGES_TO_FETCH}).`);
-
-    // Função interna para buscar e processar uma única página
-    const fetchAndProcessPage = async (pageNum) => {
-        // Não inicia a busca se já sabemos que não há mais páginas
-        if (!fetchMore) return;
-
-        try {
-            // console.log(` -> [Parallel Fetch] Iniciando página ${pageNum}...`); // Log mais detalhado (opcional)
-            // Chama a função fetchPage que já existe e parseia a página
-            const { transactions: pageTransactions, doc } = await fetchPage(pageNum);
-
-            if (pageTransactions && pageTransactions.length > 0) {
-                // Adiciona as transações encontradas ao array principal
-                // Usar push(...array) é eficiente para adicionar múltiplos itens
-                allTransactions.push(...pageTransactions);
-                // console.log(` -> [Parallel Fetch] Página ${pageNum} OK (${pageTransactions.length} logs). Total agora: ${allTransactions.length}`);
-            } else {
-                // Se fetchPage retornou vazio ou inválido, assumimos que é o fim.
-                console.log(` -> [Parallel Fetch] Página ${pageNum} vazia ou inválida. Parando de buscar novas páginas.`);
-                fetchMore = false; // Sinaliza para não iniciar mais buscas
-            }
-        } catch (error) {
-            console.error(` -> [Parallel Fetch] Erro ao buscar/processar página ${pageNum}:`, error);
-            // Considerar parar tudo em caso de erro? Por enquanto, apenas logamos e continuamos
-            // fetchMore = false; // Descomente para parar em qualquer erro de página
-        }
-    };
-
-    // Array para guardar todas as Promises iniciadas, para esperar no final
-    const allLaunchedPromises = [];
-
-    // Loop principal para gerenciar a concorrência
-    while (currentPage <= MAX_LOG_PAGES_TO_FETCH && fetchMore) {
-        // Espera se o limite de concorrência foi atingido
-        // Entra no loop while interno APENAS se já temos o número máximo de requisições ativas
-        while (activePromises.size >= maxConcurrency) {
-             // console.log(` -> [Parallel Fetch] Limite de concorrência (${maxConcurrency}) atingido. Aguardando...`); // Log opcional
-             // Promise.race espera pela PRIMEIRA promise ativa a ser resolvida ou rejeitada
-            await Promise.race(activePromises.keys());
-            // Após uma terminar, o loop 'while (activePromises.size >= maxConcurrency)' reavalia
-        }
-
-        // Verifica novamente se devemos parar (outra promise pode ter setado fetchMore = false enquanto esperávamos)
-        if (!fetchMore) break;
-
-        // Inicia a busca da próxima página
-        const pageToFetch = currentPage++;
-        const promise = fetchAndProcessPage(pageToFetch);
-        allLaunchedPromises.push(promise); // Adiciona ao array geral
-        activePromises.set(promise, pageToFetch); // Adiciona ao mapa de promises ativas
-
-        // Quando a promise terminar (resolver ou rejeitar), remove ela do mapa de ativas
-        // Isso libera espaço para a próxima iteração do loop 'while (currentPage...)'
-        promise.finally(() => {
-            activePromises.delete(promise);
-             // console.log(` -> [Parallel Fetch] Página ${pageToFetch} concluída. Ativas: ${activePromises.size}`); // Log opcional
-        });
-
-        // Pequena pausa para não sobrecarregar o início das requisições (opcional, mas pode ajudar)
-        // await new Promise(resolve => setTimeout(resolve, 50));
-    }
-
-    console.log("[fetchAllPagesParallel v1] Todas as buscas foram iniciadas. Aguardando conclusão das restantes...");
-    // Espera TODAS as promises iniciadas terminarem (sejam bem-sucedidas ou com erro)
-    await Promise.allSettled(allLaunchedPromises);
-    console.log("[fetchAllPagesParallel v1] Todas as buscas foram concluídas.");
-
-    // Ordena todas as transações coletadas DEPOIS que tudo terminou
-    if (allTransactions.length > 0) {
-        allTransactions.sort((a, b) => b.date.getTime() - a.date.getTime()); // Mais recente primeiro
-        console.log(`[fetchAllPagesParallel v1] Total final de ${allTransactions.length} transações encontradas e ordenadas.`);
-    } else {
-        console.log("[fetchAllPagesParallel v1] Nenhuma transação encontrada em todas as páginas buscadas.");
-    }
-
-    return allTransactions; // Retorna a lista completa e ordenada
-}
-// === FIM fetchAllPagesParallel ATUALIZADA (v1.0 - Concorrência) ===
-
-
-
-
-
-
-
-// ============================================================================
-// === FUNÇÃO performBackgroundSequentialFetch ATUALIZADA (v3 - Update Status) ==
-// ============================================================================
-/**
- * Executa busca sequencial em background com yielding e ATUALIZA INDICADOR de progresso.
- * Atualiza estado e UI APENAS NO FINAL. GERENCIA A FLAG isFetching NO FINAL.
- */
-async function performBackgroundSequentialFetch() {
-    console.log("[Background Fetch v3] Iniciando busca sequencial (com yielding e status)...");
-    let currentPage = 1;
-    const MAX_PAGES_SEQUENTIAL = 500; // Limite de segurança
-    const collectedLogs = [];
-    let success = false; // Flag para indicar se a busca terminou sem erros fatais
-    let errorOccurred = null; // Para guardar possível erro
-
-    // Determina mundo e chave de storage aqui, antes do loop
-    const currentWorld = state.currentVillage?.world || getActiveWorld();
-    if (!currentPlayerNickname || !currentWorld) {
-         console.error("[Background Fetch v3] Erro CRÍTICO: Nickname ou Mundo não definidos.");
-         isFetching = false; // Reseta a flag imediatamente se dados essenciais faltam
-         console.log(" -> [Background Fetch v3] 'isFetching = false' (Erro Inicial).");
-         return; // Aborta a função
-    }
-    const storageKey = `ragnarokMarketTransactions_${currentPlayerNickname}_${currentWorld}`;
-
-    // Pega o elemento de status
-    const statusElement = ui.getElement("logFetchStatus");
-    const updateStatus = (page) => {
-        if (statusElement) {
-             try {
-                 // Usa i18n.t para pegar a tradução correta
-                statusElement.textContent = i18n.t('loadingHistoryPage', { page: page, defaultValue: `Carregando Histórico: Página ${page}...` });
-                 statusElement.style.display = 'inline-block'; // Garante visibilidade
-             } catch (e) {
-                 // Fallback se i18n falhar
-                 statusElement.textContent = `Carregando Página ${page}...`;
-                 statusElement.style.display = 'inline-block';
-             }
-         } else {
-              console.warn("[Background Fetch v3] Elemento de status #logFetchStatus não encontrado na UI.");
-         }
-     };
-    updateStatus(currentPage); // Mostra status inicial "Página 1..."
-
-    try { // try...finally GERAL para garantir o reset do isFetching e esconder status
-        while (currentPage <= MAX_PAGES_SEQUENTIAL) {
-            // Atualiza o status antes de buscar
-            updateStatus(currentPage);
-             console.log(`  [Background Fetch v3] Preparando para buscar Página ${currentPage}...`);
-
-            // --- Busca da Página ---
-            let pageTransactions = null;
-            try {
-                // fetchPage já retorna { transactions, doc } ou lança erro
-                const fetchResult = await fetchPage(currentPage); // Espera o fetch/parse
-                pageTransactions = fetchResult?.transactions; // Pega só as transações
-                 console.log(`   -> Fetch/Parse Página ${currentPage} concluído.`);
-            } catch (fetchError) {
-                console.error(` -> Erro DURANTE fetchPage/parse da Página ${currentPage}:`, fetchError);
-                errorOccurred = fetchError; // Guarda o erro
-                console.warn(" -> Busca sequencial INTERROMPIDA devido a erro no fetch/parse.");
-                success = false; // Marca falha
-                break; // Para o loop while
-            }
-
-            // --- Processamento do Resultado ---
-            if (pageTransactions && pageTransactions.length > 0) {
-                console.log(`   -> Página ${currentPage} OK: ${pageTransactions.length} logs. Adicionando.`);
-                collectedLogs.push(...pageTransactions); // Adiciona ao array principal
-
-                // --- Micro-Pausa (Yielding) ---
-                 // console.log("   -> Yielding (pausa 0ms) para liberar UI...");
-                await new Promise(resolveYield => setTimeout(resolveYield, 0)); // << Yield!
-
-                currentPage++; // Incrementa para a próxima página
-
-                // --- Pausa MAIOR entre páginas ---
-                const delay = 300 + Math.random() * 200; // 300-500ms
-                 // console.log(`   -> Aguardando ${Math.round(delay)}ms antes da próxima página...`);
-                await new Promise(resolveDelay => setTimeout(resolveDelay, delay));
-
-            } else {
-                 console.log(` -> [Background Fetch v3] Página ${currentPage} vazia ou fim. Parando busca.`);
-                success = true; // Terminou normalmente sem erros
-                break; // Sai do loop
-            }
-        } // Fim while
-
-        if (currentPage > MAX_PAGES_SEQUENTIAL) {
-            console.warn(`[Background Fetch v3] Limite de ${MAX_PAGES_SEQUENTIAL} páginas atingido.`);
-            success = true; // Considera sucesso parcial se atingir o limite
-        }
-
-    } catch (loopError) { // Pega erros inesperados do próprio loop (difícil acontecer)
-        console.error("[Background Fetch v3] ERRO INESPERADO no loop principal:", loopError);
-        errorOccurred = loopError; // Guarda o erro
-        success = false;
-    } finally { // Este finally executa DEPOIS do try/catch do loop while
-        const finalMessage = `[Background Fetch v3] Fase de busca CONCLUÍDA. ${success ? 'SUCESSO' : 'FALHA'}. ${errorOccurred ? `Erro: ${errorOccurred.message}` : ''} Logs coletados: ${collectedLogs.length}`;
-         console.log(finalMessage);
-
-         // *** Esconde o indicador de status AGORA ***
-         if (statusElement) {
-             statusElement.style.display = 'none';
-             statusElement.textContent = ''; // Limpa o texto
-              console.log(" -> Indicador de status escondido.");
-         }
-
-         // --- Atualização FINAL do Estado e Cache ---
-         // Só atualiza se a busca foi considerada um sucesso (terminou ou atingiu limite sem erro fatal)
-         if (success) {
-              console.log("[Background Fetch v3] Atualizando estado e salvando cache...");
-             // Ordena antes de atualizar/salvar
-             if (collectedLogs.length > 0) {
-                  collectedLogs.sort((a, b) => b.date.getTime() - a.date.getTime());
-             }
-             // Atualiza MobX com resultado final
-             mobx.runInAction(() => {
-                 state.transactions.replace(collectedLogs);
-                 state.allTransactionsFetched = true; // Marca como COMPLETO
-                 state.worldProfit = calculateWorldProfit(); // Calcula lucro final
-                  console.log(` -> [Background Fetch v3] State Final -> Logs: ${state.transactions.length}, Completo: ${state.allTransactionsFetched}, Lucro: ${state.worldProfit}`);
-             });
-             // Salva Cache final COM a flag allLogsFetched: true
-             const finalPPForSave = getAvailablePremiumPoints();
-             const logsToSave = collectedLogs.map(t => ({ ...t, date: t.date.toISOString() }));
-             const dataToSave = { transactions: logsToSave, lastKnownPP: finalPPForSave, allLogsFetched: true }; // <<<< Salva flag
-             try {
-                 const compressedData = LZString.compress(JSON.stringify(dataToSave));
-                 if (compressedData) localStorage.setItem(storageKey, compressedData);
-                 else console.error(" -> [BG Fetch v3] Compressão nula ao salvar.");
-                  console.log(` -> [Background Fetch v3] Cache final SALVO.`);
-             } catch (saveError) {
-                 console.error(" -> [Background Fetch v3] Erro ao salvar cache final:", saveError);
-             }
-             // Notifica sucesso se quiser (opcional)
-             // notifySuccess("Histórico de transações carregado com sucesso em segundo plano.");
-          } else { // Se houve erro durante a busca
-             console.error("[Background Fetch v3] Finalizando com ERRO. Estado não será atualizado com logs parciais/corrompidos.");
-              // Garante que o state reflita a falha de estar completo
-              mobx.runInAction(() => {
-                 state.allTransactionsFetched = false;
-                 // Poderia reverter para um cache antigo se guardássemos, ou deixar como está.
-                 // Recalcula o lucro com o que TEM no state (pode ser antigo/vazio)
-                 state.worldProfit = calculateWorldProfit();
-              });
-             notifyError("Erro ao carregar histórico completo. Tente recarregar a página."); // Avisa o usuário
-          }
-
-          // Atualiza a UI UMA VEZ NO FINAL (para refletir lucro correto ou estado de erro)
-          updateUI();
-           console.log("[Background Fetch v3] Chamada final updateUI feita.");
-
-          // ---- SEMPRE redefine isFetching no final ----
-          isFetching = false;
-           console.log(" -> [Background Fetch v3] Marcado como 'isFetching = false' (finally).");
-           console.log(`[DEBUG Background Fetch v3] ===== FIM @ ${new Date().toLocaleTimeString()} =====\n`);
-    } // Fim finally
-}
-
-
-
-
-
-
-
-
-
-
-// ==================================================================================
-// === fetchPremiumLogs ATUALIZADA (v20.1 - Corrige Escopo em finalizeAndUpdate) ===
-// ==================================================================================
-/**
- * Ponto de entrada para buscar logs. Prioriza cache. Se PP Mismatch, verifica P1 primeiro
- * antes de decidir pela busca completa em background.
- * Corrige o escopo da variável 'storageKey' dentro de 'finalizeAndUpdate'.
-*/
-const fetchPremiumLogs = (forceFullFetch = false) => {
-    // 1. Checa se JÁ está buscando
-    if (isFetching) {
-        console.log("[fetchPremiumLogs v20.1] Busca já em andamento. Retornando estado atual.");
-        return Promise.resolve(mobx.toJS(state.transactions)); // Retorna o que temos
-    }
-
-    // 2. Marca como buscando (será resetado no finally da Promise principal OU da P1 check)
-    isFetching = true;
-    console.log(" -> [fetchPremiumLogs v20.1] Marcado como 'isFetching = true'.");
-
-    // Retorna a Promise que fará o trabalho
-    return new Promise(async (resolve, reject) => {
-        let needsFullFetch = false;             // Flag final se precisa de busca completa BG
-        let fetchCacheReason = "N/A";           // Motivo da decisão
-        let localFinalTransactions = [];      // Transações a serem usadas/retornadas
-        let cacheAlreadyComplete = false;     // Flag lida do cache
-        let cachedPP = null;                    // PP lido do cache
-
-        const statusElement = ui.getElement("logFetchStatus"); // Elemento de status
-
-        // --- Define storageKey AQUI no escopo principal da Promise ---
-        let storageKey = ''; // Inicializa - Será definida após validar Nick/Mundo
-
-        // ==============================================================
-        // === Helper finalizeAndUpdate - AGORA ACEITA storageKey ========
-        // ==============================================================
-        const finalizeAndUpdate = (storageKeyToUse, successMessage) => {
-             // Verifica se recebeu uma storageKey válida
-            if (!storageKeyToUse || typeof storageKeyToUse !== 'string' || storageKeyToUse === '') {
-                console.error("[finalizeAndUpdate] Erro: storageKey inválida recebida:", storageKeyToUse);
-                // Pode optar por rejeitar ou apenas logar e tentar continuar sem salvar.
-                // Por segurança, tentaremos continuar mas sem salvar cache.
-                 try {
-                     const currentProfit = calculateWorldProfit();
-                     mobx.runInAction(() => { state.worldProfit = currentProfit });
-                      console.log(` -> Lucro calculado (${fetchCacheReason}): ${currentProfit} (Sem salvar cache devido a erro na chave)`);
-                     updateUI();
-                     console.log(`[DEBUG fetchPremiumLogs v20.1 Inner] ===== FIM (${successMessage} - ERRO CHAVE CACHE) @ ${new Date().toLocaleTimeString()} =====\n`);
-                     resolve(mobx.toJS(state.transactions));
-                 } catch (e) {
-                     console.error("[finalizeAndUpdate] Erro secundário ao tentar finalizar sem salvar:", e);
-                     reject(e); // Rejeita a promise externa se o finalize falhar
-                 }
-                 return; // Importante sair aqui
-             }
-
-             // Prossegue se a chave for válida
-            const currentProfit = calculateWorldProfit(); // Recalcula com os dados finais no state
-            mobx.runInAction(() => { state.worldProfit = currentProfit });
-             console.log(` -> Lucro calculado (${fetchCacheReason}): ${currentProfit}`);
-            updateUI(); // Atualiza UI
-
-            // Salva o estado final no cache usando storageKeyToUse
-            const finalPPForSave = getAvailablePremiumPoints();
-            // Garante que as transações no state sejam as mais recentes para salvar
-            const currentLogsInState = mobx.toJS(state.transactions);
-            const logsToSave = currentLogsInState.map(t => ({ ...t, date: t.date.toISOString() }));
-            // A flag 'allLogsFetched' reflete se a busca completa foi concluída (ou se PP bateu + cache completo)
-            const dataToSave = { transactions: logsToSave, lastKnownPP: finalPPForSave, allLogsFetched: state.allTransactionsFetched };
-            try {
-                const compressedData = LZString.compress(JSON.stringify(dataToSave));
-                // *** USA storageKeyToUse ***
-                if (compressedData) {
-                     localStorage.setItem(storageKeyToUse, compressedData);
-                     console.log(` -> Cache salvo (${currentLogsInState.length} logs, PP:${finalPPForSave}, Completo:${state.allTransactionsFetched}) usando a chave: ${storageKeyToUse}`);
-                 } else {
-                      console.error(" -> Compressão nula ao salvar cache.");
-                 }
-            } catch (saveError) {
-                 console.error(` -> Erro ao salvar cache (Chave: ${storageKeyToUse}):`, saveError);
-            }
-
-             console.log(`[DEBUG fetchPremiumLogs v20.1 Inner] ===== FIM (${successMessage}) @ ${new Date().toLocaleTimeString()} =====\n`);
-            resolve(mobx.toJS(state.transactions)); // Resolve com o estado final
-        };
-        // ==============================================================
-        // === Fim Helper finalizeAndUpdate =============================
-        // ==============================================================
-
-
-        try { // Try principal para toda a lógica
-            // --- Validações Iniciais e Definição de storageKey ---
-            if (!currentPlayerNickname) throw new Error("Nickname não identificado.");
-            const currentWorld = state.currentVillage?.world || getActiveWorld();
-            if (!currentWorld) throw new Error("Mundo não identificado.");
-            // *** Define storageKey AGORA que currentWorld é válido ***
-            storageKey = `ragnarokMarketTransactions_${currentPlayerNickname}_${currentWorld}`; // AQUI!
-
-            console.log(`\n[DEBUG fetchPremiumLogs v20.1 Inner] ===== INÍCIO @ ${new Date().toLocaleTimeString()} =====`);
-            console.log(` -> Jogador: ${currentPlayerNickname}, Mundo: ${currentWorld}, Forçar: ${forceFullFetch}, Chave: ${storageKey}`); // Loga a chave definida
-
-            // --- Carrega Cache ---
-             if (!forceFullFetch) {
-                const savedDataCompressed = localStorage.getItem(storageKey); // Usa a chave definida
-                 if (savedDataCompressed) {
-                     console.log(" -> Cache encontrado.");
-                      try { // Parse do cache
-                         const decompressed = LZString.decompress(savedDataCompressed);
-                         if (!decompressed) throw new Error("Descompressão nula");
-                         const savedDataObject = JSON.parse(decompressed);
-                         if (savedDataObject && Array.isArray(savedDataObject.transactions) && typeof savedDataObject.lastKnownPP === 'number') {
-                             cachedPP = savedDataObject.lastKnownPP;
-                             localFinalTransactions = savedDataObject.transactions.map(t => ({ ...t, date: new Date(t.date) }));
-                             mobx.runInAction(() => { state.transactions.replace(localFinalTransactions); });
-                             cacheAlreadyComplete = savedDataObject.allLogsFetched === true;
-                              console.log(` -> Cache carregado: ${localFinalTransactions.length} logs. PP: ${cachedPP}. Completo? ${cacheAlreadyComplete}`);
-                         } else { throw new Error("Estrutura cache inválida."); }
-                      } catch (e) { // Erro no parse
-                           console.error(` -> Erro cache: ${e.message}. Removendo.`); localStorage.removeItem(storageKey); // Usa a chave definida
-                           localFinalTransactions = []; mobx.runInAction(() => { state.transactions.replace([]); state.allTransactionsFetched = false; });
-                           needsFullFetch = true; fetchCacheReason = "Erro Cache"; cacheAlreadyComplete = false;
-                       }
-                 } else { // Sem cache salvo
-                      console.log(" -> Nenhum cache."); needsFullFetch = true; fetchCacheReason = "Sem Cache";
-                      mobx.runInAction(() => { state.allTransactionsFetched = false; }); localFinalTransactions = []; cacheAlreadyComplete = false;
-                 }
-             } else { // Busca completa forçada
-                 console.log(" -> Busca Completa forçada."); needsFullFetch = true; fetchCacheReason = "Forçada";
-                 mobx.runInAction(() => { state.transactions.replace([]); state.allTransactionsFetched = false; }); localFinalTransactions = []; cacheAlreadyComplete = false;
-             }
-
-            // --- Lógica de Decisão (Mesma da v20) ---
-            const currentPP = getAvailablePremiumPoints();
-
-            if (!needsFullFetch && cachedPP !== null) { // Se temos cache
-                console.log(` -> Verificando PP: Salvo=${cachedPP}, Atual=${currentPP}`);
-
-                if (cachedPP === currentPP) { // ---- PP Bate ----
-                    if (cacheAlreadyComplete) { // ---- CENÁRIO 1.1: PP OK & Cache Completo ----
-                        console.log(" -> PP OK e Cache Completo."); fetchCacheReason = "PP OK & Cache Completo";
-                        mobx.runInAction(() => { state.allTransactionsFetched = true; });
-                         // *** Passa a storageKey válida para finalizeAndUpdate ***
-                        finalizeAndUpdate(storageKey, "Cache Completo OK"); // <<< Passa a chave AQUI
-                         return; // Sai da Promise
-
-                    } else { // ---- CENÁRIO 1.2: PP OK & Cache INCOMPLETO ----
-                        console.warn(` -> PP OK, mas cache não completo. Iniciando busca BG.`); needsFullFetch = true;
-                        fetchCacheReason = "PP OK, Cache Incompleto";
-                        mobx.runInAction(() => { state.allTransactionsFetched = false; });
-                    }
-                } else { // ---- CENÁRIO 2: PP NÃO Bate -> Checa P1 ----
-                     console.warn(` -> PP NÃO BATEU! Checando Página 1...`); fetchCacheReason = "PP Mismatch - Check P1";
-                     mobx.runInAction(() => { state.allTransactionsFetched = false; });
-
-                     let firstPageTransactions = null; let fetchP1Error = null;
-                     try { // Busca P1
-                         console.log("   -> Buscando Página 1...");
-                         if (statusElement) { /* ... */ try{statusElement.textContent=i18n.t('loadingHistoryPage', { page: 1 }); statusElement.style.display='inline-block';}catch(e){} }
-                          const { transactions: p1 } = await fetchPage(1);
-                          if (statusElement) { /* ... */ }
-                         firstPageTransactions = p1 || [];
-                          console.log(`   -> P1 retornou ${firstPageTransactions.length} logs.`);
-                      } catch (error) { /* ... */ fetchP1Error = error; }
-
-                     if (fetchP1Error || !firstPageTransactions) { // Falha P1 -> Busca BG
-                         console.error("   -> Falha Página 1. Iniciando busca completa BG."); needsFullFetch = true;
-                         fetchCacheReason = "PP Mismatch - P1 Falhou";
-                         mobx.runInAction(() => { state.transactions.replace([]); }); localFinalTransactions = [];
-
-                     } else { // P1 OK -> Mescla e re-checa
-                         console.log("   -> Mesclando P1 e recalculando PP esperado...");
-                         const cachedSignatures = new Set(localFinalTransactions.map(t => `${t.date.toISOString()}_${t.change}_${t.type}_${t.newPremiumPoints}`));
-                         const newTransactions = firstPageTransactions.filter(t => !cachedSignatures.has(`${t.date.toISOString()}_${t.change}_${t.type}_${t.newPremiumPoints}`));
-                         console.log(`    -> Novas da P1: ${newTransactions.length}`);
-                         const netChangeFromNew = newTransactions.reduce((sum, t) => sum + (t.change || 0), 0);
-                         const expectedPPAfterMerge = cachedPP + netChangeFromNew;
-                         console.log(`    -> Mudança P1: ${netChangeFromNew}. PP Esperado: ${expectedPPAfterMerge}. PP Atual: ${currentPP}`);
-
-                         if (expectedPPAfterMerge === currentPP) { // SUB-CENÁRIO 2.1: P1 CORRIGIU
-                             console.log("    -> SUCESSO! P1 corrigiu PP."); fetchCacheReason = "PP Mismatch - P1 Corrigiu";
-                             needsFullFetch = false; // NÃO precisa busca BG
-                             if (newTransactions.length > 0) {
-                                 localFinalTransactions = [...newTransactions, ...localFinalTransactions];
-                                 localFinalTransactions.sort((a, b) => b.date.getTime() - a.date.getTime());
-                                 mobx.runInAction(() => { state.transactions.replace(localFinalTransactions); });
-                             }
-                             mobx.runInAction(() => { state.allTransactionsFetched = false; });
-                              // *** Passa a storageKey válida para finalizeAndUpdate ***
-                             finalizeAndUpdate(storageKey, "P1 Corrigiu PP"); // <<< Passa a chave AQUI
-                             return; // Sai
-
-                         } else { // SUB-CENÁRIO 2.2: P1 NÃO CORRIGIU -> Busca BG
-                              console.warn(`    -> FALHA! Pós-P1 PP(${expectedPPAfterMerge}) != Atual(${currentPP}). Iniciando busca BG.`);
-                              needsFullFetch = true; fetchCacheReason = "PP Mismatch - P1 Insuficiente";
-                              mobx.runInAction(() => { state.transactions.replace([]); state.allTransactionsFetched = false; }); localFinalTransactions = [];
-                          }
-                      } // Fim tratamento P1 OK
-                 } // Fim PP Mismatch
-            } // Fim validação de cache existente
-
-            // --- Dispara Busca em Background (se needsFullFetch for true) ---
-            if (needsFullFetch) {
-                  console.log(`\n -> [fetchPremiumLogs v20.1] DISPARANDO busca BG (Razão: ${fetchCacheReason}).`);
-                  if (statusElement) { /*(Código status)*/ try{statusElement.textContent=i18n.t('loadingHistoryPage', { page: 1 }); statusElement.style.display='inline-block';}catch(e){} }
-                  performBackgroundSequentialFetch(); // Chama SEM await
-                  console.log(" -> [fetchPremiumLogs v20.1] Função de background iniciada.");
-                   console.log(`[DEBUG fetchPremiumLogs v20.1 Inner] ===== FIM (BG Iniciado) @ ${new Date().toLocaleTimeString()} =====\n`);
-                  resolve(mobx.toJS(state.transactions)); // Resolve com o que tem
-                  return; // Sai
-              }
-
-             // Segurança: Fluxo inesperado
-             console.warn("[fetchPremiumLogs v20.1] Fluxo inesperado final.");
-              // *** Passa a storageKey válida para finalizeAndUpdate ***
-              finalizeAndUpdate(storageKey, "Fluxo Inesperado"); // <<< Passa a chave AQUI
-
-        } catch (error) { // Pega erros GERAIS da lógica ANTES de iniciar BG ou finalizar com cache
-              console.error(`[fetchPremiumLogs v20.1 Inner] Erro GERAL:`, error);
-              mobx.runInAction(() => { state.worldProfit = 0; state.allTransactionsFetched = false; state.transactions.replace([]); });
-              updateUI();
-              reject(error); // Rejeita a promise externa
-          } finally {
-              // --- Reset do isFetching ---
-              // Será resetado por performBackgroundSequentialFetch ou por finalizeAndUpdate.
-              if (isFetching) {
-                  if(needsFullFetch){
-                       console.log("[fetchPremiumLogs v20.1 - finally] 'isFetching' será resetado pela tarefa de background.");
-                  } else {
-                       console.warn("[fetchPremiumLogs v20.1 - finally] Resetando 'isFetching' (Não iniciou BG ou falha prévia).");
-                      isFetching = false; // Garante o reset aqui se não iniciou BG
-                  }
-              }
-          }
-    }); // Fim da Promise principal
-};
-// === FIM fetchPremiumLogs ATUALIZADA (v20.1 - Corrige Escopo em finalizeAndUpdate) ===
-
-
-
-// Função fetchPage ATUALIZADA (v30 - Turkish Keywords)
-async function fetchPage(pageNum = 1) {
-    const gameData = TribalWars.getGameData ? TribalWars.getGameData() : {};
-    const villageId = gameData.village?.id || null;
-    if (!villageId) {
-      throw new Error("ID da vila não encontrado no gameData");
-    }
-    const baseUrl = `${window.location.origin}/game.php?village=${villageId}&screen=premium&mode=log`;
-    const url = pageNum <= 1 ? baseUrl : `${baseUrl}&page=${pageNum - 1}`;
-
-    console.log(`[fetchPage v30 - TR Keywords] Buscando logs da URL: ${url}`);
-
-    try {
-      const response = await fetchMarketData(url);
-      if (!response) {
-        throw new Error("Falha ao buscar logs premium (resposta vazia)");
-      }
-      const doc = new DOMParser().parseFromString(response, "text/html");
-      const contentValue = doc.querySelector("#content_value");
-      if (!contentValue) {
-        console.warn(`[fetchPage v30 - TR Keywords] Elemento #content_value não encontrado.`);
-        throw new Error("Não foi possível encontrar o elemento #content_value na resposta");
-      }
-
-      let transactionTable = null;
-      const specificTable = doc.querySelector('#premium_log_list table.vis');
-      if (specificTable) {
-          console.log(`[fetchPage v30 - TR Keywords] Tabela encontrada por ID específico (#premium_log_list).`);
-          transactionTable = specificTable;
-      } else {
-          const tables = contentValue.querySelectorAll("table.vis");
-          console.log(`[fetchPage v30 - TR Keywords] Busca por ID falhou. Encontradas ${tables.length} tabelas com classe 'vis'. Verificando cabeçalhos...`);
-
-          for (let i = 0; i < tables.length; i++) {
-            const table = tables[i];
-            const thElements = table.querySelectorAll("th");
-            if (thElements.length < 4) {
-                 console.log(`[fetchPage v30 - TR Keywords] Tabela ${i+1} tem menos de 4 cabeçalhos. Pulando.`);
-                 continue;
-            }
-            const rawHeaders = Array.from(thElements).map(th => th.textContent.trim());
-            // Normaliza: minúsculas, remove espaços extras, remove ':' no final
-            // ATENÇÃO: toLowerCase() pode não funcionar corretamente com 'İ' turco se o locale não for TR.
-            // Vamos tentar manter o 'i̇' pontilhado como veio do log para a comparação.
-            const headers = rawHeaders.map(h => h.toLowerCase().replace(/\s+/g, ' ').replace(/:$/, '').trim());
-            const columnCount = headers.length;
-
-            console.log(`[fetchPage v30 - TR Keywords] Cabeçalhos Limpos Tabela ${i+1}:`, headers);
-
-            // === INÍCIO: ATUALIZAÇÃO DAS PALAVRAS-CHAVE TURCAS ===
-            const essentialKeys = {
-                // Adiciona 'tarih'
-                date: ["date", "data", "дата", "dátum", "datum", "tarih", "fecha", "التاريخ", "ημερομηνία"],
-                // Adiciona 'dünya'
-                world: ["world", "mondo", "świat", "mundo", "мир", "svet", "wäut", "dünya", "welt", "svět", "wereld", "monde", "العالم", "عالم", "κόσμος", "világ"],
-                // Adiciona 'işlem' e 'i̇şlem' (com i pontilhado)
-                transaction: ["transaction", "transacción", "transaktion", "transakcja", "transação", "действие", "işlem", "i̇şlem", "beschreibung", "descrizione", "popis", "transakce", "omschrijving", "description", "opération", "descripción", "المعاملة", "العمليات", "transactie", "περιγραφή", "συναλλαγή", "tranzakció", "leírás"],
-                // Adiciona 'değişim'
-                change: ["change", "alterar", "mudança", "zmiana", "изменение", "änderig", "änderung", "variazione", "cambio", "cambiamento", "değişim", "zmena", "změna", "wijziging", "modification", "changement", "التغيير", "تغيير", "αλλαγή", "változás", "modifica"],
-            };
-            // === FIM: ATUALIZAÇÃO DAS PALAVRAS-CHAVE TURCAS ===
-
-            const hasDate = headers.some(h => essentialKeys.date.includes(h)); // Deve achar 'tarih'
-            const hasWorld = headers.some(h => essentialKeys.world.includes(h)); // Deve achar 'dünya'
-            const hasTransaction = headers.some(h => essentialKeys.transaction.includes(h)); // Deve achar 'i̇şlem' ou 'işlem'
-            const hasChange = headers.some(h => essentialKeys.change.includes(h)); // Deve achar 'değişim'
-
-            console.log(`[fetchPage v30 - TR Keywords] Tabela ${i+1} Checks: Tarih=${hasDate}, Dünya=${hasWorld}, İşlem=${hasTransaction}, Değişim=${hasChange}, Colunas=${columnCount}`); // Log atualizado
-
-            // Condição Principal: Tarih, Dünya e İşlem/Transação
-            if (columnCount >= 4 && hasDate && hasWorld && hasTransaction) {
-                transactionTable = table;
-                console.log(`[fetchPage v30 - TR Keywords] Tabela ${i+1} SELECIONADA (Critério Principal: Tarih, Dünya, İşlem OK).`);
-                break;
-            }
-            // Condição Fallback: Tarih, Dünya e Değişim/Change
-            else if (columnCount >= 4 && hasDate && hasWorld && hasChange) {
-                transactionTable = table;
-                 console.log(`[fetchPage v30 - TR Keywords] Tabela ${i+1} SELECIONADA (Critério Fallback: Tarih, Dünya, Değişim OK).`);
-                 break;
-            }
-          }
-      }
-
-      let transactions = [];
-      if (transactionTable) {
-        const rows = Array.from(transactionTable.querySelectorAll("tr:not(:first-child)"));
-        const dataRows = rows.filter(row => row.querySelector('td'));
-        console.log(`[fetchPage v30 - TR Keywords] Tabela encontrada. ${dataRows.length} linhas de dados (com <td>) encontradas.`);
-
-        if (dataRows.length > 0) {
-            console.log(`[fetchPage v30 - TR Keywords] Passando ${dataRows.length} linhas para parseTransactions...`);
-            transactions = parseTransactions(dataRows); // Chama parseTransactions (v21 ainda)
-            console.log(`[fetchPage v30 - TR Keywords] parseTransactions retornou ${transactions.length} transações.`);
-        } else {
-             console.log(`[fetchPage v30 - TR Keywords] Nenhuma linha de dados encontrada na tabela para passar para parseTransactions.`);
-        }
-      } else {
-         console.warn("[fetchPage v30 - TR Keywords] Nenhuma tabela de transações adequada foi encontrada nesta página.");
-      }
-
-      return { transactions, doc };
-
-    } catch (error) {
-       console.error(`[fetchPage v30 - TR Keywords] Erro ao buscar/processar URL ${url}:`, error);
-       throw error;
-    }
-}
-// === FIM fetchPage ATUALIZADA (v30 - Turkish Keywords) ===
-
-
-
-
-
-
-
-// FUNÇÃO parseDate ATUALIZADA (v30 - Greek Format and Locale)
-const parseDate = (dateStr) => {
-    if (!dateStr || typeof dateStr !== 'string') return new Date(NaN);
-    // === INÍCIO ATUALIZAÇÃO GREGO ===
-    const locales = ["el-GR", "tr-TR", "de-CH", "de-DE", "sk-SK", "ru-RU", "pt-PT", "pt-BR", "pl-PL", "it-IT", "hu-HU", "en-GB", "en-US", "nl", "ar", "es", "fr", "cs"]; // Adicionado el-GR no início
-    // === FIM ATUALIZAÇÃO GREGO ===
-
-    // === INÍCIO ATUALIZAÇÃO FORMATO GREGO ===
-    const formatStrings = [
-        "MMM dd,yyyy HH:mm",   // Formato Grego Específico (sem espaço após vírgula)
-        "dd MMM yyyy HH:mm",   // Outro formato grego comum? (Dia Mês Ano)
-        "dd/MM/yyyy HH:mm",    // Formato Grego com barras
-        "dd.MMM., HH:mm",      // Formato Suíço Específico
-        "dd.MM.yyyy HH:mm",    // DE/CH/SK/CZ/RU/PT/PL/HU etc.
-        "d MMMM yyyy HH:mm",   // IT/ES/PT? com nome completo
-        "dd/MMM/yyyy (HH:mm)", // PT/BR?
-        "MMM dd, yyyy HH:mm",  // IT/RU? com espaço após vírgula
-        "yyyy.MM.dd HH:mm",    // HU alt
-        "dd/MM/yy HH:mm:ss",   // GR ano curto segs?
-        "dd/MM/yyyy HH:mm:ss", // GR ano longo segs?
-        "MM/dd/yyyy HH:mm",    // US
-        "dd-MM-yyyy HH:mm",    // NL
-        "dd/MM, HH:mm",        // AE sem ano
-        "yyyy/MM/dd HH:mm",    // AE alt
-        "dd.MMMM.yyyy HH:mm",  // AE nome mês
-        "MMMM d,yyyy HH:mm",   // FR?
-        "dd.MM.yy HH:mm",      // DE/CH/CS/NL/PL/RU/SK? ano curto
-        "dd/MM/yy HH:mm",      // ES/FR/IT ano curto
-        "d MMM yy HH:mm",      // FR alt? ano curto
-        "dd. MM. yyyy HH:mm",  // Com espaço
-        "dd.MM. HH:mm",        // DE antigo?
-        "LLL dd, HH:mm",       // EN/PT/RU? sem ano
-        "d MMM HH:mm",         // NL?/EN sem ano
-        "yyyy-MM-dd HH:mm:ss"  // ISO
-    ];
-    // === FIM ATUALIZAÇÃO FORMATO GREGO ===
-
-    let parsedDate = null;
-    let success = false;
-    let usedFormat = '';
-    let usedLocale = '';
-
-    Loop:
-    for (const format of formatStrings) {
-        for (const locale of locales) {
-            let processedDateStr = dateStr;
-            let formatToUse = format;
-            // Pré-processamento específico para formato suíço
-            if (format === "dd.MMM., HH:mm") {
-                processedDateStr = dateStr.replace(/(\d{2}\.\w{3})\.,/, '$1');
-                formatToUse = format.replace('.,', '');
-            }
-            // Pré-processamento para formato grego sem espaço (remove a vírgula antes de parsear)
-            // O formato em si já está sem espaço, só precisamos garantir que Luxon entenda MMM dd yyyy
-            else if (format === "MMM dd,yyyy HH:mm") {
-                 // Remove a vírgula para ajudar Luxon
-                 processedDateStr = dateStr.replace(/(\s\d{1,2}),(\d{4})/, '$1 $2'); // Adiciona espaço se não houver
-                 formatToUse = "MMM dd, yyyy HH:mm"; // Usa o formato COM espaço para Luxon
-                 // console.log(`[parseDate v30 - DEBUG] Preprocessed GR date "${dateStr}" to "${processedDateStr}" for format "${formatToUse}"`);
-            }
-
-
-            parsedDate = DateTime.fromFormat(processedDateStr, formatToUse, { locale });
-
-            if (parsedDate.isValid) {
-                 // console.log(`[parseDate v30 - DEBUG] Parsed "${processedDateStr}" (original: "${dateStr}") using locale '${locale}' with format '${formatToUse}'`);
-                success = true;
-                usedFormat = format; // Guarda o formato original
-                usedLocale = locale;
-                break Loop;
-            }
-        }
-    }
-
-    if (!success || !parsedDate || !parsedDate.isValid) {
-        console.warn(`[parseDate v30 - DEBUG] Failed to parse date string "${dateStr}" with known formats/locales.`);
-        return new Date(NaN);
-    }
-
-    // Ajuste do Ano (lógica mantida)
-    const now = DateTime.now();
-    let date = parsedDate;
-     if (!usedFormat.includes('y')) { // Se o formato original não tinha ano
-        date = date.set({ year: now.year });
-        if (date > now) { date = date.set({ year: now.year - 1}); }
-    }
-    else if (usedFormat.includes('yy') && !usedFormat.includes('yyyy')) { // Se tinha ano curto
-        let dateWithCurrentCentury = date.set({ year: Math.floor(now.year / 100) * 100 + date.year % 100 });
-        if (dateWithCurrentCentury > now) { date = dateWithCurrentCentury.set({ year: dateWithCurrentCentury.year - 100 }); }
-        else { date = dateWithCurrentCentury; }
-        if (now.month < date.month && date.year === now.year){ date = date.set({ year: now.year -1}); }
-    }
-
-    return date.toJSDate();
-}
-// === FIM parseDate ATUALIZADA (v30 - Greek Format and Locale) ===
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// FUNÇÃO parseTransactions ATUALIZADA (v28 - Greek Server & Keywords) - COMPLETA
-const parseTransactions = (rows) => {
-    console.log(`[parseTransactions v28 - GR Server Support] Iniciando parseamento de ${rows.length} linhas.`); // Mantido o log da última versão funcional
-    const transactions = [];
-    const hostname = window.location.hostname;
-    let serverCode = hostname.split('.')[0]; // Padrão: pega o primeiro subdomínio
-
-    // Detecção de serverCode refinada
-    if (hostname.includes("tribalwars.com.br")) serverCode = "br";
-    else if (hostname.includes("tribalwars.com.pt")) serverCode = "pt";
-    else if (hostname.includes("voynaplemyon.com")) serverCode = "ru";
-    else if (hostname.includes("divoke-kmene.sk")) serverCode = "sk";
-    else if (hostname.includes("divokekmeny.cz")) serverCode = "cs";
-    else if (hostname.includes("staemme.ch")) serverCode = "ch";
-    else if (hostname.includes("die-staemme.de")) serverCode = "de";
-    else if (hostname.includes("klanlar.org")) serverCode = "tr";
-    else if (hostname.includes("fyletikesmaxes.gr")) serverCode = "gr"; // Adicionado GR
-    else if (hostname.includes("tribalwars.us")) serverCode = "us";
-    else if (hostname.includes("tribalwars.co.uk")) serverCode = "uk";
-    else if (hostname.includes("tribalwars.nl")) serverCode = "nl";
-    else if (hostname.includes("guerretribale.fr")) serverCode = "fr";
-    else if (hostname.includes("tribals.it")) serverCode = "it";
-    else if (hostname.includes("plemiona.pl")) serverCode = "pl";
-    else if (hostname.includes("guerrastribales.es")) serverCode = "es";
-    else if (hostname.includes("tribalwars.ae")) serverCode = "ae";
-    else if (hostname.includes("klanhaboru.hu")) serverCode = "hu";
-    // tribalwars.works e tribalwars.net já são cobertos pelo padrão inicial
-
-    console.log(` -> ServerCode detectado: ${serverCode}`);
-
-    rows.forEach((row, index) => {
-      const cells = row.querySelectorAll("td");
-      if (cells.length >= 5) {
-        try {
-            const dateStr = cells[0]?.textContent?.trim();
-            // Chama a função parseDate (que deve ser a v30 ou posterior para incluir GR)
-            const date = parseDate(dateStr);
-
-            if (isNaN(date.getTime())) {
-                 console.warn(`[parseTransactions v28] Linha ${index}: FALHA DATA: "${dateStr}"`);
-                 return; // Pula esta linha se a data for inválida
-            }
-
-            // Lógica de Mundo Robusta (Extrai número e junta com serverCode)
-            const displayedWorldText = cells[1]?.textContent?.trim() || '';
-            let worldIdentifier = 'UnknownWorld'; // Default genérico
-            // Define fallback baseado no serverCode para mensagens de erro
-            switch(serverCode) {
-                case 'gr': worldIdentifier = 'ΆγνωστοςΚόσμος'; break;
-                case 'tr': worldIdentifier = 'DünyaBilinmiyor'; break;
-                case 'sk': worldIdentifier = 'SvetNeznámy'; break;
-                case 'cs': worldIdentifier = 'SvětNeznámý'; break;
-                case 'ch':
-                case 'de': worldIdentifier = 'WeltUnbekannt'; break;
-                case 'ru': worldIdentifier = 'МирНеизвестен'; break;
-                case 'pt':
-                case 'br': worldIdentifier = 'MundoDesconhecido'; break;
-                case 'it': worldIdentifier = 'MondoSconosciuto'; break;
-                case 'pl': worldIdentifier = 'ŚwiatNieznany'; break;
-                case 'es': worldIdentifier = 'MundoDesconocido'; break;
-                case 'fr': worldIdentifier = 'MondeInconnu'; break;
-                case 'nl': worldIdentifier = 'WereldOnbekend'; break;
-                case 'hu': worldIdentifier = 'VilágIsmeretlen'; break;
-                case 'ae': worldIdentifier = 'عالم غير معروف'; break;
-            }
-            const worldNumberMatch = displayedWorldText.match(/(\d+)/); // Pega a primeira sequência de números
-            if (worldNumberMatch && worldNumberMatch[1]) {
-                const worldNumber = worldNumberMatch[1];
-                worldIdentifier = `${serverCode}${worldNumber}`; // Cria ID padrão (ex: gr100, tr93)
-            } else {
-                 worldIdentifier = displayedWorldText || `${worldIdentifier} (Sem Número)`; // Usa texto original se não achar número
-                 console.warn(`[parseTransactions v28] Linha ${index}: Não extraiu número de "${displayedWorldText}". Usando: "${worldIdentifier}"`);
-            }
-
-            // Extrai outros textos
-            const typeText = cells[2]?.textContent?.trim() || 'Unknown Type';
-            const changeText = cells[3]?.textContent?.trim() || '0';
-            const newPointsText = cells[4]?.textContent?.trim() || '0';
-
-            // Parse Numérico Universal (remove . e espaço, troca , por .)
-            const parseNumberUniversal = (text) => {
-                 if (!text) return 0;
-                 const cleanedForParsing = text.replace(/[.\s]/g, '').replace(',', '.');
-                 const match = cleanedForParsing.match(/([-+]?\d*\.?\d+)/);
-                 const intVal = match ? parseInt(match[1], 10) : NaN;
-                 if (!isNaN(intVal)) return intVal;
-                 const floatVal = match ? parseFloat(match[1]) : NaN;
-                 return isNaN(floatVal) ? 0 : floatVal;
-             };
-            const changeValue = parseNumberUniversal(changeText);
-            const newPremiumPoints = parseNumberUniversal(newPointsText);
-
-            // Definição do Tipo com base no serverCode
-            let transactionType = 'Unknown'; // Fallback inglês
-            const originalTypeTextLower = typeText.toLowerCase();
-
-            // Listas de Keywords (Incluindo todas adicionadas até agora)
-            const profitKeywords = ["κέρδος", "kâr", "zisk", "прибыль", "lucro", "profit", "gewinn", "winst", "bénéfice", "ricavo", "beneficio", "ربح", "nyereség", "zysk", "troca premium", "premium exchange"];
-            const expenseKeywords = ["κόστος", "έξοδο", "gider", "maliyet", "náklady", "расход", "despesa", "cost", "kosten", "dépense", "costo", "gasto", "مصروف", "költség", "koszt"];
-            const transferKeywords = ['μεταφορά', 'transfer', 'prevod', 'перевод', 'überweisung', 'overdracht', 'transfert', 'trasferimento', 'transferencia', 'نقل', 'átutalás', 'przelew'];
-            const redeemKeywords = ['εξαργύρωση', 'kullanıldı', 'uplatnenie', 'обмен', 'redeem', 'redeemed', 'resgatado', 'eingelöst', 'uplatněno', 'ingeleverd', 'ingeruild', 'utilisé', 'riscosso', 'utilizzato', 'canjeado', 'utilizado', 'مستخدم', 'beváltás', 'wykorzystano'];
-            const marketKeywords = ["αγορά premium", "premium borsa", "prémiová burza", "премиум обмен", "mercato premium", "premium market", "giełda premium", "troca premium"];
-            const featureKeywords = ["κατασκευή", "παραγωγή", "έρευνα", "πακέτο", "inşa", "üretim", "araştırma", "paket", "výstavba", "produkcia", "výskum", "balíček", "постройка", "производство", "исследование", "пакет", "costruzione", "produzione", "ricerca", "construction", "production", "research", "pacchetto", "package", "budowa", "produkcja", "badania", "pakiet", "construção", "produção", "pesquisa", "pacote"];
-
-            // Lógica de Tipo por Idioma
-            if (serverCode === 'gr') {
-                if (changeValue > 0) { transactionType = 'Κέρδος'; }
-                else if (changeValue < 0) { transactionType = 'Έξοδο'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Αγορά Premium'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Ενεργοποίηση'; }
-                else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Μεταφορά (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Εξαργύρωση (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'tr') {
-                if (changeValue > 0) { transactionType = 'Kâr'; }
-                else if (changeValue < 0) { transactionType = 'Gider'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Pazar Alımı'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Özellik Aktivasyonu'; }
-                else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Transfer (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Kullanıldı (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'pt' || serverCode === 'br') {
-                 if (changeValue > 0) { transactionType = 'Lucro'; }
-                 else if (changeValue < 0) { transactionType = 'Despesa'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Compra Mercado'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Ativação Recurso'; }
-                 else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Transferência (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Resgate (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'de' || serverCode === 'ch') {
-                 if (changeValue > 0) { transactionType = 'Gewinn'; }
-                 else if (changeValue < 0) { transactionType = 'Kosten'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Markt Kauf'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Feature Aktivierung'; }
-                 else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Überweisung (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Eingelöst (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'ru') {
-                 if (changeValue > 0) { transactionType = 'Прибыль'; }
-                 else if (changeValue < 0) { transactionType = 'Расход'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Покупка ПО'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Активация'; }
-                 else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Перевод (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Обмен (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'sk' || serverCode === 'cs') {
-                 if (changeValue > 0) { transactionType = 'Zisk'; }
-                 else if (changeValue < 0) { transactionType = 'Náklady'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Nákup Burza'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Aktivácia Funkcie'; }
-                 else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Prevod (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Uplatnenie (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'it') {
-                 if (changeValue > 0) { transactionType = 'Ricavo'; } // Ou 'Lucro'? Melhor usar 'Ricavo'
-                 else if (changeValue < 0) { transactionType = 'Costo'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Acquisto Mercato'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Attivazione Funzione'; }
-                 else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Trasferimento (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Utilizzato (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            } else if (serverCode === 'pl') {
-                 if (changeValue > 0) { transactionType = 'Zysk'; }
-                 else if (changeValue < 0) { transactionType = 'Koszt'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Zakup Giełda'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Aktywacja Funkcji'; }
-                 else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Przelew (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Wykorzystano (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-            }
-            // Adicione mais 'else if' para outros idiomas (es, fr, nl, hu, ae) aqui...
-            else { // Fallback Inglês para .us, .co.uk, .net, .works e outros não definidos
-                if (changeValue > 0 || profitKeywords.some(kw => originalTypeTextLower.includes(kw))) { transactionType = 'Profit'; }
-                else if (changeValue < 0 || expenseKeywords.some(kw => originalTypeTextLower.includes(kw))) { transactionType = 'Cost'; if (marketKeywords.some(kw => originalTypeTextLower.includes(kw) && !originalTypeTextLower.includes("sell"))) transactionType = 'Market Purchase'; else if (featureKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Feature Activation'; }
-                else { if (transferKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Transfer (0)'; else if (redeemKeywords.some(kw => originalTypeTextLower.includes(kw))) transactionType = 'Redeem (0)'; else transactionType = typeText.length > 30 ? typeText.substring(0, 27) + '...' : typeText; }
-             }
-
-            // Adiciona a transação com o worldIdentifier CORRETO e tipo traduzido (ou fallback)
-            transactions.push({ date, type: transactionType, change: changeValue, newPremiumPoints, world: worldIdentifier });
-
-        } catch(e) {
-             console.error(`[parseTransactions v28] ERRO linha ${index}:`, e);
-             try { console.error(`  HTML Linha ${index}: ${row.innerHTML}`); } catch { /* ignore */ }
-        }
-      } else {
-          console.warn(`[parseTransactions v28] Linha ${index} ignorada: Células (${cells.length}) < 5.`);
-      }
-    });
-
-    console.log(`[parseTransactions v28] Parseamento concluído. ${transactions.length} transações extraídas.`);
-    return transactions;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // ================================================================
-// ===      NOVA FUNÇÃO AUXILIAR: calculateNetProfitFromLogs    ===
-// ================================================================
-/**
- * Calcula o lucro/prejuízo líquido SOMENTE a partir de um array de transações fornecido.
- * Diferente de calculateWorldProfit, não filtra por mundo e usa diretamente os dados passados.
- * @param {Array<Object>} logs - Um array de objetos de transação (com propriedade 'change').
- * @returns {number} - O valor líquido (positivo para lucro, negativo para prejuízo).
- */
-const calculateNetProfitFromLogs = (logs) => {
-    if (!logs || !Array.isArray(logs) || logs.length === 0) {
-        return 0;
-    }
-
-    let totalSales = 0;
-    let totalExpenses = 0;
-
-    logs.forEach(log => {
-        // Garante que 'change' é um número
-        const changeValue = typeof log.change === 'number' ? log.change : 0;
-
-        if (changeValue > 0) {
-            totalSales += changeValue;
-        } else if (changeValue < 0) {
-            totalExpenses += Math.abs(changeValue); // Soma o valor absoluto das despesas
-        }
-        // Ignora transações com change === 0
-    });
-
-    // console.log(`[DEBUG calculateNetProfitFromLogs] Calculado: Sales=${totalSales}, Expenses=${totalExpenses}, Net=${totalSales - totalExpenses}`); // Log opcional
-    return totalSales - totalExpenses;
-};
-// === FIM NOVA FUNÇÃO AUXILIAR ===
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // FUNÇÃO calculateWorldProfit ATUALIZADA (v2 - World Comparison Logging)
-const calculateWorldProfit = () => {
-    // Log inicial para saber quando a função é chamada
-    console.log(`[calculateWorldProfit v2] Iniciando cálculo...`);
-
-    // Verifica se temos as transações e a informação da vila atual
-    if (!state.transactions || !Array.isArray(state.transactions) || !state.currentVillage?.world) {
-        console.warn(`[calculateWorldProfit v2] Abortando: Transações ou Mundo da Vila Atual não definidos. State Transactions: ${state.transactions?.length ?? 'N/A'}, Current Village World: ${state.currentVillage?.world ?? 'N/A'}`);
-        return 0; // Retorna 0 se não houver dados suficientes
-    }
-
-    // === LOG: Imprime o mundo da vila atual que será usado para filtrar ===
-    const targetWorld = state.currentVillage.world;
-    console.log(`[calculateWorldProfit v2] Mundo Alvo para Filtro (state.currentVillage.world): "${targetWorld}" (Tipo: ${typeof targetWorld})`);
-
-    // Filtra as transações pelo mundo alvo
-    const worldTransactions = state.transactions.filter((t, index) => {
-        // === LOG: Imprime o mundo da transação e o resultado da comparação (para as 5 primeiras) ===
-        if (index < 5) { // Loga apenas as primeiras 5 para não poluir muito
-             console.log(`  [Filtro Linha ${index}] Comparando t.world: "${t.world}" (Tipo: ${typeof t.world}) === targetWorld: "${targetWorld}" --> Resultado: ${t.world === targetWorld}`);
-        }
-        return t.world === targetWorld; // A comparação real
-    });
-
-    // === LOG: Imprime quantas transações passaram no filtro ===
-    console.log(`[calculateWorldProfit v2] ${worldTransactions.length} transações encontradas para o mundo "${targetWorld}".`);
-
-    // Se nenhuma transação foi encontrada para o mundo, retorna 0
-    if (worldTransactions.length === 0) {
-        console.log(`[calculateWorldProfit v2] Nenhuma transação para o mundo alvo. Retornando lucro 0.`);
-        return 0;
-    }
-
-    // Calcula despesas e vendas das transações filtradas
-    const expenses = worldTransactions
-        .filter((t) => t.change < 0) // Simplificado: apenas valores negativos são despesas diretas
-        .reduce((sum, t) => sum + Math.abs(t.change || 0), 0);
-
-    const sales = worldTransactions
-        .filter((t) => t.change > 0) // Simplificado: apenas valores positivos são vendas/lucro direto
-        .reduce((sum, t) => sum + (t.change || 0), 0);
-
-    // Calcula o lucro líquido
-    const netProfit = sales - expenses;
-
-    // === LOG: Imprime os valores calculados ===
-    console.log(`[calculateWorldProfit v2] Cálculo: Vendas=${sales}, Despesas=${expenses}, Lucro Líquido=${netProfit}`);
-
-    // Retorna o lucro líquido (arredondado para baixo, como antes)
-    return Math.floor(netProfit);
-};
-// === FIM calculateWorldProfit ATUALIZADA (v2 - World Comparison Logging) ===
-
-
- // ================================================================
-// ===  FUNÇÃO filterTransactions ATUALIZADA (v3 - UTC Date Parts) ===
-// ================================================================
- // ================================================================
-// ===  FUNÇÃO filterTransactions ATUALIZADA (v4 - Comparação YYYY-MM-DD Local) ===
-// ================================================================
-const filterTransactions = (transactions, filters) => {
-    if (!transactions) return [];
-    const { dateFrom, dateTo, worldFilter } = filters; // dateFrom/dateTo são strings no formato "YYYY-MM-DD"
-
-    // console.log(`[DEBUG filterTransactions v4] Filtros recebidos: From='${dateFrom}', To='${dateTo}', World='${worldFilter}'`);
-
-    // Filtra a lista de transações
-    return _.filter(transactions, (t) => {
-        // 1. Validação básica da data da transação
-        if (!(t.date instanceof Date) || isNaN(t.date.getTime())) {
-            // console.warn(`[filterTransactions v4] Transação ignorada - data inválida:`, t);
-            return false;
-        }
-
-        // 2. Formata a data da transação para "YYYY-MM-DD" usando componentes LOCAIS
-        //    Isso garante que comparamos com o dia local selecionado no input <input type="date">
-        const tYearLocal = t.date.getFullYear();
-        const tMonthLocal = t.date.getMonth() + 1; // getMonth é 0-indexado, ajusta para 1-12
-        const tDayLocal = t.date.getDate();
-        // Cria a string no formato YYYY-MM-DD (ex: "2025-04-20")
-        const transactionDateString = `${tYearLocal}-${String(tMonthLocal).padStart(2, '0')}-${String(tDayLocal).padStart(2, '0')}`;
-        // console.log(`[DEBUG filterTransactions v4] Data Transação: ${t.date.toISOString()} -> Formatada Local: ${transactionDateString}`); // Log para depuração
-
-        // 3. Comparação de Data usando as strings "YYYY-MM-DD"
-        let isDateValid = true; // Assume válido inicialmente
-
-        // Verifica se a data da transação é ANTERIOR à data inicial do filtro
-        if (dateFrom && transactionDateString < dateFrom) {
-            isDateValid = false;
-            // console.log(` -> INVÁLIDO (Antes de dateFrom): ${transactionDateString} < ${dateFrom}`);
-        }
-
-        // Verifica se a data da transação é POSTERIOR à data final do filtro (só checa se ainda for válido)
-        if (isDateValid && dateTo && transactionDateString > dateTo) {
-            isDateValid = false;
-            // console.log(` -> INVÁLIDO (Depois de dateTo): ${transactionDateString} > ${dateTo}`);
-        }
-        // Se isDateValid permaneceu true, significa que transactionDateString está entre dateFrom e dateTo (inclusive).
-
-        // 4. Validação do Mundo (lógica inalterada)
-        let isWorldValid = true;
-        if (worldFilter && typeof worldFilter === 'string' && worldFilter.trim() !== '') {
-            isWorldValid = t.world && typeof t.world === 'string' && t.world.toLowerCase().includes(worldFilter.toLowerCase().trim());
-        }
-
-        // Log de depuração (opcional, útil se ainda não funcionar)
-        // if (isDateValid && isWorldValid) {
-        //     console.log(`[DEBUG filterTransactions v4] INCLUINDO: ${transactionDateString} | World: ${t.world}`);
-        // } else if (!isDateValid) {
-        //      // Não precisa logar de novo, já logamos acima
-        // } else { // Apenas world inválido
-        //      console.log(`[DEBUG filterTransactions v4] EXCLUINDO (World Inválido): ${transactionDateString} | World: ${t.world} (Filtro: ${worldFilter})`);
-        // }
-
-        // Retorna true apenas se AMBAS as condições (data e mundo) forem válidas
-        return isDateValid && isWorldValid;
-    });
-};
-// === FIM filterTransactions ATUALIZADA (v4 - Comparação YYYY-MM-DD Local) ===
-
-
-
-
-
-
-
-  const sortTransactions = (transactions, sortField, sortDirection) => {
-    return _.orderBy(transactions, [sortField], [sortDirection]);
-  };
-  const paginateTransactions = (transactions, page, perPage = 10) => {
-    const start = (page - 1) * perPage;
-    return _.slice(transactions, start, start + perPage);
-  };
-
-
-
-
-
-
-
-// ================================================================
-// ===      FUNÇÃO renderLedgerTable ATUALIZADA (v4 - Label Consistente) ===
-// ================================================================
-const renderLedgerTable = (transactions, sortField = "date", sortDirection = "desc", page = 1, perPage = 10, currentFilters = {}) => {
-    console.log(`[renderLedgerTable v4 - Label Consistente] Iniciada. Recebeu ${transactions?.length ?? 0} logs. Ordenação: ${sortField} ${sortDirection}, Página: ${page}`);
-
-    // 1. Calcula totais e lucros (SEM Math.floor intermediário)
-    const expensesTransactions = transactions.filter(t => t.change < 0 || t.type === "Despesa");
-    const salesTransactions = transactions.filter(t => t.change > 0 || t.type === "Lucro");
-
-
-
-
-
-
-
-
-
-
-
-    const totalExpenses = expensesTransactions.reduce((sum, t) => sum + Math.abs(t.change || 0), 0);
-
-
-
-
-
-
-
-
-    const totalSales = salesTransactions.reduce((sum, t) => sum + (t.change || 0), 0);
-    const profit = totalSales - totalExpenses;
-    console.log(` -> Sumário Calculado (sem floor): Despesas=${totalExpenses}, Vendas=${totalSales}, Lucro=${profit}`);
-
-    // 2. Ordena as transações SEPARADAS por tipo
-    const sortedExpenses = sortTransactions(expensesTransactions, sortField, sortDirection);
-    const sortedSales = sortTransactions(salesTransactions, sortField, sortDirection);
-    console.log(` -> Ordenação concluída: ${sortedExpenses.length} despesas, ${sortedSales.length} vendas.`);
-
-    // 3. Cria a lista combinada com cabeçalhos e sumário
-    // *** MUDANÇA AQUI: Define a label do sumário baseado se há filtros ativos ***
-    const hasActiveFilters = currentFilters.dateFrom || currentFilters.dateTo || currentFilters.worldFilter;
-    const summaryLabelKey = hasActiveFilters ? "filteredPeriodProfitLabel" : "profit";
-    const summaryLabelText = i18n.t(summaryLabelKey); // Pega a tradução correta
-    // *** FIM DA MUDANÇA ***
-
-    const allMarkedTransactions = [
-        { type: "header", label: i18n.t("expenses") },
-        ...sortedExpenses.map(t => ({ ...t, rowType: "expense" })),
-        { type: "header", label: i18n.t("sales") },
-        ...sortedSales.map(t => ({ ...t, rowType: "income" })),
-        // *** USA A LABEL DEFINIDA ACIMA ***
-        { type: "summary", label: `${summaryLabelText}: <span class="icon header premium"></span> ${profit}` }
-    ];
-    console.log(` -> Lista combinada criada com ${allMarkedTransactions.length} itens. Label Sumário: "${summaryLabelText}"`);
-
-    // 4. Pagina a lista combinada
-    const totalItems = allMarkedTransactions.length;
-    const totalPages = totalItems > 0 ? Math.ceil(totalItems / perPage) : 1;
-    const paginated = paginateTransactions(allMarkedTransactions, page, perPage);
-    console.log(` -> Paginação: Exibindo ${paginated.length} itens na página ${page} de ${totalPages}.`);
-
-    // 5. Renderiza a Tabela HTML
-    const tableContainer = ui.getElement("transactionsTableContainer");
-    if (!tableContainer) {
-      console.error("[renderLedgerTable v4] ERRO: Container da tabela (#transactionsTableContainer) não encontrado.");
-      return;
-    }
-    tableContainer.innerHTML = `
-        <table class="ledger-table aquila-table">
-            <thead>
-                <tr>
-                    <th data-sort="date" class="${sortField === 'date' ? `sort-${sortDirection}` : ''}"><i class="fas fa-clock"></i> ${i18n.t("date")}</th>
-                    <th data-sort="type" class="${sortField === 'type' ? `sort-${sortDirection}` : ''}"><i class="fas fa-exchange-alt"></i> ${i18n.t("type")}</th>
-                    <th data-sort="change" class="${sortField === 'change' ? `sort-${sortDirection}` : ''}"><i class="fas fa-coins"></i> ${i18n.t("change")}</th>
-                    <th data-sort="world" class="${sortField === 'world' ? `sort-${sortDirection}` : ''}"><i class="fas fa-globe"></i> ${i18n.t("world")}</th>
-                </tr>
-            </thead>
-            <tbody id="transactionsTableBody">
-                ${paginated.map(item => {
-                  if (item.type === "header") return `<tr class="section-header-row"><td colspan="4" class="section-header">${item.label}</td></tr>`;
-                  // *** USA a `item.label` que já foi definida com a chave correta (profit ou filteredPeriodProfitLabel) ***
-                  if (item.type === "summary") return `<tr class="profit-summary-row"><td colspan="4">${item.label}</td></tr>`;
-                  if (item.date instanceof Date && !isNaN(item.date.getTime())) {
-                    const rowClass = item.rowType === "expense" ? "expense-row" : "income-row";
-                    const formattedDate = item.date.toLocaleString(state.language || "pt-BR", { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-                    const formattedChange = (item.change < 0 ? `(<span class="icon header premium"></span> ${Math.abs(item.change).toLocaleString(state.language || "pt-BR")})` : `<span class="icon header premium"></span> ${item.change.toLocaleString(state.language || "pt-BR")}`);
-                    return `
-                        <tr class="${rowClass}">
-                            <td>${formattedDate}</td>
-                            <td>${item.type || "N/A"}</td>
-                            <td>${formattedChange}</td>
-                            <td>${item.world || "N/A"}</td>
-                        </tr>`;
-                  }
-                  return "";
-                }).join("")}
-            </tbody>
-        </table>
-    `;
-    console.log("[renderLedgerTable v4] Tabela HTML renderizada.");
-
-    // 6. Renderiza Controles de Paginação
-    const paginationControls = ui.getElement("paginationControls");
-    if (paginationControls) {
-      paginationControls.innerHTML = `
-            <button class="aquila-btn" id="prevPage" ${page <= 1 ? "disabled" : ""}><i class="fas fa-chevron-left"></i> ${i18n.t("previous")}</button>
-            <span class="page-info">${i18n.t("page")} ${page} / ${totalPages}</span>
-            <button class="aquila-btn" id="nextPage" ${page >= totalPages ? "disabled" : ""}><i class="fas fa-chevron-right"></i> ${i18n.t("next")}</button>
-        `;
-      paginationControls.querySelector("#prevPage")?.addEventListener("click", () => {
-        if (page > 1) {
-            console.log("[Pagination Click] Indo para página ANTERIOR.");
-            renderLedgerTable(transactions, sortField, sortDirection, page - 1, perPage, currentFilters);
-        }
-      });
-      paginationControls.querySelector("#nextPage")?.addEventListener("click", () => {
-        if (page < totalPages) {
-            console.log("[Pagination Click] Indo para página PRÓXIMA.");
-            renderLedgerTable(transactions, sortField, sortDirection, page + 1, perPage, currentFilters);
-        }
-      });
-      console.log("[renderLedgerTable v4] Controles de paginação renderizados.");
-    }
-
-    // 7. Renderiza o Gráfico
-    const chartElement = ui.getElement("transactionsChart");
-    const chartContainer = ui.getElement("transactionsChartContainer");
-    const validTransactionsForChart = transactions.filter(t => t.date instanceof Date && !isNaN(t.date.getTime()));
-    if (chartElement && chartContainer && validTransactionsForChart.length > 0) {
-      console.log("[renderLedgerTable v4] Chamando renderChart...");
-      renderChart(validTransactionsForChart.sort((a, b) => a.date - b.date));
-      chartContainer.style.display = 'block';
-    } else if (chartContainer) {
-      console.log("[renderLedgerTable v4] Sem transações válidas para o gráfico. Escondendo.");
-      chartContainer.style.display = 'none';
-       if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-    }
-
-    // 8. Adiciona Listeners de Ordenação aos Cabeçalhos da Tabela
-    tableContainer.querySelectorAll("th[data-sort]").forEach(header => {
-      header.removeEventListener("click", handleSortClick);
-       function handleSortClick() {
-            const newSortField = header.dataset.sort;
-            const newSortDirection = (sortField === newSortField && sortDirection === "desc") ? "asc" : "desc";
-            console.log(`[Sort Click] Mudando ordenação para: ${newSortField} ${newSortDirection}`);
-            renderLedgerTable(transactions, newSortField, newSortDirection, 1, perPage, currentFilters);
-       }
-      header.addEventListener("click", handleSortClick);
-    });
-    console.log("[renderLedgerTable v4] Listeners de ordenação adicionados/atualizados.");
-
-    console.log("[renderLedgerTable v4 - Label Consistente] FINALIZADA.");
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ================================================================
-// ===    FUNÇÃO renderChart v10 - Group by Local Date String   ===
-// ================================================================
-let chartInstance = null; // Variável para manter a instância do gráfico
-
-const renderChart = async (transactions) => {
-    //console.log("[DEBUG Aquila renderChart v10] Iniciada.");
-
-    // 1. Garante Chart.js carregado
-    try {
-        await loadChartJsDynamically();
-        if (typeof Chart === 'undefined') {
-            throw new Error("Objeto Chart não está definido globalmente após carregamento.");
-        }
-        //console.log("[renderChart v10] Chart.js confirmado como carregado.");
-    } catch (error) {
-        console.error("[renderChart v10] Erro crítico ao carregar/confirmar Chart.js:", error);
-        notifyError("Falha ao carregar biblioteca do gráfico.");
-        const chartContainer = ui.getElement("transactionsChartContainer");
-        if (chartContainer) chartContainer.style.display = 'none';
-        return;
-    }
-
-    // 2. Pega elementos do DOM
-    const chartContainer = ui.getElement("transactionsChartContainer");
-    if (!chartContainer) {
-        console.error("[renderChart v10] ERRO: Container do gráfico #transactionsChartContainer não encontrado!");
-        return;
-    }
-    let canvas = chartContainer.querySelector("canvas#transactionsChart");
-    if (!canvas) {
-        console.warn("[renderChart v10] Canvas não encontrado, recriando...");
-        chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>';
-        canvas = chartContainer.querySelector("canvas#transactionsChart");
-        if (!canvas) {
-             console.error("[renderChart v10] ERRO: Falha ao recriar o canvas!");
-             chartContainer.style.display = 'none';
-             return;
-        }
-    }
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-        console.error("[renderChart v10] ERRO: Contexto 2D não obtido do canvas.");
-        chartContainer.style.display = 'none';
-        return;
-    }
-
-    // 3. Destroi instância anterior
-    if (chartInstance) {
-        try {
-            chartInstance.destroy();
-            //console.log("[renderChart v10] Instância anterior do gráfico destruída.");
-        } catch (destroyError) {
-            console.warn("[renderChart v10] Erro ao destruir instância anterior:", destroyError);
-        } finally {
-             chartInstance = null;
-        }
-    }
-
-    // 4. Verifica dados
-    if (!transactions || transactions.length === 0) {
-        //console.log("[renderChart v10] Nenhuma transação válida para exibir no gráfico.");
-        chartContainer.style.display = "none";
-        return;
-    } else {
-        chartContainer.style.display = "block";
-    }
-
-    // 5. Prepara os dados para o gráfico - *** MUDANÇA PRINCIPAL AQUI ***
-    //console.log("[renderChart v10] Preparando dados para o gráfico (agrupando por DIA LOCAL)...");
-    const dailyData = {};
-
-    // Itera sobre as transações (que já estão filtradas)
-    transactions.forEach((t) => {
-        if (!(t.date instanceof Date) || isNaN(t.date.getTime())) { return; } // Pula inválidas
-
-        // *** CRIA A CHAVE DE AGRUPAMENTO USANDO A DATA LOCAL ***
-        const localYear = t.date.getFullYear();
-        const localMonth = t.date.getMonth(); // 0-indexado para o construtor Date
-        const localDay = t.date.getDate();
-        // Chave no formato "YYYY-MM-DD" local
-        const dateKey = `${localYear}-${String(localMonth + 1).padStart(2, '0')}-${String(localDay).padStart(2, '0')}`;
-
-        // Se for a primeira vez que vemos esse dia LOCAL
-        if (!dailyData[dateKey]) {
-            // Cria um objeto Date que representa o início daquele dia LOCAL (para ordenação)
-            const localDayStartDate = new Date(localYear, localMonth, localDay, 0, 0, 0, 0);
-            dailyData[dateKey] = {
-                dateForSortAndLabel: localDayStartDate, // Usaremos isso para ordenar e gerar a etiqueta
-                sales: 0,
-                expenses: 0
-             };
-            //console.log(` -> Novo dia local encontrado: ${dateKey}, Data para label/sort: ${localDayStartDate.toISOString()}`);
-        }
-
-        // Acumula vendas ou despesas para aquele dia LOCAL
-        if (t.change > 0) {
-            dailyData[dateKey].sales += t.change;
-        } else {
-            dailyData[dateKey].expenses += Math.abs(t.change);
-        }
-    });
-
-    // Ordena os dados agrupados pela data de início do dia local
-    const sortedDailyData = Object.values(dailyData).sort((a, b) => a.dateForSortAndLabel.getTime() - b.dateForSortAndLabel.getTime());
-    //console.log(`[renderChart v10] Dados agrupados por dia local e ordenados: ${sortedDailyData.length} dias no total.`);
-
-    // Gera os labels (etiquetas do eixo X) a partir da data local armazenada
-    const labels = sortedDailyData.map((d) => {
-        // Usa a data que representa o início do dia LOCAL para formatação
-        return d.dateForSortAndLabel.toLocaleDateString(state.language || "pt-BR", {
-            day: "2-digit", month: "short" // Formato DD/Mês (ex: 19 de abr, 20 de abr)
-            // Não precisa especificar fuso horário aqui, pois 'dateForSortAndLabel' já é local
-        });
-    });
-
-    // Pega os dados de vendas e despesas
-    const salesDataset = sortedDailyData.map((d) => d.sales);
-    const expensesDataset = sortedDailyData.map((d) => d.expenses);
-    //console.log("[renderChart v10] Labels e datasets preparados:", { labels: labels.length, sales: salesDataset.length, expenses: expensesDataset.length });
-
-
-    // 6. Cria a nova instância do gráfico (opções mantidas)
-    try {
-        //console.log("[renderChart v10] Criando nova instância do Chart...");
-        chartInstance = new Chart(ctx, {
-            type: "bar",
-            data: {
-                labels: labels, // <<< Usa os labels dos dias LOCAIS
-                datasets: [
-                    { label: i18n.t("sales"), data: salesDataset, backgroundColor: "#81C784", borderColor: "#519657", borderWidth: 1 },
-                    { label: i18n.t("expenses"), data: expensesDataset, backgroundColor: "#E57373", borderColor: "#B71C1C", borderWidth: 1 }
-                ]
-            },
-            options: { // Suas opções originais aqui (mantidas)
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: "x",
-                scales: {
-                     x: { stacked: true, title: { display: true, text: i18n.t("date"), color: "#C0C0C0", font: { size: 14, family: "'Poppins', sans-serif" } }, ticks: { color: "#C0C0C0", font: { size: 12 } }, grid: { display: false } },
-                     y: { stacked: true, title: { display: true, text: i18n.t("change"), color: "#C0C0C0", font: { size: 14, family: "'Poppins', sans-serif" } }, ticks: { color: "#C0C0C0", font: { size: 12 }, callback: (value) => { if (Math.abs(value) >= 1e6) return (value / 1e6).toFixed(1) + " M"; if (Math.abs(value) >= 1e3) return (value / 1e3).toFixed(0) + " K"; return value.toLocaleString(state.language || "pt-BR"); } }, grid: { color: "rgba(205, 127, 50, 0.15)", borderDash: [4, 4] } }
-                },
-                plugins: {
-                     title: { display: true, text: i18n.t("chartTitle"), color: "#CD7F32", font: { size: 16, family: "'Cinzel', serif" }, padding: { bottom: 15 } },
-                     legend: { display: true, position: "bottom", labels: { color: "#C0C0C0", font: { size: 13 }, boxWidth: 15, padding: 20 } },
-                     tooltip: { backgroundColor: "rgba(10, 13, 20, 0.95)", titleFont: { family: "'Poppins', sans-serif", size: 14 }, bodyFont: { family: "'Poppins', sans-serif", size: 12 }, titleColor: "#CD7F32", bodyColor: "#C0C0C0", borderColor: "#CD7F32", borderWidth: 1, cornerRadius: 5, caretSize: 6, padding: 10, mode: "index", intersect: false, callbacks: { label: function(context) { let label = context.dataset.label || ""; if (label) { label += ": "; } if (context.parsed.y !== null) { label += context.parsed.y.toLocaleString(state.language || "pt-BR"); } return label; } } }
-                },
-                interaction: { mode: "index", intersect: false }
-            } // Fim das opções
-        });
-        //console.log("[renderChart v10] Nova instância do gráfico criada com sucesso.");
-    } catch (error) {
-        console.error("[renderChart v10] ERRO ao criar a nova instância do Chart:", error);
-        chartContainer.style.display = "none";
-        notifyError("Erro ao desenhar o gráfico.");
-        chartInstance = null;
-    }
-}; // --- Fim da função renderChart v10 ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- // Função renderTransactionsModal ATUALIZADA (v3 - DEBUG Logs ON)
-const renderTransactionsModal = (transactions, currentFilters, currentSortField, currentSortDirection, currentPage, perPage) => {
-    console.log(`[renderTransactionsModal v3 - DEBUG] Iniciada. Recebeu ${transactions?.length ?? 0} logs.`);
-    console.log(` -> Filtros Atuais:`, currentFilters);
-    console.log(` -> Ordenação: ${currentSortField} ${currentSortDirection}, Página: ${currentPage}`);
-
-    const filterSection = ui.getElement("filterSection");
-    const tableContainer = ui.getElement("transactionsTableContainer");
-    const paginationControls = ui.getElement("paginationControls");
-    const chartContainer = ui.getElement("transactionsChartContainer");
-    const filteredProfitSummaryEl = document.getElementById("filteredProfitSummary");
-
-    if (!filterSection || !tableContainer || !paginationControls || !chartContainer || !filteredProfitSummaryEl) {
-      console.error("[renderTransactionsModal v3 - DEBUG] ERRO: Falha ao encontrar um ou mais elementos de CONTEÚDO interno.");
-      return;
-    }
-
-    // 1. Renderiza Filtros (Mantido como estava)
-    filterSection.innerHTML = `
-        <div class="aquila-filter-grid">
-            <div class="aquila-filter-item">
-                <label for="dateFrom"><i class="fas fa-calendar-alt"></i> ${i18n.t("dateFrom")}</label>
-                <input type="date" id="dateFrom" class="aquila-input" value="${currentFilters.dateFrom || ""}">
-            </div>
-            <div class="aquila-filter-item">
-                <label for="dateTo"><i class="fas fa-calendar-alt"></i> ${i18n.t("dateTo")}</label>
-                <input type="date" id="dateTo" class="aquila-input" value="${currentFilters.dateTo || ""}">
-            </div>
-            <div class="aquila-filter-item">
-                <label for="worldFilter"><i class="fas fa-globe"></i> ${i18n.t("worldFilter")}</label>
-                <input type="text" id="worldFilter" class="aquila-input" value="${currentFilters.worldFilter || ""}" placeholder="${i18n.t("worldFilterPlaceholder", { defaultValue: "Ex: br118" })}">
-            </div>
-        </div>
-    `;
-    console.log("[renderTransactionsModal v3 - DEBUG] Seção de filtros atualizada no HTML.");
-
-    // 2. Define a função debounced para aplicar filtros
-    const debouncedApplyFilters = _.debounce(() => {
-      console.log("[debouncedApplyFilters - DEBUG] Disparado.");
-      const filtersNow = {
-        dateFrom: filterSection.querySelector("#dateFrom")?.value || "",
-        dateTo: filterSection.querySelector("#dateTo")?.value || "",
-        worldFilter: filterSection.querySelector("#worldFilter")?.value || ""
-      };
-      console.log(" -> Aplicando filtros:", filtersNow);
-
-      const filtered = filterTransactions(transactions, filtersNow); // Usa a lista original recebida
-      console.log(` -> ${filtered.length} logs após filtrar.`);
-
-      let netFilteredProfit = 0;
-      if (filtered.length > 0) {
-        try {
-          const totalFilteredSales = filtered.filter(t => t.change > 0).reduce((sum, t) => sum + t.change, 0);
-          const totalFilteredExpenses = filtered.filter(t => t.change < 0).reduce((sum, t) => sum + Math.abs(t.change), 0);
-          netFilteredProfit = Math.floor(totalFilteredSales - totalFilteredExpenses);
-          console.log(` -> Lucro Líquido Filtrado: ${netFilteredProfit}`);
-        } catch (calcError) {
-          console.error("[debouncedApplyFilters - DEBUG] Erro ao calcular lucro líquido filtrado:", calcError);
-          netFilteredProfit = "Erro";
-        }
-        const profitLabel = i18n.t("filteredPeriodProfitLabel", { defaultValue: "Lucro Líquido (Período)" });
-        filteredProfitSummaryEl.innerHTML = `${profitLabel}: <span class="icon header premium"></span> ${netFilteredProfit}`;
-        filteredProfitSummaryEl.style.display = "block";
-
-        console.log(" -> Renderizando tabela/gráfico com dados filtrados...");
-        renderLedgerTable(filtered, currentSortField, currentSortDirection, 1, perPage, filtersNow); // Reinicia na página 1 ao filtrar
-
-      } else {
-        console.log(" -> Nenhum resultado após filtrar. Limpando tabela/gráfico.");
-        filteredProfitSummaryEl.style.display = "none";
-        tableContainer.innerHTML = `<p style="text-align: center; padding: 20px;">${i18n.t("noTransactions")}</p>`;
-        if (paginationControls) paginationControls.innerHTML = "";
-        if (chartContainer) chartContainer.style.display = "none";
-        if (chartInstance) {
-          chartInstance.destroy();
-          chartInstance = null;
-        }
-      }
-    }, 300);
-
-    // 3. Adiciona listeners aos inputs de filtro
-    filterSection.querySelectorAll("input").forEach(input => {
-        input.removeEventListener("input", debouncedApplyFilters); // Remove listener antigo
-        input.addEventListener("input", debouncedApplyFilters);    // Adiciona novo
-    });
-    console.log("[renderTransactionsModal v3 - DEBUG] Listeners de filtro adicionados/atualizados.");
-
-    // 4. Chama applyFilters imediatamente para renderizar com os filtros/dados iniciais
-    console.log("[renderTransactionsModal v3 - DEBUG] Chamando applyFilters inicial...");
-    debouncedApplyFilters();
-
-    console.log("[renderTransactionsModal v3 - DEBUG] FINALIZADA.");
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// FUNÇÃO showTransactions ATUALIZADA (v11 - Async Loading)
-const showTransactions = () => { // Removido 'async' daqui, pois não usamos await direto em fetchPremiumLogs
-    // 0. Validação Inicial e Nickname
-    if (!currentPlayerNickname) {
-        console.error("[showTransactions v11] Erro crítico: currentPlayerNickname não definido!");
-        try { notifyError(i18n.t("errorMissingNickname", { defaultValue: "Não foi possível identificar o jogador atual para buscar o histórico." })); } catch (e) {}
-        return;
-    }
-    console.log(`[showTransactions v11 - Async] Iniciada para ${currentPlayerNickname}.`);
-
-    // 1. Obtém Elementos da Modal e Valida
-    const modalElement = ui.getElement("transactionsModal");
-    const tableContainer = ui.getElement("transactionsTableContainer");
-    const filterSection = ui.getElement("filterSection");
-    const paginationControls = ui.getElement("paginationControls");
-    const chartContainer = ui.getElement("transactionsChartContainer");
-    const filteredProfitSummaryEl = document.getElementById("filteredProfitSummary");
-
-    if (!modalElement) {
-        console.error("[showTransactions v11] Erro CRÍTICO: Modal #transactionsModal não encontrada.");
-        try { notifyError(i18n.t("errorModalNotFound", { defaultValue: "Erro ao encontrar a janela de histórico." })); } catch(e) {}
-        return;
-    }
-     // Avisa se elementos internos faltarem, mas continua
-    if (!tableContainer || !filterSection || !paginationControls || !chartContainer || !filteredProfitSummaryEl) {
-         console.warn("[showTransactions v11] Aviso: Um ou mais containers internos da modal não foram encontrados.");
-    }
-
-    // 2. Mostra Modal e Estado de Carregamento IMEDIATAMENTE
-    try {
-        modalElement.style.display = "flex"; // Exibe a modal AGORA
-
-        // Define a mensagem de carregamento
-        const loadingMessage = `<p style="text-align:center; padding: 20px; font-style:italic; color: #a0aab8;">${i18n.t('loadingHistory', { defaultValue: 'Carregando histórico...' })}</p>`;
-
-        // Limpa e configura o estado inicial dos containers internos
-        if (tableContainer) tableContainer.innerHTML = loadingMessage; // Mostra carregando
-        if (filterSection) filterSection.innerHTML = '';
-        if (paginationControls) paginationControls.innerHTML = '';
-        if (chartContainer) {
-            if (chartInstance) { try { chartInstance.destroy(); } catch(e) {} chartInstance = null; }
-            chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>';
-            chartContainer.style.display = 'none';
-        }
-        if (filteredProfitSummaryEl) { filteredProfitSummaryEl.innerHTML = ''; filteredProfitSummaryEl.style.display = 'none'; }
-        console.log("[showTransactions v11] Modal exibida com placeholder de carregamento.");
-
-    } catch (uiError) {
-        console.error("[showTransactions v11] Erro ao configurar UI inicial da modal:", uiError);
-        if(modalElement) modalElement.style.display = "none";
-        try { notifyError(i18n.t("errorModalSetup", { defaultValue: "Erro ao preparar a janela de histórico." })); } catch(e) {}
-        return;
-    }
-
-    // 3. Dispara fetchPremiumLogs em SEGUNDO PLANO (SEM await)
-    console.log("[showTransactions v11] Disparando fetchPremiumLogs(false) em segundo plano...");
-    fetchPremiumLogs(false)
-        .then(() => {
-            // === SUCESSO: fetchPremiumLogs terminou (dados estão em state.transactions) ===
-            console.log("[showTransactions v11] fetchPremiumLogs concluído com sucesso. Renderizando conteúdo...");
-            try {
-                // Pega os dados finais do state MobX
-                const finalLogsToRender = mobx.toJS(state.transactions);
-
-                if (finalLogsToRender && finalLogsToRender.length > 0) {
-                    // Renderiza a tabela, filtros, etc., usando os dados atualizados
-                    // Começa sem filtros, ordenado por data desc, pág 1
-                    renderTransactionsModal(finalLogsToRender, {}, "date", "desc", 1, 10);
-                    console.log("[showTransactions v11] Conteúdo real renderizado.");
-                } else {
-                    // Se fetchPremiumLogs funcionou mas não retornou logs
-                    console.log("[showTransactions v11] Nenhum log encontrado para exibir após busca/verificação.");
-                    if (tableContainer) {
-                        tableContainer.innerHTML = `<p style="text-align: center; padding: 20px;">${i18n.t("noTransactions")}</p>`;
-                    }
-                    // Limpa outras seções
-                    if (filterSection) filterSection.innerHTML = '';
-                    if (paginationControls) paginationControls.innerHTML = '';
-                    if (chartContainer) chartContainer.style.display = 'none';
-                    if (filteredProfitSummaryEl) filteredProfitSummaryEl.style.display = 'none';
-                }
-            } catch (renderError) {
-                // Captura erros DURANTE a renderização
-                console.error("[showTransactions v11] Erro DURANTE a renderização da modal:", renderError);
-                 if (tableContainer) {
-                    tableContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: red;">${i18n.t('errorRenderingModal', { defaultValue: 'Erro ao exibir o histórico.' })}</p>`;
-                 }
-                 try { notifyError(i18n.t("errorRenderingModal", { defaultValue: "Erro ao exibir o histórico." })); } catch(e) {}
-            }
-        })
-        .catch((fetchError) => {
-            // === ERRO: fetchPremiumLogs falhou ===
-            console.error("[showTransactions v11] Erro retornado por fetchPremiumLogs:", fetchError);
-            if (tableContainer) {
-                tableContainer.innerHTML = `<p style="text-align:center; padding: 20px; color: red;">${i18n.t('errorLoadingHistory', { defaultValue: 'Erro ao carregar histórico.' })} (${fetchError.message || 'Erro desconhecido'})</p>`;
-            }
-            // Limpa outras seções em caso de erro
-            if (filterSection) filterSection.innerHTML = '';
-            if (paginationControls) paginationControls.innerHTML = '';
-            if (chartContainer) chartContainer.style.display = 'none';
-            if (filteredProfitSummaryEl) filteredProfitSummaryEl.style.display = 'none';
-            if (chartInstance) { try { chartInstance.destroy(); } catch(e) {} chartInstance = null; }
-        });
-
-    // 4. Log final da função (será executado antes do .then/.catch acima)
-    console.log("[showTransactions v11 - Async] Função principal concluída (fetch em andamento).");
-
-}; // --- Fim da função showTransactions (v11 - Async Loading) ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  // Função fetchAndUpdateProfit v3 - Busca inicial limitada
-const fetchAndUpdateProfit = async (fetchAll = false) => { // Adiciona parâmetro fetchAll
-    if (!currentPlayerNickname) {
-        console.error("[fetchAndUpdateProfit v3] Erro: currentPlayerNickname não definido!");
-        // Reset state
-        mobx.runInAction(() => {
-            state.transactions.replace([]);
-            state.worldProfit = 0;
-            state.allTransactionsFetched = false; // Reseta flag
-        });
-        updateUI();
-        throw new Error("Nickname do jogador não identificado.");
-    }
-
-    //console.log(`[DEBUG fetchAndUpdateProfit v3] Iniciando. FetchAll: ${fetchAll}`);
-
-    // Usa cache se já tiver buscado tudo antes e não for forçado a buscar de novo
-     if (state.allTransactionsFetched && !fetchAll) {
-        //console.log("[DEBUG fetchAndUpdateProfit v3] Usando dados completos já cacheados.");
-         // Recalcula o lucro (caso a aldeia ativa tenha mudado)
-         const worldProfit = calculateWorldProfit();
-         mobx.runInAction(() => { state.worldProfit = worldProfit; });
-         updateUI();
-         return state.transactions; // Retorna os dados completos cacheados
-     }
-
-
-    try {
-        let transactionsToProcess = [];
-        let needsServerFetch = true; // Assume que precisa buscar, a menos que o cache exista
-
-        // Tenta carregar do localStorage primeiro
-        const storageKey = `ragnarokMarketTransactions_${currentPlayerNickname}`;
-        const savedTransactions = localStorage.getItem(storageKey);
-         if (savedTransactions && !fetchAll) { // Só usa cache se não forçar busca completa
-            try {
-                const parsed = JSON.parse(savedTransactions).map(t => ({ ...t, date: new Date(t.date) }));
-                cachedTransactions[currentPlayerNickname] = parsed;
-                transactionsToProcess = parsed;
-               // console.log(`[DEBUG fetchAndUpdateProfit v3] ${parsed.length} logs carregados do localStorage.`);
-                // Verifica se o cache está atualizado (comparando com a primeira página)
-                const needsUpdateCheck = await checkForUpdates();
-                if (!needsUpdateCheck) {
-                    //console.log("[DEBUG fetchAndUpdateProfit v3] Cache do localStorage está atualizado (baseado na pág 1).");
-                     needsServerFetch = false; // Não precisa buscar se cache está ok
-                     // Assume que o cache contém todos os dados se estiver atualizado
-                     mobx.runInAction(() => { state.allTransactionsFetched = true; });
-                } else {
-                    //console.log("[DEBUG fetchAndUpdateProfit v3] Cache do localStorage desatualizado ou precisa buscar tudo.");
-                    // Se o cache está desatualizado E estamos forçando fetchAll, limpa o cache
-                    if(fetchAll) {
-                         transactionsToProcess = [];
-                         cachedTransactions[currentPlayerNickname] = [];
-                         localStorage.removeItem(storageKey);
-                         //console.log("[DEBUG fetchAndUpdateProfit v3] Cache limpo devido a fetchAll=true e cache desatualizado.");
-                    }
-                    // Se não está forçando fetchAll mas o cache está desatualizado,
-                    // apenas marca que precisa buscar, mas mantém os dados cacheados por enquanto
-                    mobx.runInAction(() => { state.allTransactionsFetched = false; });
-                }
-            } catch (e) {
-                console.error("[DEBUG fetchAndUpdateProfit v3] Erro ao parsear localStorage, limpando.", e);
-                localStorage.removeItem(storageKey);
-                transactionsToProcess = [];
-                cachedTransactions[currentPlayerNickname] = [];
-                mobx.runInAction(() => { state.allTransactionsFetched = false; });
-            }
-        } else {
-             mobx.runInAction(() => { state.allTransactionsFetched = false; });
-             //console.log("[DEBUG fetchAndUpdateProfit v3] Sem cache no localStorage ou fetchAll=true.");
-        }
-
-
-        // Busca do servidor se necessário
-        if (needsServerFetch) {
-            if (fetchAll) {
-                //console.log("[DEBUG fetchAndUpdateProfit v3] Buscando TODAS as páginas...");
-                 // Mostra um indicador de loading se possível (ex: spinner na modal)
-                transactionsToProcess = await fetchAllPages(); // Função que busca todas as páginas
-                 mobx.runInAction(() => { state.allTransactionsFetched = true; }); // Marca que buscou tudo
-                //console.log(`[DEBUG fetchAndUpdateProfit v3] Busca completa concluída: ${transactionsToProcess.length} logs.`);
-            } else {
-                //console.log("[DEBUG fetchAndUpdateProfit v3] Buscando APENAS a primeira página...");
-                const { transactions: firstPageTransactions } = await fetchPage(1);
-                transactionsToProcess = firstPageTransactions || []; // Usa a primeira página
-                mobx.runInAction(() => { state.allTransactionsFetched = false; }); // Ainda não buscou tudo
-                //console.log(`[DEBUG fetchAndUpdateProfit v3] Primeira página buscada: ${transactionsToProcess.length} logs.`);
-                // Atualiza o cache APENAS se a primeira página for mais nova que o cache existente
-                // (A lógica de salvar/cachear pode ser refinada aqui se necessário)
-                if (!cachedTransactions[currentPlayerNickname] || transactionsToProcess.length > 0 && (!cachedTransactions[currentPlayerNickname][0] || transactionsToProcess[0].date > cachedTransactions[currentPlayerNickname][0].date)) {
-                     cachedTransactions[currentPlayerNickname] = transactionsToProcess; // Atualiza cache em memória (mesmo sendo só pág 1)
-                     // Não salva no localStorage ainda, pois não temos todos os dados
-                     //console.log("[DEBUG fetchAndUpdateProfit v3] Cache em memória atualizado com a primeira página.");
-                 }
-            }
-        }
-
-        // Atualiza o estado MobX com os dados processados (sejam completos ou parciais)
-        if (transactionsToProcess && Array.isArray(transactionsToProcess)) {
-             mobx.runInAction(() => {
-                // Substitui completamente ou mescla, dependendo da estratégia
-                // Por simplicidade, vamos substituir aqui
-                 state.transactions.replace(transactionsToProcess);
-             });
-             //console.log(`[DEBUG fetchAndUpdateProfit v3] State.transactions atualizado com ${transactionsToProcess.length} logs.`);
-        } else {
-            console.warn("[DEBUG fetchAndUpdateProfit v3] Nenhum log para processar.");
-             mobx.runInAction(() => {
-                state.transactions.replace([]);
-                 state.allTransactionsFetched = fetchAll; // Se buscou tudo e não veio nada, marca como buscado
-             });
-        }
-
-        // Calcula e atualiza o lucro do mundo atual SEMPRE
-        const worldProfit = calculateWorldProfit(); // Usa state.transactions atualizado
-         mobx.runInAction(() => { state.worldProfit = worldProfit; });
-        //console.log(`[DEBUG fetchAndUpdateProfit v3] Lucro do mundo ${state.currentVillage?.world} recalculado: ${worldProfit}`);
-
-        updateUI(); // Atualiza a UI com o novo lucro
-        return state.transactions; // Retorna os dados atuais (parciais ou completos)
-
-    } catch (error) {
-        console.error(`[DEBUG fetchAndUpdateProfit v3] Erro geral:`, error);
-        mobx.runInAction(() => {
-            state.transactions.replace([]);
-            state.worldProfit = 0;
-            state.allTransactionsFetched = false; // Reseta em caso de erro
-        });
-        cachedTransactions[currentPlayerNickname] = []; // Limpa cache em memória
-        localStorage.removeItem(`ragnarokMarketTransactions_${currentPlayerNickname}`); // Limpa storage
-        updateUI();
-        notifyError(i18n.t("domError"));
-        throw error; // Propaga o erro
-    }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    // Função executeTransaction ATUALIZADA (vHumanize 1.0 - Atrasos Aleatórios)
-  const executeTransaction = async (type, resource, amount) => { // Adicionado 'async' aqui
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Função executeTransaction ATUALIZADA (vHumanize 1.2 - Acessa Flags Direto + Logs)
+const executeTransaction = async (type, resource, amount) => {
     const transactionId = Date.now();
-    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Iniciando transação (Humanizada) para ${resource.name}, Quantidade: ${amount}`);
     const isBuy = type === "buy";
+    const flagVariable = isBuy ? 'isProcessingBuy' : 'isProcessingSell'; // Nome da variável global correta
+    const logPrefix = `${SCRIPT_NAME}: [TX-${transactionId} - ${type.toUpperCase()}]`;
+    console.log(`${logPrefix} Iniciando transação (${amount} de ${resource.name})`);
+
     const input = isBuy ? ui.buyInputs.get(resource.name) : ui.sellInputs.get(resource.name);
     const actionButton = isBuy ? document.querySelector('input.btn-premium-exchange-buy[type="submit"]') : document.querySelector('#premium_exchange_form input.btn[type="submit"]');
     const transactionSpinner = isBuy ? ui.getElement("buySpinner") : ui.getElement("sellSpinner");
 
-    // Função auxiliar para criar pausa aleatória
+    // >>>>> FUNÇÃO PARA RESETAR A FLAG DIRETA <<<<<
+    const resetCorrectFlag = () => {
+        // Modifica a variável global do script diretamente
+        if (isBuy && isProcessingBuy) {
+            console.log(`${logPrefix} -> Resetando isProcessingBuy para false.`);
+            isProcessingBuy = false;
+        } else if (!isBuy && isProcessingSell) {
+            console.log(`${logPrefix} -> Resetando isProcessingSell para false.`);
+            isProcessingSell = false;
+        }
+    };
+    // >>>>> FIM FUNÇÃO RESET FLAG <<<<<
+
+    // Função auxiliar para pausa aleatória
     const randomDelay = (min = 150, max = 450) => {
         const delay = Math.floor(Math.random() * (max - min + 1)) + min;
-        // console.log(`[Humanize Delay] Aguardando ${delay}ms...`); // Log opcional
+        // console.log(`${logPrefix} -> Atraso: ${delay}ms`); // Log opcional
         return new Promise(resolve => setTimeout(resolve, delay));
     };
 
+    // Verificações iniciais cruciais
     if (!input || !actionButton) {
-      console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Erro Crítico: Input ou Botão de Ação não encontrado. Tentando atualizar e agendando reload.`);
+      console.error(`${logPrefix} [ERRO CRÍTICO] Input ou Botão de Ação não encontrado!`);
       updateGameElements();
       notifyError(i18n.t("domError"));
-      scheduleReload(); // Mantém o reload em caso de erro crítico
-      if (isBuy) isProcessingBuy = false;
-      else isProcessingSell = false;
-      return;
+      resetCorrectFlag(); // <<< RESETAR A FLAG
+      scheduleReload();
+      return; // Aborta
     }
 
-    if (transactionSpinner) {
-      transactionSpinner.style.display = "inline-block";
-      //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Spinner ativado.`);
-    }
-
-    notifyUser(i18n.t("transactionInProgress"), "warning");
-    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Notificação 'Processando' exibida.`);
-
-    const handleActionButtonClick = async () => { // Adicionado 'async' aqui
-      //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] handleActionButtonClick iniciado.`);
-      if (actionButton.disabled) {
-        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão de ação desabilitado, iniciando MutationObserver.`);
-        // Lógica do MutationObserver (mantida como estava)
-        const observer = new MutationObserver(async (mutations) => { // Adicionado 'async' aqui
-          for (const mutation of mutations) { // Usar loop para garantir que só processe uma vez
-            if (mutation.attributeName === "disabled" && !actionButton.disabled) {
-              observer.disconnect();
-              //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão de ação habilitado pelo observer. Desconectando observer.`);
-              await randomDelay(100, 250); // Pequena pausa antes de clicar após habilitar
-              //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Clicando no botão principal.`);
-              actionButton.click();
-              startConfirmationCheck(); // Continua para checar confirmação
-              return; // Sai após processar a mutação
-            }
-          }
-        });
-        observer.observe(actionButton, { attributes: true, attributeFilter: ["disabled"] });
-      } else {
-        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão de ação já habilitado.`);
-        await randomDelay(100, 250); // Pequena pausa antes de clicar
-        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Clicando no botão principal.`);
-        actionButton.click();
-        startConfirmationCheck(); // Continua para checar confirmação
-      }
-    };
-
-
-
-
-
-
-
-
-  const startConfirmationCheck = () => {
-      //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Iniciando busca pelo pop-up de confirmação.`);
-      let attempts = 0;
-      const maxAttempts = 50; // Mantido
-      let confirmationProcessed = false; // Flag para evitar processamento múltiplo
-
-      const interval = setInterval(async () => { // Adicionado 'async' aqui
-        if (confirmationProcessed) {
-          clearInterval(interval);
-          //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Intervalo de confirmação limpo (já processado).`);
-          return;
+    // --- Processo da Transação ---
+    try {
+        if (transactionSpinner) {
+            transactionSpinner.style.display = "inline-block";
         }
+        notifyUser(i18n.t("transactionInProgress"), "warning");
+        console.log(`${logPrefix} -> Spinner ativado, notificação enviada.`);
 
-        //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Tentativa ${attempts + 1}/${maxAttempts} para encontrar pop-up.`);
-        const popupSelectors = [ // Mantido
-          "div.ui-dialog[aria-describedby='premium_exchange_confirm_buy']",
-          "div.ui-dialog[aria-describedby='premium_exchange_confirm_sell']",
-          "div.ui-dialog:not([style*='display: none'])",
-          "div[role='dialog']:not([style*='display: none'])"
-        ];
-        let popup = null;
-        for (const selector of popupSelectors) {
-          popup = document.querySelector(selector);
-          if (popup && (!popup.style.display || popup.style.display !== "none")) {
-            //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Pop-up encontrado.`);
-            break;
-          }
-        }
+        // --- Lógica de Ação no Botão Principal ---
+        const handleActionButtonClick = () => {
+             return new Promise(async (resolve, reject) => {
+                console.log(`${logPrefix} handleActionButtonClick: Iniciado.`);
+                if (actionButton.disabled) {
+                    console.log(`${logPrefix} -> Botão principal desabilitado. Observer...`);
+                    const observerTimeout = setTimeout(() => {
+                        observer.disconnect();
+                        console.warn(`${logPrefix} -> Timeout observer botão principal.`);
+                        reject(new Error("Timeout esperando botão principal habilitar"));
+                    }, 10000); // Timeout de 10s
 
-        if (popup) {
-          const confirmButtonSelectors = [ // Mantido
-            "div.confirmation-buttons button.btn.evt-confirm-btn.btn-confirm-yes",
-            "button.btn-confirm-yes",
-            // Seletores jQuery ':contains' não funcionam em querySelector, use alternativas ou filtre depois se necessário
-            // '.ui-dialog-buttonpane button:not(:disabled):first-of-type' // Pode ser muito genérico, manter como último recurso
-            // Adicionar seletores mais específicos se possível
-            ".ui-dialog-buttonpane button:enabled:not(:disabled):first-of-type" // Tentativa mais segura
-          ];
-          let confirmButton = null;
-          for (const selector of confirmButtonSelectors) {
-            confirmButton = popup.querySelector(selector);
-            // Adiciona verificação de texto se o seletor for genérico
-             if (confirmButton && !confirmButton.disabled) {
-                 if (selector.includes(".ui-dialog-buttonpane")) { // Se for o seletor genérico do painel
-                     const buttonText = confirmButton.textContent.trim().toLowerCase();
-                     if (buttonText === 'sim' || buttonText === 'yes' || buttonText === 'ok') {
-                        // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim/Yes/OK' HABILITADO encontrado (via seletor genérico).`);
-                         break; // Botão correto encontrado
-                     } else {
-                         confirmButton = null; // Não é o botão que queremos, continua procurando
-                     }
-                 } else { // Se for um seletor específico (como btn-confirm-yes)
-                     // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim' HABILITADO encontrado (via seletor específico: ${selector}).`);
-                     break; // Botão correto encontrado
-                 }
-             }
-          }
-
-
-          if (confirmButton) {
-            // Ação encontrada! Processa apenas uma vez.
-            if (!confirmationProcessed) {
-                confirmationProcessed = true; // Marca como processado
-                clearInterval(interval); // Para o intervalo imediatamente
-                //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim' confirmado. Processando pré-clique.`);
-
-                // ***** Bloco removido daqui (cálculo premiumCost e atualização input) *****
-
-                // *** ATRASO ANTES DE CLICAR NA CONFIRMAÇÃO ***
-                await randomDelay(200, 500); // Pausa para simular leitura
-                //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Clicando no botão 'Sim' AGORA.`);
-                confirmButton.click();
-
-                // <<< INÍCIO DA ATUALIZAÇÃO: Salvar Timestamp >>>
-                const transactionEndTime = Date.now();
-                try {
-                    localStorage.setItem('aquila_lastTransactionTime', transactionEndTime.toString());
-                    // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Timestamp da transação (${transactionEndTime}) salvo no localStorage.`);
-                } catch (e) {
-                    console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Erro ao salvar timestamp no localStorage:`, e);
-                    // Mesmo com erro, continua para o reload
+                    const observer = new MutationObserver(async (mutations) => {
+                       let processed = false;
+                       for (const mutation of mutations) {
+                           if (!processed && mutation.attributeName === "disabled" && !actionButton.disabled) {
+                                processed = true; clearTimeout(observerTimeout); observer.disconnect();
+                                console.log(`${logPrefix} -> Observer: Botão principal habilitado.`);
+                                await randomDelay(100, 250);
+                                console.log(`${logPrefix} -> Clicando botão principal (após observer)...`);
+                                actionButton.click(); resolve(); return;
+                           }
+                       }
+                    });
+                    observer.observe(actionButton, { attributes: true, attributeFilter: ["disabled"] });
+                } else {
+                    console.log(`${logPrefix} -> Botão principal JÁ habilitado.`);
+                    await randomDelay(100, 250);
+                    console.log(`${logPrefix} -> Clicando botão principal (direto)...`);
+                    actionButton.click(); resolve();
                 }
-                // <<< FIM DA ATUALIZAÇÃO: Salvar Timestamp >>>
+            });
+        };
 
-                // Finalização (DEPOIS de salvar o timestamp)
-                if (transactionSpinner) transactionSpinner.style.display = "none";
-                notifySuccess(i18n.t("transactionSuccess"));
-                //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Transação confirmada. Agendando reload.`);
-                scheduleReload(); // Agenda reload (com seu próprio atraso)
+        // --- Lógica para Checar Janela de Confirmação ---
+        const startConfirmationCheck = () => {
+            return new Promise((resolve, reject) => { // <<< Retorna Promise
+                console.log(`${logPrefix} startConfirmationCheck: Iniciado.`);
+                let attempts = 0; const maxAttempts = 50; let confirmationProcessed = false;
+                const interval = setInterval(async () => {
+                    if (confirmationProcessed) { clearInterval(interval); return; } // Sai se já processou
 
-                // Resetar flags de processamento é importante aqui
-                if (isBuy) isProcessingBuy = false; else isProcessingSell = false;
-                return; // Sai da função do intervalo
-            }
+                    // Seletores do popup (mantidos)
+                    const popupSelectors = [ "div.ui-dialog[aria-describedby='premium_exchange_confirm_buy']","div.ui-dialog[aria-describedby='premium_exchange_confirm_sell']","div.ui-dialog:not([style*='display: none'])", "div[role='dialog']:not([style*='display: none'])"];
+                    let popup = null; for (const selector of popupSelectors) { popup = document.querySelector(selector); if (popup && (!popup.style.display || popup.style.display !== "none")) { break; } }
 
-          } else {
-            //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Botão 'Sim' não encontrado ou desabilitado. Aguardando.`);
-          }
-        } else {
-          //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Pop-up não encontrado/visível.`);
+                    if (popup) {
+                        // Seletores do botão de confirmação (mantidos)
+                        const confirmButtonSelectors = [ "div.confirmation-buttons button.btn.evt-confirm-btn.btn-confirm-yes", "button.btn-confirm-yes", ".ui-dialog-buttonpane button:enabled:not(:disabled):first-of-type"];
+                        let confirmButton = null;
+                        for (const selector of confirmButtonSelectors) {
+                           confirmButton = popup.querySelector(selector);
+                           // Verifica se o botão está habilitado e, se for genérico, se tem o texto certo
+                           if (confirmButton && !confirmButton.disabled) {
+                               if (selector.includes(".ui-dialog-buttonpane")) {
+                                   const text = confirmButton.textContent.trim().toLowerCase();
+                                   if (text==='sim'||text==='yes'||text==='ok'){ break; } // Achou
+                                   else { confirmButton=null; } // Texto errado
+                                } else { break; } // Seletor específico, achou
+                           }
+                           else { confirmButton = null; } // Desabilitado ou não encontrado
+                         }
+
+                        if (confirmButton) { // Botão SIM encontrado e HABILITADO
+                            if (!confirmationProcessed) {
+                                confirmationProcessed = true; clearInterval(interval); // Para tudo
+                                console.log(`${logPrefix} -> Botão 'Sim' encontrado e habilitado.`);
+                                await randomDelay(200, 500); // Pausa antes de clicar
+                                console.log(`${logPrefix} -> Clicando botão 'Sim' AGORA.`);
+                                confirmButton.click();
+
+                                // Salva timestamp DEPOIS do clique
+                                const transactionEndTime = Date.now();
+                                try { localStorage.setItem('aquila_lastTransactionTime', transactionEndTime.toString()); console.log(`${logPrefix} -> Timestamp (${transactionEndTime}) salvo.`); }
+                                catch (e) { console.error(`${logPrefix} - [ERRO] Salvar timestamp:`, e); }
+
+                                resolve(true); // <<< Resolve a Promise (SUCESSO)
+                            }
+                        } else { /* Aguardando botão 'Sim' ficar pronto... */ }
+                    } else { /* Aguardando popup aparecer... */ }
+
+                    // Lógica de Timeout
+                    attempts++;
+                    if (attempts >= maxAttempts && !confirmationProcessed) {
+                        confirmationProcessed = true; clearInterval(interval);
+                        console.warn(`${logPrefix} -> TIMEOUT: Pop-up ou botão 'Sim' não encontrado/habilitado.`);
+                        try { localStorage.removeItem('aquila_lastTransactionTime'); } catch (e) {} // Limpa timestamp no timeout
+                        reject(new Error("Timeout confirmação")); // <<< Rejeita a Promise (FALHA)
+                    }
+                }, 100 + Math.random() * 150); // Intervalo levemente randomizado
+            }); // Fim Promise startConfirmationCheck
+        }; // Fim const startConfirmationCheck
+
+        // --- Sequência Principal de Ações ---
+        const finalAmount = sanitizeNumber(amount);
+        if (isNaN(finalAmount) || finalAmount <= 0) {
+          throw new Error(`Quantidade inválida (${amount}).`); // Joga erro para o catch principal
         }
 
-        // Lógica de Timeout (mantida como estava)
-        attempts++;
-        if (attempts >= maxAttempts) {
-          clearInterval(interval);
-          confirmationProcessed = true; // Marca como processado para evitar ações tardias
-          console.warn(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] TIMEOUT: Pop-up/botão não encontrado. Assumindo erro.`);
-          if (transactionSpinner) transactionSpinner.style.display = "none";
-          notifyError(i18n.t("transactionError") + " (Timeout Confirmação)");
+        await randomDelay(150, 400); // Pausa antes de preencher input
+        console.log(`${logPrefix} -> Preenchendo input com: ${finalAmount}`);
+        input.value = finalAmount;
+        // Dispara eventos para garantir que o jogo reconheça a mudança
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        input.dispatchEvent(new Event("keyup", { bubbles: true }));
 
-          // Limpa o timestamp se der timeout ANTES de confirmar, para não bloquear a próxima ação
-          try {
-              localStorage.removeItem('aquila_lastTransactionTime');
-              // console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Timestamp removido do localStorage devido a timeout.`);
-          } catch (e) {
-               console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Erro ao remover timestamp do localStorage no timeout:`, e);
-          }
+        await handleActionButtonClick(); // Espera clicar no primeiro botão (Calcular/Vender)
+        console.log(`${logPrefix} -> Primeiro clique OK. Checando confirmação...`);
 
-          scheduleReload();
-          if (isBuy) isProcessingBuy = false;
-          else isProcessingSell = false;
-        }
-      }, 100 + Math.random() * 150); // <<< Intervalo de verificação LEVEMENTE randomizado
-    }; // <-- Fim da função startConfirmationCheck (ATUALIZADA)
+        await startConfirmationCheck(); // Espera clicar no botão 'Sim' (ou dar timeout/erro)
+
+         // Se chegou aqui, a confirmação foi clicada com sucesso (startConfirmationCheck resolveu com true)
+         console.log(`${logPrefix} -> Transação confirmada com sucesso.`);
+         if (transactionSpinner) transactionSpinner.style.display = "none";
+         notifySuccess(i18n.t("transactionSuccess"));
+         resetCorrectFlag(); // <<< RESET no sucesso, ANTES do reload
+         scheduleReload();
+
+    } catch (error) {
+         // Captura erros de qualquer uma das Promises (handleActionButtonClick ou startConfirmationCheck) ou do throw inicial
+         console.error(`${logPrefix} [ERRO DURANTE TRANSAÇÃO]`, error.message || error);
+         if (transactionSpinner) transactionSpinner.style.display = "none";
+         notifyError(i18n.t("transactionError") + ` (${error.message || 'Erro desconhecido'})`);
+         resetCorrectFlag(); // <<< RESET no erro, ANTES do reload
+         scheduleReload();
+     }
+
+}; // --- Fim da função executeTransaction (vHumanize 1.2) ---
 
 
 
 
-
-
-
-
-    // --- Início da execução da transação ---
-    const finalAmount = sanitizeNumber(amount);
-    if (isNaN(finalAmount) || finalAmount <= 0) {
-      console.error(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Quantidade inválida (${amount}). Abortada.`);
-      if (transactionSpinner) transactionSpinner.style.display = "none";
-      if (isBuy) isProcessingBuy = false; else isProcessingSell = false;
-      return;
-    }
-
-    // *** ATRASO ANTES DE PREENCHER O INPUT ***
-    await randomDelay(150, 400); // Pausa para simular encontrar e preencher o campo
-
-    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Preenchendo input com: ${finalAmount}`);
-    input.value = finalAmount;
-
-    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Disparando eventos input/change/keyup.`);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-    input.dispatchEvent(new Event("keyup", { bubbles: true }));
-
-    // *** ATRASO ANTES DE CLICAR NO PRIMEIRO BOTÃO (calcular/vender) ***
-    // A função handleActionButtonClick já tem um delay interno agora.
-    // O tempo aqui é o tempo *antes* de *começar* a tentar clicar.
-    const initialClickDelay = 150 + Math.random() * 300;
-    //console.log(`${SCRIPT_NAME}: [TX-${transactionId} - ${type}] Agendando handleActionButtonClick em ${Math.round(initialClickDelay)}ms.`);
-    setTimeout(handleActionButtonClick, initialClickDelay);
-
-  }; // Fim da função executeTransaction atualizada
 
 
 
@@ -4272,338 +2477,304 @@ function calculateBuySpread(resourceName, marketRate, stateRef) {
 
 
 
+// === INÍCIO DA ATUALIZAÇÃO processBuyBasedOnResources (v6.8.0 - Prioriza Market Stock) ===
+const processBuyBasedOnResources = async () => {
+    const logPrefix = "[RAG-LOG Compra v6.8.0]"; // Prefixo atualizado para v6.8.0
+    console.log(`${logPrefix} ===== INÍCIO CHECAGEM COMPRA =====`);
 
+    const LARGE_NUMBER_FOR_INFINITY = 999999999;
 
-
-
-
-
-
-
-
-
-
-
-
-
-// FUNÇÃO processBuyBasedOnResources ATUALIZADA (vCompraInteligente 6.0 - Lista Ranqueada)
-  const processBuyBasedOnResources = async () => {
-    // --- COOLDOWN PERSISTENTE CHECK ---
-    const COOLDOWN_DURATION = 6000; // 6 segundos
+    // --- COOLDOWN CHECK ---
+    const COOLDOWN_DURATION = 6000;
     const lastTxTimeStr = localStorage.getItem('aquila_lastTransactionTime');
     const lastTxTime = lastTxTimeStr ? parseInt(lastTxTimeStr, 10) : null;
     const nowForCooldown = Date.now();
     const timeSinceLastTx = lastTxTime && !isNaN(lastTxTime) ? nowForCooldown - lastTxTime : Infinity;
-
     if (timeSinceLastTx < COOLDOWN_DURATION) {
-        const secondsRemaining = Math.ceil((COOLDOWN_DURATION - timeSinceLastTx) / 1000);
-        // console.log(`[Compra vInteligente 6.0 + Cooldown] Cooldown ativo. Aguardando ${secondsRemaining}s.`); // Log Opcional
-        return; // Sai cedo se estiver em cooldown
+        // console.log(`${logPrefix} - Cooldown ativo (${Math.round((COOLDOWN_DURATION - timeSinceLastTx)/1000)}s restantes). Saindo.`); // Silenciado
+        return;
     }
-    // --- FIM COOLDOWN PERSISTENTE CHECK ---
 
-    // --- Lógica de atualização PÓS-COMPRA (lendo localStorage) ---
-    // (Código Pós-Compra mantido como estava antes)
+    // --- Leitura INICIAL do Limite Input ---
+    let currentLimitInputValue = 0;
+    const premiumInputForInitialRead = ui.getElement("premiumPointsInput");
+    if (premiumInputForInitialRead) {
+        currentLimitInputValue = sanitizeNumber(premiumInputForInitialRead.value) || 0;
+        // console.log(`${logPrefix} - Limite PP no input: ${currentLimitInputValue}`);
+    } else {
+        console.warn(`${logPrefix} - [AVISO] Campo premiumPointsInput NÃO ENCONTRADO! Limit será 0.`);
+    }
+
+    // --- LÓGICA PÓS-RECARGA ---
     const savedBalanceBeforeBuyStr = localStorage.getItem('aquila_ppBalanceBeforeBuy');
     const savedLimitBeforeBuyStr = localStorage.getItem('aquila_ppLimitBeforeBuy');
     if (savedBalanceBeforeBuyStr !== null && savedLimitBeforeBuyStr !== null) {
-        console.log("[Compra vInteligente 6.0 - Pós-Reload Check] Verificando PP gasto..."); // Log Opcional
+        console.log(`${logPrefix} - Detectado Pós-Recarga. Processando...`);
         const balanceBeforeBuy = parseInt(savedBalanceBeforeBuyStr, 10);
         const limitBeforeBuy = parseInt(savedLimitBeforeBuyStr, 10);
-        const currentPPBalance = getAvailablePremiumPoints();
+        const currentPPBalanceNow = getAvailablePremiumPoints();
+
         localStorage.removeItem('aquila_ppBalanceBeforeBuy');
         localStorage.removeItem('aquila_ppLimitBeforeBuy');
-        console.log("[Compra vInteligente 6.0 - Pós-Reload Check] Chaves temporárias removidas."); // Log Opcional
+
         if (!isNaN(balanceBeforeBuy) && !isNaN(limitBeforeBuy)) {
-            const ppSpent = balanceBeforeBuy - currentPPBalance;
-            console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Saldo Antes: ${balanceBeforeBuy}, Atual: ${currentPPBalance}, Gasto: ${ppSpent}`); // Log Opcional
-            if (ppSpent > 0) {
+            const ppSpent = balanceBeforeBuy - currentPPBalanceNow;
+             // console.log(`${logPrefix} -> Pós-Recarga Info: Saldo Ant=${balanceBeforeBuy}, Atual=${currentPPBalanceNow}, Gasto=${ppSpent}, Limite Ant=${limitBeforeBuy}`); // Log menos verboso
+
+            if (ppSpent >= 0) {
                 const newPPLimit = Math.max(0, limitBeforeBuy - ppSpent);
+                // console.log(`${logPrefix} -> Novo Limite Calculado: ${newPPLimit}`);
                 const premiumInput = ui.getElement("premiumPointsInput");
                 if (premiumInput) {
                     premiumInput.value = newPPLimit;
-                    console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Limite PP atualizado: ${newPPLimit}. Salvando...`); // Log Opcional
-                    performSaveOperation(); // Salva a configuração atualizada
+                    currentLimitInputValue = newPPLimit;
+                    // console.log(`${logPrefix} -> Campo Limite PP atualizado e config salva (via pós-recarga).`);
+                    performSaveOperation();
                 }
             } else {
-                console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Nenhum PP gasto.`); // Log Opcional
+                 // console.log(`${logPrefix} -> Pós-Recarga: Gasto inválido. Restaurando limite salvo.`);
                  const premiumInput = ui.getElement("premiumPointsInput");
-                 if (premiumInput && sanitizeNumber(premiumInput.value) !== limitBeforeBuy) {
-                     console.log(`[Compra vInteligente 6.0 - Pós-Reload Check] Restaurando limite pré-compra (${limitBeforeBuy}).`); // Log Opcional
+                 if (premiumInput) {
                      premiumInput.value = limitBeforeBuy;
-                     performSaveOperation(); // Salva a configuração restaurada
+                     currentLimitInputValue = limitBeforeBuy;
+                     performSaveOperation();
+                     // console.log(`${logPrefix} -> Campo Limite PP restaurado.`);
                  }
-            }
-        } else { console.warn("[Compra vInteligente 6.0 - Pós-Reload Check] Erro ao parsear valores salvos."); } // Log Opcional
+             }
+        } else {
+             console.warn(`${logPrefix} - [AVISO] Pós-Recarga: Falha parse. Usando limite atual: ${currentLimitInputValue}.`);
+        }
+        // console.log(`${logPrefix} - Fim Processamento Pós-Recarga.`); // Log menos verboso
     }
-    // --- Fim PÓS-COMPRA ---
+    // --- FIM LÓGICA PÓS-RECARGA ---
 
-    // --- Lógica de verificação/início da compra ---
+    // --- Checagens de Estado ---
     const initialDelay = Math.random() * 200 + 50;
     await new Promise(resolve => setTimeout(resolve, initialDelay));
 
-    // Verifica hCaptcha e outras condições
-    if (checkAndHandleHCaptcha()) { console.log("[Compra vInteligente 6.0] hCaptcha detectado. Abortando."); isProcessingBuy = false; return; }
-    const now = Date.now();
-    if (!state.buyModeActive || isProcessingBuy || (state.buyPausedUntil && state.buyPausedUntil > now) || isProcessingSell) {
-        // console.log(`[Compra vInteligente 6.0] Abortando. Condições: buyModeActive=${state.buyModeActive}, isProcessingBuy=${isProcessingBuy}, buyPausedUntil=${state.buyPausedUntil ? new Date(state.buyPausedUntil) : null}, now=${new Date(now)}, isProcessingSell=${isProcessingSell}`); // Log Opcional
-        return;
-     }
-
-    console.log("[Compra vInteligente 6.0 - MAIN THREAD] Iniciando verificação..."); // Log Opcional
-    isProcessingBuy = true; // Marca como processando AGORA
-
-    // Busca dados pré-worker
-    try {
-        await fetchIncomingResources();
-        state.storageCapacity = getStorageCapacity();
-        console.log(`[Compra vInteligente 6.0 - MAIN THREAD] Recursos chegando e capacidade atualizados. Capacidade: ${state.storageCapacity}`); // Log Opcional
-    } catch (error) {
-        console.error("[Compra vInteligente 6.0 - MAIN THREAD] Erro ao buscar dados pré-worker:", error);
-        isProcessingBuy = false; // Reset se falhar aqui
-        return;
-    }
-
-    // Verifica PP
-    const availablePP = getAvailablePremiumPoints();
-    const premiumInput = ui.getElement("premiumPointsInput");
-    const maxPP = premiumInput ? sanitizeNumber(premiumInput.value) : Infinity;
-    const effectivePP = Math.min(availablePP, maxPP);
-    if (effectivePP <= 0) {
-        console.log("[Compra vInteligente 6.0 - MAIN THREAD] PP efetivo zerado."); // Log Opcional
-        isProcessingBuy = false; // Reset se não tiver PP
-        return;
-    }
-
-    // --- Monta dados para o Worker ---
-    // Passa a TAXA DE VENDA para o worker, usada como base dos múltiplos
-    const workerResourcesData = Object.keys(resources).map(name => {
-        const handler = resources[name];
-        if (!handler) return null;
-        const desiredStockInput = document.querySelector(`.rate-input[data-resource="${name}-stock"]`);
-        const userRateLimitInput = document.querySelector(`.rate-input[data-resource="${name}"]`); // Taxa MÍNIMA de COMPRA do user
-        const buyLimitPerTimeInput = document.querySelector('.rate-input[data-resource="buy-per-time"]');
-        const desiredStock = sanitizeNumber(desiredStockInput?.value) || 0;
-        const userRateLimit = sanitizeNumber(userRateLimitInput?.value) || 0;
-        const buyLimitPerTime = sanitizeNumber(buyLimitPerTimeInput?.value) || Infinity;
-        const marketSellRate = handler.getMarketValue(); // TAXA DE VENDA (base dos múltiplos)
-        return { name, desiredStock, marketRate: marketSellRate, userRateLimit, buyLimitPerTime };
-    }).filter(data => data !== null);
-
-    if (typeof currentResources === 'undefined') { console.error("[Compra vInteligente 6.0 - MAIN THREAD] currentResources não definida!"); isProcessingBuy = false; return; }
-
-    const workerData = { action: "calculateBuyAmount", data: {
-            resources: workerResourcesData,
-            effectivePP: effectivePP,
-            storageCapacity: state.storageCapacity,
-            incomingResources: mobx.toJS(state.incomingResources),
-            currentResources: mobx.toJS(currentResources)
-        }};
-    // --- Fim Montagem Worker ---
-
-    console.log("[Compra vInteligente 6.0 - MAIN THREAD] Enviando dados para o Worker:", workerData); // Log Opcional
-    worker.postMessage(workerData);
-
-    // =======================================================================
-    // === INÍCIO: NOVA CALLBACK worker.onmessage (Lida com Lista Ordenada) ===
-    // =======================================================================
-    worker.onmessage = async (e) => {
-        console.log("[Compra vInteligente 6.0 - MAIN THREAD] Mensagem recebida do Worker:", e.data); // Log principal
-
-        // Verifica hCaptcha logo ao receber a mensagem
-        if (checkAndHandleHCaptcha()) {
-             console.warn("[Compra vInteligente 6.0 - MAIN THREAD] hCaptcha detectado após receber resposta do worker. Abortando.");
-             if (isProcessingBuy) isProcessingBuy = false; // Garante reset
-             return;
-        }
-
-        // Verifica se ocorreu um erro no worker
-        if (e.data.error) {
-            console.error("[Compra vInteligente 6.0 - MAIN THREAD] Erro retornado pelo Worker:", e.data.error);
-            isProcessingBuy = false;
-            return;
-        }
-
-        // Verifica se a ação é a esperada e se temos a lista
-        if (e.data.action === "buyAmountCalculated" && Array.isArray(e.data.result?.rankedBuyOptions)) {
-            const rankedBuyOptions = e.data.result.rankedBuyOptions;
-            console.log(`[Compra vInteligente 6.0 - MAIN THREAD] Worker retornou ${rankedBuyOptions.length} opções ordenadas.`);
-
-            if (rankedBuyOptions.length === 0) {
-                console.log("[Compra vInteligente 6.0 - MAIN THREAD] Nenhuma opção de compra viável retornada pelo worker.");
-                isProcessingBuy = false;
-                return; // Sai se não houver opções
-            }
-
-            // --- ITERAÇÃO PELAS OPÇÕES ---
-            let buyExecuted = false; // Flag para saber se já executamos uma compra
-            for (const option of rankedBuyOptions) {
-                const resourceName = option.name;
-                const idealAmountFromWorker = option.idealAmount; // Quantidade já limitada por PP/Físico no worker
-                const userRateLimit = option.userRateLimit; // Taxa mínima de COMPRA definida pelo user
-                const marketSellRateWorker = option.marketRate; // Taxa de VENDA (base dos múltiplos) que o worker usou
-
-                console.log(`\n[Compra vInteligente 6.0 - MAIN THREAD] === Verificando Opção: ${resourceName.toUpperCase()} ===`);
-                console.log(` -> Ideal (Worker): ${idealAmountFromWorker}, Taxa Mín. User (Compra): ${userRateLimit}, Taxa Base Múltiplos (Venda): ${marketSellRateWorker}`);
-
-                // Verifica se já estamos processando uma venda (que pode ter iniciado enquanto iteramos)
-                if (isProcessingSell) {
-                    console.log(`[Compra vInteligente 6.0 - MAIN THREAD ${resourceName}] VENDA em andamento detectada durante a iteração. Abortando restante das compras.`);
-                    isProcessingBuy = false; // Reseta flag de compra
-                    return; // Para completamente a verificação de compra
-                }
-
-                // Pega o handler do recurso e taxas ATUAIS no main thread
-                const handler = resources[resourceName];
-                if (!handler) {
-                    console.warn(`[Compra vInteligente 6.0 - MAIN THREAD ${resourceName}] Handler não encontrado. Pulando opção.`);
-                    continue; // Pula para a próxima opção
-                }
-
-                // **OBTÉM A TAXA DE COMPRA REAL DO JOGO AGORA**
-                const currentMarketBuyRate = handler.getGameRate(); // Função que busca a taxa de COMPRA atual
-                console.log(` -> Taxa de COMPRA ATUAL (Jogo): ${currentMarketBuyRate}`);
-
-                // **VERIFICAÇÃO DA TAXA DE COMPRA MÍNIMA DO USUÁRIO**
-                if (currentMarketBuyRate <= 0 || (userRateLimit > 0 && currentMarketBuyRate < userRateLimit)) {
-                    console.log(`[Compra vInteligente 6.0 - MAIN THREAD ${resourceName}] Taxa de COMPRA (${currentMarketBuyRate}) inválida ou ABAIXO do limite do usuário (${userRateLimit}). Pulando.`);
-                    continue; // Pula para a próxima opção
-                } else {
-                     console.log(` -> Taxa de COMPRA OK (>= ${userRateLimit})`);
-                }
-
-                // Pega a taxa de VENDA atual para recalcular múltiplos (pode ter mudado desde o worker)
-                const currentMarketSellRate = handler.getMarketValue(); // Taxa de VENDA ATUAL
-                console.log(` -> Taxa de VENDA ATUAL (Múltiplos): ${currentMarketSellRate}`);
-
-                // ================================================================
-                // === INÍCIO: LÓGICA DE AJUSTE PRECISO (v1.5 - Adaptada para Loop) ===
-                // ================================================================
-
-                // 1. Verifica taxa de venda (base dos múltiplos)
-                if (currentMarketSellRate <= 0) {
-                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] Taxa de VENDA base ATUAL inválida (${currentMarketSellRate}). Pulando opção.`);
-                    continue; // Pula para a próxima opção
-                }
-
-                // 2. Busca dados de estoque/capacidade ATUAIS
-                const currentStock = currentResources[resourceName] || 0;
-                const incomingStock = state.incomingResources[resourceName] || 0;
-                const warehouseCapacity = state.storageCapacity || 0;
-
-                // 3. Calcula espaço disponível REAL
-                const availableSpace = Math.max(0, warehouseCapacity - currentStock - incomingStock);
-                console.log(` -> Espaço Disponível Real: ${availableSpace} (Cap: ${warehouseCapacity} - Atual: ${currentStock} - Chegando: ${incomingStock})`);
-
-                // 4. Define estimativa da taxa do JOGO (taxa de 5% na compra)
-                const GAME_BUY_FEE_PERCENTAGE = 0.05; // 5% (Ajustável)
-
-                // 5. Calcula espaço EFETIVO (considerando taxa jogo)
-                const effectiveAvailableSpace = Math.floor(availableSpace / (1 + GAME_BUY_FEE_PERCENTAGE));
-                console.log(` -> Espaço Efetivo (taxa jogo ${GAME_BUY_FEE_PERCENTAGE*100}%): ${effectiveAvailableSpace}`);
-
-                // 6. Determina quantidade MÁXIMA antes de múltiplos (usa espaço efetivo e o ideal do worker)
-                const maxBeforeMultiples = Math.min(idealAmountFromWorker, effectiveAvailableSpace);
-                console.log(` -> Máximo antes dos múltiplos: ${maxBeforeMultiples} (min(IdealWorker: ${idealAmountFromWorker}, EspaçoEfetivo: ${effectiveAvailableSpace}))`);
-
-                // 7. Calcula o NÚMERO MÁXIMO de pacotes (baseado na taxa de VENDA atual) que cabem
-                const maxNumMultiples = Math.floor(maxBeforeMultiples / currentMarketSellRate);
-                console.log(` -> Número Máximo de Pacotes (Taxa Venda ${currentMarketSellRate}) Possíveis: ${maxNumMultiples}`);
-
-                // 8. Verifica se cabe pelo menos um pacote
-                if (maxNumMultiples < 1) {
-                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] FALHOU: Não cabe nem 1 pacote (Máx Efetivo: ${maxBeforeMultiples} < Taxa Venda: ${currentMarketSellRate}). Pulando.`);
-                    continue; // Pula para a próxima opção
-                }
-
-                // 9. Calcula a quantidade MÁXIMA que é múltiplo e cabe
-                const amountMultipleBased = maxNumMultiples * currentMarketSellRate;
-                console.log(` -> Quantidade Máxima Baseada em Múltiplos: ${amountMultipleBased}`);
-
-                // 10. Calcula o spread do SCRIPT (usando a taxa de COMPRA atual)
-                const scriptBuySpread = calculateBuySpread(resourceName, currentMarketBuyRate, { marketTrends: mobx.toJS(state.marketTrends) });
-                console.log(` -> Spread do Script calculado: ${(scriptBuySpread * 100).toFixed(2)}% (Base Taxa Compra: ${currentMarketBuyRate})`);
-
-                // 11. Reduz a quantidade (amountMultipleBased) pelo spread do SCRIPT
-                const amountReducedBySpread = Math.floor(amountMultipleBased / (1 + scriptBuySpread));
-                console.log(` -> Quantidade Reduzida pelo Spread Script: ${amountReducedBySpread} ( ${amountMultipleBased} / ${(1 + scriptBuySpread).toFixed(3)} )`);
-
-                // 12. Reajusta para o maior múltiplo da TAXA DE VENDA que seja <= amountReducedBySpread
-                               // 12. **NOVO (v6.1):** Usa diretamente a quantidade reduzida pelo spread (sem forçar múltiplo da taxa de VENDA)
-                const finalAmountToBuy = amountReducedBySpread; // Atribuição direta
-                console.log(` -> Quantidade FINAL para INPUT (Pós-Spread): ${finalAmountToBuy}`); // Log ATUALIZADO
-
-                // 13. Última verificação
-                if (finalAmountToBuy <= 0) {
-                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] FALHOU: Quantidade final é zero ou negativa após spread/reajuste. Pulando.`);
-                    continue; // Pula para a próxima opção
-                }
-
-                // ================================================================
-                // === FIM: LÓGICA DE AJUSTE PRECISO (v1.5 - Adaptada para Loop) ===
-                // ================================================================
-
-                // ***** SUCESSO! Encontramos uma opção viável *****
-                console.log(`[Compra Inteligente 6.0 ${resourceName}] SUCESSO! Opção VÁLIDA encontrada. Quantidade: ${finalAmountToBuy}. Iniciando transação...`);
-
-                // Salva estado pré-compra no localStorage (igual a antes)
-                const currentPPLimit = sanitizeNumber(ui.getElement("premiumPointsInput")?.value) || 0;
-                const currentPPBalance = getAvailablePremiumPoints();
-                try {
-                    localStorage.setItem('aquila_ppLimitBeforeBuy', String(currentPPLimit));
-                    localStorage.setItem('aquila_ppBalanceBeforeBuy', String(currentPPBalance));
-                    console.log(` -> Salvo no localStorage - Limite: ${currentPPLimit}, Saldo: ${currentPPBalance}`);
-                } catch (storageError) {
-                    console.error(`[Compra Inteligente 6.0 ${resourceName}] Erro crítico ao salvar localStorage ANTES da compra:`, storageError);
-                    // Considerar abortar aqui? Ou deixar a compra tentar mesmo assim? Por segurança, vamos abortar.
-                    isProcessingBuy = false; // Reseta a flag
-                    return; // Aborta o onmessage
-                }
-
-                // Executa a transação com a quantidade FINAL e VÁLIDA
-                try {
-                    buyExecuted = true; // Marca que vamos executar
-                    await executeTransaction("buy", handler, finalAmountToBuy);
-                    // A flag isProcessingBuy será resetada DENTRO de executeTransaction ou em seu callback/timeout
-                    // Não precisamos resetar aqui.
-                    console.log(`[Compra Inteligente 6.0 ${resourceName}] Chamada para executeTransaction enviada.`);
-                    return; // *** IMPORTANTE: Sai do onmessage após iniciar a PRIMEIRA compra bem-sucedida ***
-                } catch (txError) {
-                    console.error(`[Compra Inteligente 6.0 ${resourceName}] Erro durante executeTransaction:`, txError);
-                    // Limpa o storage se a execução falhar
-                    localStorage.removeItem('aquila_ppBalanceBeforeBuy');
-                    localStorage.removeItem('aquila_ppBalanceBeforeBuy');
-                    buyExecuted = false; // Marca que a execução falhou
-                    // isProcessingBuy deve ser resetado dentro de executeTransaction mesmo em erro
-                    // Continua o loop para tentar a próxima opção, se houver.
-                    console.warn(`[Compra Inteligente 6.0 ${resourceName}] Falha ao executar transação. Tentando próxima opção...`);
-                    continue; // Tenta a próxima opção do loop
-                }
-            } // --- FIM DO LOOP pelas opções ---
-
-            // Se o loop terminar e NENHUMA compra foi executada
-            if (!buyExecuted) {
-                console.log("[Compra vInteligente 6.0 - MAIN THREAD] Nenhuma opção viável encontrada após verificar todas as candidatas.");
-                isProcessingBuy = false; // Reseta a flag aqui, pois nenhuma compra foi iniciada
-            }
-
-        } else {
-            // Se a ação não for 'buyAmountCalculated' ou o resultado não for um array
-            console.warn("[Compra vInteligente 6.0 - MAIN THREAD] Resposta inesperada do Worker:", e.data);
+    const resetProcessingFlagIfNeeded = () => { // Função auxiliar
+        if (isProcessingBuy) {
+            // console.log(`${logPrefix} [Reset Flag] Resetando isProcessingBuy=false.`); // Log pode ser útil para debug
             isProcessingBuy = false;
         }
-    }; // --- FIM worker.onmessage ---
-    // =======================================================================
-    // === FIM: NOVA CALLBACK worker.onmessage (Lida com Lista Ordenada) =====
-    // =======================================================================
-
-    // Mantém o onerror como estava
-    worker.onerror = (error) => {
-        console.error("[Compra Inteligente 6.0 - MAIN THREAD] Erro GERAL no Worker:", error);
-        isProcessingBuy = false;
     };
 
-  }; // --- Fim da função processBuyBasedOnResources (vCompraInteligente 6.0) ---
+    if (checkAndHandleHCaptcha()) { console.log(`${logPrefix} - hCaptcha detectado! Saindo.`); resetProcessingFlagIfNeeded(); return; }
+    const now = Date.now();
+    if (!state.buyModeActive) { resetProcessingFlagIfNeeded(); return; }
+    if (isProcessingBuy) { /* console.log(`${logPrefix} - Compra JÁ em processamento. Saindo.`); */ return; } // Silenciado
+    if (state.buyPausedUntil && state.buyPausedUntil > now) { return; }
+    if (isProcessingSell) { console.log(`${logPrefix} - VENDA em andamento. Aguardando.`); return; }
+
+    console.log(`${logPrefix} - Verificações Iniciais OK.`);
+    isProcessingBuy = true; // Marca como processando
+
+    // --- Busca de Dados Essenciais ---
+    try {
+        await Promise.all([ fetchIncomingResources(), fetchResources() ]);
+    } catch (error) {
+        console.error(`${logPrefix} - [ERRO] Buscar dados externos:`, error);
+        resetProcessingFlagIfNeeded(); return;
+    }
+
+    // --- Leitura Limites UI (exceto PP) ---
+    const readLimitInput = (selector, defaultValue = LARGE_NUMBER_FOR_INFINITY) => {
+        const inputElement = document.querySelector(selector); return inputElement ? (sanitizeNumber(inputElement.value) > 0 ? sanitizeNumber(inputElement.value) : defaultValue) : defaultValue;
+    };
+    const currentBuyLimitPerTime = readLimitInput('.rate-input[data-resource="buy-per-time"]');
+
+    // --- CÁLCULO DE PP EFETIVO ---
+    const availablePP = getAvailablePremiumPoints();
+    const maxPPLimit = (currentLimitInputValue > 0) ? currentLimitInputValue : 0;
+    const effectivePP = Math.min(availablePP, maxPPLimit);
+
+    if (effectivePP <= 0) {
+        // console.log(`${logPrefix} - PP Efetivo ZERO. Saindo.`); // Silenciado
+        resetProcessingFlagIfNeeded(); return;
+    }
+
+    // ---- Monta dados para Worker ----
+    const workerResourcesData = Object.keys(resources).map(name => {
+        const handler = resources[name]; if (!handler) return null;
+        const desiredStockInput = document.querySelector(`.rate-input[data-resource="${name}-stock"]`);
+        const userRateLimitInput = document.querySelector(`.rate-input[data-resource="${name}"]`);
+        const desiredStock = desiredStockInput ? sanitizeNumber(desiredStockInput.value) : 0;
+        const userRateLimit = userRateLimitInput ? sanitizeNumber(userRateLimitInput.value) : 0;
+        const marketSellRate = handler.getMarketValue();
+        if (marketSellRate <= 0) { return null; }
+        // Log preparação para worker (mantido para visibilidade)
+        console.log(`${logPrefix} -> Prep. ${name} p/ worker: Desj=${desiredStock}, TaxaMinUser=${userRateLimit}, TaxaVendaMerc=${marketSellRate}, Limite/Tempo=${currentBuyLimitPerTime}`);
+        return { name, desiredStock, marketRate: marketSellRate, userRateLimit, buyLimitPerTime: currentBuyLimitPerTime };
+    }).filter(data => data !== null);
+
+    if (workerResourcesData.length === 0) { console.log(`${logPrefix} - Nenhum recurso válido para worker. Saindo.`); resetProcessingFlagIfNeeded(); return; }
+
+    const workerData = { /* ... (igual à v6.7.0) ... */
+        action: "calculateBuyAmount",
+        data: { resources: workerResourcesData, effectivePP: effectivePP, storageCapacity: state.storageCapacity, incomingResources: mobx.toJS(state.incomingResources), currentResources: mobx.toJS(currentResources) }
+    };
+
+    // Log dados atuais (mantido)
+    console.log(`${logPrefix} -> Recursos Atuais (p/ worker): W=${currentResources?.wood}, S=${currentResources?.stone}, I=${currentResources?.iron}`);
+    console.log(`${logPrefix} -> Recursos Chegando (p/ worker): W=${state.incomingResources?.wood}, S=${state.incomingResources?.stone}, I=${state.incomingResources?.iron}`);
+    console.log(`${logPrefix} -> Capacidade Armazém (p/ worker): ${state?.storageCapacity}`);
+    console.log(`${logPrefix} - Enviando para Worker...`);
+    worker.postMessage(workerData);
+
+    // --- Callback e Lógica Pós-Worker ---
+    worker.onmessage = async (e) => {
+        const resetProcessingFlag = () => { /* Função local igual v6.7.0 */
+            if (isProcessingBuy) {
+                console.log(`${logPrefix} [Callback Reset] Resetando isProcessingBuy=false.`);
+                isProcessingBuy = false;
+            }
+        };
+
+        if (checkAndHandleHCaptcha()) { console.log(`${logPrefix} [CB] hCaptcha! Abortando.`); resetProcessingFlag(); return; }
+        if (isProcessingSell) { console.log(`${logPrefix} [CB] VENDA iniciou. Abortando compra.`); resetProcessingFlag(); return; }
+        if (e.data.error) { console.error(`${logPrefix} [ERRO WORKER]`, e.data.error); resetProcessingFlag(); return; }
+
+        if (e.data.action === "buyAmountCalculated" && Array.isArray(e.data.result?.rankedBuyOptions)) {
+            const rankedBuyOptions = e.data.result.rankedBuyOptions;
+            if (rankedBuyOptions.length === 0) { console.log(`${logPrefix} [CB] Worker não encontrou opções. Saindo.`); resetProcessingFlag(); return; }
+
+            console.log(`${logPrefix} - Worker retornou ${rankedBuyOptions.length} opções (antes da validação/ordenação).`);
+
+            // --- >>> NOVA ETAPA: Coleta de Candidatos <<< ---
+            let buyCandidates = [];
+            const GAME_BUY_FEE_PERCENTAGE = 0.05;
+
+            console.log(`${logPrefix} - Iniciando coleta e validação de candidatos...`);
+            for (const option of rankedBuyOptions) {
+                const resourceName = option.name;
+                const idealAmountFromWorker = option.idealAmount;
+                const userRateLimit = option.userRateLimit;
+                const handler = resources[resourceName];
+
+                if (!handler) { console.log(`${logPrefix}   [!] Handler ${resourceName} inválido. Pulando.`); continue; }
+
+                const currentMarketBuyRate = handler.getGameRate(); // Taxa COMPRA real
+                if (currentMarketBuyRate <= 0) { console.log(`${logPrefix}   [!] Taxa Compra REAL ${resourceName} inválida (${currentMarketBuyRate}). Pulando.`); continue; }
+                if (userRateLimit > 0 && currentMarketBuyRate < userRateLimit) { console.log(`${logPrefix}   [!] Taxa REAL (${currentMarketBuyRate}) < User (${userRateLimit}) para ${resourceName}. Pulando.`); continue; }
+
+                // Calcula espaço (sem await dentro do loop - assume fetch anterior é recente o suficiente)
+                const currentStockNow = currentResources[resourceName] || 0;
+                const incomingStockNow = state.incomingResources[resourceName] || 0;
+                const warehouseCapacityNow = state.storageCapacity || 0;
+                const availableSpace = Math.max(0, warehouseCapacityNow - currentStockNow - incomingStockNow);
+                const effectiveAvailableSpace = Math.floor(availableSpace / (1 + GAME_BUY_FEE_PERCENTAGE));
+
+                let amountConsideringSpace = Math.max(0, Math.floor(Math.min(idealAmountFromWorker, effectiveAvailableSpace)));
+
+                if (amountConsideringSpace <= 0) { console.log(`${logPrefix}   [!] Sem espaço (${effectiveAvailableSpace}) ou Ideal worker (${idealAmountFromWorker}) zerado para ${resourceName}. Pulando.`); continue; }
+
+                // Obtém estoque do mercado
+                const marketAvailableStock = handler.getMarketStockAvailable(); // <<< IMPORTANTE
+
+                const finalAmountToBuy = Math.min(amountConsideringSpace, marketAvailableStock);
+
+                if (finalAmountToBuy <= 0) { console.log(`${logPrefix}   [!] Sem estoque no mercado (${marketAvailableStock}) ou sem espaço/ideal para ${resourceName}. Pulando.`); continue; }
+
+                // Calcula custo estimado para validação de PP
+                const estimatedCost = Math.ceil(finalAmountToBuy / currentMarketBuyRate);
+                const currentPPBalanceNow = getAvailablePremiumPoints(); // Recheca PP aqui
+
+                 if (estimatedCost > effectivePP || estimatedCost > currentPPBalanceNow ) {
+                    console.log(`${logPrefix}   [!] Custo Estimado ${resourceName} (${estimatedCost}) > PP Disponível (${Math.min(effectivePP, currentPPBalanceNow)}). Pulando.`);
+                    continue;
+                 }
+
+                // Se passou por todas as validações, adiciona como candidato
+                 console.log(`${logPrefix}   [OK] Candidato ${resourceName} VÁLIDO. Qtd: ${finalAmountToBuy}, Estoque Mercado: ${marketAvailableStock}, Custo: ${estimatedCost} PP.`);
+                buyCandidates.push({
+                    name: resourceName,
+                    handler: handler,
+                    finalAmount: finalAmountToBuy,
+                    marketStock: marketAvailableStock,
+                    estimatedCost: estimatedCost,
+                    marketBuyRate: currentMarketBuyRate // Guarda para não precisar ler de novo
+                });
+
+            } // --- Fim do loop de coleta ---
+
+            // --- >>> NOVA ETAPA: Ordenação por Estoque do Mercado <<< ---
+            if (buyCandidates.length > 0) {
+                console.log(`${logPrefix} - Ordenando ${buyCandidates.length} candidatos por estoque de mercado (DESC)...`);
+                buyCandidates.sort((a, b) => b.marketStock - a.marketStock); // Maior estoque primeiro
+                // Log da lista ordenada
+                 console.log(`${logPrefix} - Candidatos Ordenados:`, buyCandidates.map(c => `${c.name} (Estoque: ${c.marketStock}, Qtd: ${c.finalAmount})`).join(', '));
+
+                // --- >>> NOVA ETAPA: Tentativa de Execução (Iterando pelos Ordenados) <<< ---
+                let buyExecuted = false; // Flag local
+                for (const candidate of buyCandidates) {
+                    console.log(`${logPrefix} - Tentando executar compra para o melhor candidato: ${candidate.name}`);
+
+                    // Revalidações finais rápidas
+                    if (isProcessingSell) { console.log(`${logPrefix} -> VENDA iniciou. Abortando tentativa.`); break; }
+                    const currentPPBalanceAgain = getAvailablePremiumPoints(); // Última checagem de PP
+                     if (candidate.estimatedCost > currentPPBalanceAgain) {
+                         console.log(`${logPrefix} -> Saldo PP insuficiente (${currentPPBalanceAgain} < ${candidate.estimatedCost}) na última checagem para ${candidate.name}. Pulando.`);
+                         continue; // Tenta o próximo candidato, se houver
+                     }
+                     // *** A CHECAGEM DE ESTOQUE JÁ FOI FEITA AO GERAR O CANDIDATO ***
+                     // Mas podemos revalidar por segurança, embora aumente a complexidade/tempo
+                     // const currentMarketStock = candidate.handler.getMarketStockAvailable();
+                     // if(candidate.finalAmount > currentMarketStock) { console.log(...); continue; }
+
+
+                    // --- Preparação Final e Execução ---
+                    try {
+                         localStorage.setItem('aquila_ppLimitBeforeBuy', String(currentLimitInputValue));
+                         localStorage.setItem('aquila_ppBalanceBeforeBuy', String(currentPPBalanceAgain)); // Usa o saldo mais recente
+                         console.log(`${logPrefix} -> SALVO localStorage pré-compra: Limite=${currentLimitInputValue}, Saldo=${currentPPBalanceAgain}`);
+
+                         buyExecuted = true; // Marca que a execução VAI ser chamada
+                         console.log(`${logPrefix} - ===> CHAMANDO executeTransaction (Buy, ${candidate.name}, ${candidate.finalAmount}) <===`);
+                         await executeTransaction("buy", candidate.handler, candidate.finalAmount);
+                         console.log(`${logPrefix} - executeTransaction chamado para ${candidate.name}. Saindo.`);
+                         return; // SAI da função onmessage após INICIAR a compra do melhor candidato
+
+                    } catch (txError) {
+                        console.error(`${logPrefix} - [ERRO] executeTransaction falhou para ${candidate.name}:`, txError);
+                         buyExecuted = false; // A execução falhou antes de completar
+                        // Limpa localStorage porque a transação falhou
+                        try { localStorage.removeItem('aquila_ppLimitBeforeBuy'); localStorage.removeItem('aquila_ppBalanceBeforeBuy'); console.log(`${logPrefix} -> localStorage pré-compra removido (erro tx).`); } catch (e) {}
+                        console.log(`${logPrefix} -> Erro ao executar. Tentando próximo candidato ordenado (se houver)...`);
+                         // O loop continuará para o próximo candidato
+                     }
+
+                    // Se chegou aqui e buyExecuted = true, significa que a compra foi iniciada. O return acima já saiu.
+                    // Se buyExecuted = false, o loop continua para o próximo candidato.
+
+                } // --- Fim do loop de execução ordenada ---
+
+                // Se o loop terminou e nenhuma compra foi executada
+                 if (!buyExecuted) {
+                     console.log(`${logPrefix} - Nenhuma compra EXECUTADA após avaliar todos os candidatos ordenados (possivelmente erro ou PP insuficiente na última hora).`);
+                     resetProcessingFlag(); // <<< Resetar se NENHUMA compra foi executada
+                 }
+
+            } else {
+                console.log(`${logPrefix} - Nenhum candidato VÁLIDO encontrado após validação inicial.`);
+                resetProcessingFlag(); // <<< Resetar se não houver candidatos válidos
+            }
+            // --- Fim das novas etapas ---
+
+        } else {
+            console.warn(`${logPrefix} - Ação inesperada worker: ${e.data.action}.`);
+            resetProcessingFlag();
+        }
+    }; // --- FIM worker.onmessage ---
+
+    // Handler para erros gerais do worker
+    worker.onerror = (error) => {
+        console.error(`${logPrefix} - [ERRO GERAL WORKER]`, error.message || error);
+        resetProcessingFlag(); // <<< Resetar em caso de erro do worker
+    };
+
+}; // --- Fim da função processBuyBasedOnResources (v6.8.0) ---
+// === FIM DA ATUALIZAÇÃO processBuyBasedOnResources ===
+
 
 
 
@@ -4678,256 +2849,424 @@ function calculateBuySpread(resourceName, marketRate, stateRef) {
     const num = parseInt(cleanedStr, 10);
     return isNaN(num) ? 0 : num;
   }
-  function extractResourcesFromElement(element) {
-    const resources2 = { wood: 0, stone: 0, iron: 0 };
-    if (!element) return resources2;
-    const woodIcon = element.querySelector(".icon.header.wood");
-    const stoneIcon = element.querySelector(".icon.header.stone");
-    const ironIcon = element.querySelector(".icon.header.iron");
-    const getValueNearIcon = (icon) => {
-      if (!icon) return 0;
-      let potentialValueElement = icon.nextElementSibling;
-      if (potentialValueElement && potentialValueElement.textContent.match(/[\d.,]+/)) {
-        if (!potentialValueElement.querySelector(".icon.header")) {
-          return parseIntSafeTransport(potentialValueElement.textContent);
-        }
-      }
-      let nextNode = icon.nextSibling;
-      while (nextNode && nextNode.nodeType !== Node.TEXT_NODE) {
-        if (nextNode.nodeType === Node.ELEMENT_NODE && nextNode.textContent.match(/[\d.,]+/)) {
-          if (!nextNode.querySelector(".icon.header")) {
-            return parseIntSafeTransport(nextNode.textContent);
-          }
-        }
-        nextNode = nextNode.nextSibling;
-      }
-      if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
-        const numberMatch = nextNode.textContent.trim().match(/^[\s]*([\d.,]+)/);
-        if (numberMatch) {
-          return parseIntSafeTransport(numberMatch[1]);
-        }
-      }
-      let parent = icon.parentElement;
-      if (parent && parent.textContent) {
-        const parentText = parent.textContent.trim();
-        const potentialValues = parentText.match(/([\d.,]+)/g);
-        if (potentialValues && potentialValues.length >= 1) {
-        }
-      }
-      return 0;
-    };
-    resources2.wood = getValueNearIcon(woodIcon);
-    resources2.stone = getValueNearIcon(stoneIcon);
-    resources2.iron = getValueNearIcon(ironIcon);
-    if (resources2.wood === 0 && resources2.stone === 0 && resources2.iron === 0 && (woodIcon || stoneIcon || ironIcon)) {
-      transportLogger.debug("Icon-based extraction failed, attempting text-based fallback within element:", element.textContent.substring(0, 100));
-      const textContent = element.textContent || "";
-      const numbers = (textContent.match(/[\d.,]+/g) || []).map((n) => parseIntSafeTransport(n));
-      let numIndex = 0;
-      if (woodIcon && numIndex < numbers.length) {
-        resources2.wood = numbers[numIndex];
-        numIndex++;
-      }
-      if (stoneIcon && numIndex < numbers.length) {
-        resources2.stone = numbers[numIndex];
-        numIndex++;
-      }
-      if (ironIcon && numIndex < numbers.length) {
-        resources2.iron = numbers[numIndex];
-        numIndex++;
-      }
-      transportLogger.debug(" - Text fallback results:", resources2);
-      if (numIndex === 1 && [woodIcon, stoneIcon, ironIcon].filter(Boolean).length > 1) {
-        transportLogger.warn("Single number found for multiple icons via text fallback, resetting as likely incorrect.");
-        return { wood: 0, stone: 0, iron: 0 };
-      }
+
+
+
+
+
+
+ // Função extractResourcesFromElement ATUALIZADA COM LOGS DETALHADOS
+function extractResourcesFromElement(element) {
+    const logPrefix = "[RAG-DEBUG-ExtractRes]"; // Prefixo para facilitar a identificação dos logs
+    console.log(`${logPrefix} Iniciando extração para o elemento:`, element);
+    // Logar o HTML interno do elemento para análise
+    if (element) {
+        console.log(`${logPrefix} HTML Interno do Elemento:`, element.innerHTML?.substring(0, 500) + "..."); // Loga parte do HTML
+    } else {
+        console.log(`${logPrefix} Elemento de entrada é NULO. Retornando zeros.`);
+        return { wood: 0, stone: 0, iron: 0 }; // Retorna objeto com nomes em inglês
     }
-    return resources2;
-  }
-  function parseTransportData(html) {
-    transportLogger.log("Iniciando parseamento da p\xE1gina de transportes.");
+
+    // Usa nomes em inglês internamente
+    const resourcesExtracted = { wood: 0, stone: 0, iron: 0 };
+
+    // Busca pelos ícones (adapte os seletores se necessário para o servidor NL)
+    // Comuns: .icon.header.wood, img[src*='wood.png'] etc.
+    const woodIcon = element.querySelector(".icon.header.wood, img[src*='wood.png'], img[src*='/wood.']"); // Tenta seletores comuns
+    const stoneIcon = element.querySelector(".icon.header.stone, img[src*='stone.png'], img[src*='/stone.'], img[src*='clay.png']"); // Inclui clay
+    const ironIcon = element.querySelector(".icon.header.iron, img[src*='iron.png'], img[src*='/iron.']");
+
+    // Loga se os ícones foram encontrados
+    console.log(`${logPrefix} Ícones Encontrados: Wood=${!!woodIcon}, Stone=${!!stoneIcon}, Iron=${!!ironIcon}`);
+
+    // Função auxiliar interna para tentar pegar o valor próximo ao ícone
+    const getValueNearIcon = (icon, resourceName) => {
+        if (!icon) return 0;
+        console.log(`${logPrefix}   Tentando valor para [${resourceName}] perto de:`, icon);
+
+        let numberFound = 0;
+        let currentElement = icon;
+        let searchDepth = 0; // Limita a busca para não ir muito longe
+        const maxSearchDepth = 5; // Quantos elementos "pular"
+
+        // Tenta pular para o próximo irmão ou pai>irmão
+        while (searchDepth < maxSearchDepth && numberFound === 0) {
+            let nextSibling = currentElement.nextElementSibling;
+            if (!nextSibling) {
+                // Se não tem irmão, tenta o irmão do pai
+                 if(currentElement.parentElement) {
+                     nextSibling = currentElement.parentElement.nextElementSibling;
+                     currentElement = currentElement.parentElement; // Atualiza o ponto de busca
+                 } else {
+                    break; // Não tem pai, não pode subir
+                 }
+            }
+            currentElement = nextSibling; // Avança para o próximo elemento a verificar
+
+             if(!currentElement) {
+                //console.log(`${logPrefix}     -> Chegou ao fim dos irmãos/pais sem encontrar elemento.`);
+                break;
+            }
+            searchDepth++; // Incrementa profundidade
+
+            // Verifica o texto do elemento atual ou seus filhos imediatos
+            const elementText = currentElement.textContent || "";
+            console.log(`${logPrefix}     -> Verificando elemento ${currentElement.tagName} (depth ${searchDepth}): Texto='${elementText.substring(0,50)}...'`);
+
+             // Remove ícones internos antes de tentar parsear para evitar pegar valor de outro recurso
+             let cleanText = elementText;
+             const innerIcons = currentElement.querySelectorAll('.icon.header, img[src*="wood"], img[src*="stone"], img[src*="clay"], img[src*="iron"]');
+             if(innerIcons.length > 0) {
+                //console.log(`${logPrefix}        -> Ícone interno detectado. Tentando limpar texto ou pular elemento.`);
+                 // Se este elemento contem outros icones, provavelmente não é o numero que queremos. Pula ele.
+                 // Poderia tentar extrair o texto *antes* do próximo ícone, mas aumenta complexidade.
+                 continue; // Pula para o proximo elemento da busca (while loop)
+             }
+
+             // Tenta extrair números do texto LIMPO
+            const numberMatch = cleanText.match(/([\d.,]+)/); // Pega o primeiro grupo de digitos/pontos/virgulas
+             if (numberMatch && numberMatch[1]) {
+                 const parsedNum = parseIntSafeTransport(numberMatch[1]); // Usa a função de parse seguro
+                if (parsedNum > 0) {
+                     numberFound = parsedNum;
+                     console.log(`${logPrefix}       -> VALOR ENCONTRADO: ${numberFound} a partir de '${numberMatch[1]}'`);
+                     break; // Sai do while, achou o número
+                 } else {
+                    console.log(`${logPrefix}        -> Match '${numberMatch[1]}' encontrado, mas parseado para 0.`);
+                 }
+             }
+         } // Fim while searchDepth
+
+        if (numberFound === 0) {
+            console.log(`${logPrefix}   -> Não encontrou valor > 0 para [${resourceName}] após busca.`);
+        }
+         return numberFound;
+    }; // Fim getValueNearIcon
+
+    // Chama a função para cada recurso cujo ícone foi encontrado
+    if (woodIcon) resourcesExtracted.wood = getValueNearIcon(woodIcon, "Wood");
+    if (stoneIcon) resourcesExtracted.stone = getValueNearIcon(stoneIcon, "Stone/Clay");
+    if (ironIcon) resourcesExtracted.iron = getValueNearIcon(ironIcon, "Iron");
+
+
+     // *** Fallback Simples (Se NADA foi encontrado) ***
+     // Tenta pegar todos os números da linha e associar pela ordem dos ícones encontrados
+    if (resourcesExtracted.wood === 0 && resourcesExtracted.stone === 0 && resourcesExtracted.iron === 0 && (woodIcon || stoneIcon || ironIcon)) {
+         console.log(`${logPrefix} Nenhum valor encontrado perto dos ícones. Tentando fallback GERAL...`);
+         const allNumbersInElement = (element.textContent.match(/[\d.,]+/g) || []).map(n => parseIntSafeTransport(n)).filter(n => n > 0);
+         console.log(`${logPrefix}   -> Números encontrados no elemento:`, allNumbersInElement);
+         let numIndex = 0;
+         if (woodIcon && numIndex < allNumbersInElement.length) {
+            resourcesExtracted.wood = allNumbersInElement[numIndex++];
+            console.log(`${logPrefix}     -> Fallback atribuiu W = ${resourcesExtracted.wood}`);
+         }
+         if (stoneIcon && numIndex < allNumbersInElement.length) {
+             resourcesExtracted.stone = allNumbersInElement[numIndex++];
+              console.log(`${logPrefix}     -> Fallback atribuiu S = ${resourcesExtracted.stone}`);
+         }
+         if (ironIcon && numIndex < allNumbersInElement.length) {
+             resourcesExtracted.iron = allNumbersInElement[numIndex++];
+              console.log(`${logPrefix}     -> Fallback atribuiu I = ${resourcesExtracted.iron}`);
+         }
+         if(numIndex === 0){
+            console.log(`${logPrefix}   -> Fallback não encontrou/atribuiu nenhum número.`);
+         }
+    }
+
+    console.log(`${logPrefix} Extração FINALIZADA. Valores:`, resourcesExtracted);
+    return resourcesExtracted; // Retorna o objeto com nomes em inglês
+}
+
+
+
+
+
+
+// Função parseTransportData ATUALIZADA (v6.1 - Add 'Entrada' Keyword & Refinements)
+function parseTransportData(html) {
+    const logPrefix = "[RAG-DEBUG-ParseTransport-v6.1]"; // V6.1 no log
+    console.log(`${logPrefix} Iniciando parseamento...`);
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-    const incoming = { madeira: 0, argila: 0, ferro: 0 };
+    const incoming = { wood: 0, stone: 0, iron: 0 }; // Nomes internos em inglês
     let foundIncomingData = false;
-    const allText = doc.body.textContent.toLowerCase();
-    if (allText.includes("n\xE3o h\xE1 transportes chegando") || allText.includes("nenhum transporte em chegada") || allText.includes("no incoming transports") || allText.includes("\u043D\u0435\u0442 \u0432\u0445\u043E\u0434\u044F\u0449\u0438\u0445 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u043E\u0432")) {
-      transportLogger.log("P\xE1gina indica explicitamente que n\xE3o h\xE1 transportes de chegada.");
-      return incoming;
+    let incomingContainer = null; // A tabela ou div que contém os dados
+
+    // --- Palavras-chave para Identificação (Expandido PT-BR com 'Entrada') ---
+    const headerKeywordsNL = ['aankomst', 'aankomende', 'binnenkomende transporten'];
+    const headerKeywordsEN = ['arrival', 'incoming transports'];
+    // Adicionado 'entrada' e variações comuns para links/títulos
+    const headerKeywordsPTBR = [
+        'chegada', 'chegando', 'em chegada', 'transportes de chegada',
+        'própria', // 'para a própria aldeia'
+        'entrada', 'entradas', // Novo
+        'recursos a caminho' // Outra possibilidade
+    ];
+    const allKeywords = [...headerKeywordsNL, ...headerKeywordsEN, ...headerKeywordsPTBR];
+
+    const keywordsResumoPTBR = ['total', 'soma', 'totais'];
+    const keywordsResumoGeral = [...keywordsResumoPTBR, 'sum', 'total', 'summary', 'totaal'];
+
+    // --- Estratégia 0: Indicador Explícito de Ausência (Mantido) ---
+    const noTransportIndicatorsPTBR = ["nenhum transporte chegando", "sem transportes de chegada", "não há transportes chegando", "sem entradas", "nenhuma entrada"]; // Adicionado "entrada"
+    const noTransportIndicatorsGeneric = ["no incoming transports", "keine ankommenden transporte", "geen binnenkomende transporten"];
+    const allNoTransportIndicators = [...noTransportIndicatorsPTBR, ...noTransportIndicatorsGeneric];
+    const bodyTextLower = doc.body.textContent.toLowerCase();
+    if (allNoTransportIndicators.some(indicator => bodyTextLower.includes(indicator))) {
+        console.log(`${logPrefix} Página indica explicitamente: NENHUM transporte de chegada.`);
+        return { madeira: 0, argila: 0, ferro: 0 }; // Retorna nomes em português
     }
-    let incomingTable = null;
-    incomingTable = doc.querySelector("#market_transports_in table.vis, #market_transports_in, #market_status_in table.vis");
-    if (!incomingTable) {
-      const headers = Array.from(doc.querySelectorAll("h2, h3, h4, .content-header, .box-header, th, .table-header"));
-      const incomingKeywords = [
-        "transportes em chegada",
-        "entrando",
-        "incoming transports",
-        "chegando",
-        "mercadores chegando",
-        "arrival",
-        "\u043F\u0440\u0438\u0431\u044B\u0432\u0430\u044E\u0449\u0438\u0435 \u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442\u044B",
-        "chegada",
-        "transporte de entrada",
-        "transporte chegando",
-        "\u0442\u0440\u0430\u043D\u0441\u043F\u043E\u0440\u0442 \u043F\u0440\u0438\u0431\u044B\u0442\u0438\u044F"
-      ];
-      for (const header of headers) {
-        const headerText = header.textContent.trim().toLowerCase();
-        if (incomingKeywords.some((keyword) => headerText.includes(keyword))) {
-          transportLogger.log(`Cabe\xE7alho de chegada encontrado: "${headerText}"`);
-          let current = header;
-          let searchLimit = 5;
-          while (current && searchLimit > 0) {
-            if (current.tagName === "TABLE" && current.classList.contains("vis")) {
-              incomingTable = current;
-              break;
-            }
-            const tableInside = current.querySelector("table.vis");
-            if (tableInside) {
-              incomingTable = tableInside;
-              break;
-            }
-            current = current.nextElementSibling;
-            searchLimit--;
-          }
-          if (incomingTable) {
-            transportLogger.log(`Tabela de chegada encontrada pr\xF3xima ao cabe\xE7alho "${headerText}"`);
-            break;
-          }
-        }
-      }
-    }
-    if (incomingTable) {
-      transportLogger.log("Processando tabela de chegada encontrada...");
-      const rows = Array.from(incomingTable.querySelectorAll("tr")).filter(
-        (row) => !row.querySelector("th") && row.cells && row.cells.length > 1
-      );
-      const summaryRow = Array.from(incomingTable.querySelectorAll("tr")).find((row) => {
-        const text = row.textContent.toLowerCase();
-        return (text.includes("total:") || text.includes("soma:") || text.includes("summe:") || text.includes("\u0438\u0442\u043E\u0433\u043E:") || text.includes("entrada:")) && !row.querySelector("th");
-      });
-      if (summaryRow) {
-        transportLogger.log("Processando linha de sum\xE1rio de chegada...");
-        const resources2 = extractResourcesFromElement(summaryRow);
-        if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
-          incoming.madeira = resources2.wood;
-          incoming.argila = resources2.stone;
-          incoming.ferro = resources2.iron;
-          foundIncomingData = true;
-          transportLogger.log("Recursos extra\xEDdos da linha de sum\xE1rio:", incoming);
-        }
-      } else if (rows.length > 0) {
-        transportLogger.log(`Processando ${rows.length} linhas de dados na tabela de chegada...`);
-        rows.forEach((row, index) => {
-          const resources2 = extractResourcesFromElement(row);
-          if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
-            incoming.madeira += resources2.wood;
-            incoming.argila += resources2.stone;
-            incoming.ferro += resources2.iron;
+    // console.log(`${logPrefix} HTML Completo:\n`, doc.documentElement.outerHTML); // Descomentar para depuração profunda
+
+    // --- Estratégia 1: BUSCAR DIRETAMENTE LINHA DE SUMÁRIO (com validação de contexto reforçada) ---
+    console.log(`${logPrefix} Estratégia 1: Tentando localizar Sumário de Chegada direto...`);
+    const potentialSummaryRows = doc.querySelectorAll('tr.sum, tr.total, tr.summary, #transport_sum_incoming, tr.row_b:last-of-type, tr:has(> td.sum):last-child');
+    summaryRowLoop:
+    for (const summaryRow of potentialSummaryRows) {
+        const rowText = summaryRow.textContent.toLowerCase();
+        const parentTable = summaryRow.closest('table.vis, table.borderlist'); // Busca tabela pai .vis OU .borderlist
+
+        if (!parentTable) continue; // Ignora se não está numa tabela esperada
+
+        // Verifica se a linha de sumário OU um cabeçalho Hx/Strong IMEDIATAMENTE ANTES da tabela contém keywords de CHEGADA/ENTRADA
+        let contextKeywordFound = false;
+        if (headerKeywordsPTBR.some(arrivalKeyword => rowText.includes(arrivalKeyword))) {
+             contextKeywordFound = true; // A própria linha de resumo já indica
+        } else {
+             let elementToCheckContext = parentTable.previousElementSibling; // Elemento antes da tabela
+             let searchContextCount = 0;
+             while(elementToCheckContext && searchContextCount < 2) { // Olha 2 elementos antes
+                if (elementToCheckContext.matches('h2, h3, h4, div.vis_item > strong')) {
+                     const contextHeaderText = elementToCheckContext.textContent.toLowerCase();
+                     if (headerKeywordsPTBR.some(arrivalKeyword => contextHeaderText.includes(arrivalKeyword))) {
+                         contextKeywordFound = true;
+                         break; // Achou contexto
+                     }
+                 }
+                 elementToCheckContext = elementToCheckContext.previousElementSibling;
+                 searchContextCount++;
+             }
+         }
+
+        // Verifica se a linha tem keywords de RESUMO e se o CONTEXTO indica chegada/entrada
+        if (contextKeywordFound && keywordsResumoGeral.some(keyword => rowText.includes(keyword))) {
+            console.log(`${logPrefix}  -> Linha de Sumário encontrada COM CONTEXTO de Chegada/Entrada: "${rowText.substring(0, 50)}..."`);
+            incomingContainer = parentTable;
             foundIncomingData = true;
-            transportLogger.debug(`Linha ${index}: Recursos adicionados: W=${resources2.wood}, S=${resources2.stone}, I=${resources2.iron}`);
-          }
-        });
-        transportLogger.log("Total de recursos encontrados:", incoming);
-      } else {
-        transportLogger.warn("Tabela de chegada encontrada, mas sem linhas de dados ou sum\xE1rio reconhec\xEDvel.");
-      }
-    } else {
-      transportLogger.warn("Nenhuma tabela espec\xEDfica de chegada encontrada. Tentando estrat\xE9gia alternativa...");
-    }
-    if (!foundIncomingData) {
-      transportLogger.log("Buscando linhas de transporte gerais e verificando dire\xE7\xE3o...");
-      const allPossibleRows = [
-        ...doc.querySelectorAll(".transport_row"),
-        ...doc.querySelectorAll('tr[id^="market_"]'),
-        ...doc.querySelectorAll("tr.row_a, tr.row_b"),
-        // Padrão comum de linhas alternadas
-        ...doc.querySelectorAll("table.vis tr:not(:first-child)")
-        // Todas as linhas não-cabeçalho de qualquer tabela
-      ];
-      if (allPossibleRows.length > 0) {
-        transportLogger.log(`Encontradas ${allPossibleRows.length} poss\xEDveis linhas de transporte para an\xE1lise.`);
-        allPossibleRows.forEach((row, index) => {
-          let isIncoming = false;
-          const rowText = row.textContent.toLowerCase();
-          const rowHTML = row.innerHTML.toLowerCase();
-          const incomingKeywords = [
-            "para esta aldeia",
-            "incoming",
-            "arrival",
-            "chegada",
-            "chegando",
-            "entrada",
-            "para c\xE1",
-            "entrando",
-            "recebendo"
-          ];
-          const incomingSymbols = [
-            "arrow_right",
-            "arrow_in",
-            "icon_in",
-            "\u2192",
-            "\u25B6",
-            "\u21E8"
-          ];
-          if (incomingKeywords.some((keyword) => rowText.includes(keyword)) || incomingSymbols.some((symbol) => rowHTML.includes(symbol))) {
-            isIncoming = true;
-          }
-          const directionElement = row.querySelector(".transport_direction, .direction, .movement-direction");
-          if (directionElement) {
-            const directionText = directionElement.textContent.trim().toLowerCase();
-            const directionHTML = directionElement.innerHTML.toLowerCase();
-            if (incomingKeywords.some((keyword) => directionText.includes(keyword)) || incomingSymbols.some((symbol) => directionHTML.includes(symbol))) {
-              isIncoming = true;
+            const resourcesExtracted = extractResourcesFromElement(summaryRow);
+            if (resourcesExtracted.wood > 0 || resourcesExtracted.stone > 0 || resourcesExtracted.iron > 0) {
+                console.log(`${logPrefix}    -> Recursos > 0 extraídos do Sumário Contextualizado! Usando estes valores.`);
+                incoming.wood = resourcesExtracted.wood; incoming.stone = resourcesExtracted.stone; incoming.iron = resourcesExtracted.iron;
+                break summaryRowLoop; // ACHOU!
+            } else {
+                 console.log(`${logPrefix}    -> Tabela/Sumário de chegada identificado, mas linha de resumo com 0 recursos. Processará linhas individuais.`);
+                foundIncomingData = false;
+                break summaryRowLoop; // Achou a tabela, mas processará linhas
             }
-          }
-          if (isIncoming) {
-            transportLogger.debug(`Linha ${index} identificada como CHEGANDO`);
-            const resourceCell = row.querySelector(".resources_sum, .res") || row;
-            const resources2 = extractResourcesFromElement(resourceCell);
-            if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
-              incoming.madeira += resources2.wood;
-              incoming.argila += resources2.stone;
-              incoming.ferro += resources2.iron;
-              foundIncomingData = true;
-              transportLogger.debug(`Recursos adicionados: W=${resources2.wood}, S=${resources2.stone}, I=${resources2.iron}`);
-            }
-          }
-        });
-      } else {
-        transportLogger.error("Nenhuma linha de transporte encontrada em toda a p\xE1gina.");
-      }
-    }
-    if (!foundIncomingData) {
-      transportLogger.log("Tentando encontrar elementos de sum\xE1rio de recursos...");
-      const summaryElements = [
-        doc.querySelector("#market_status_in"),
-        doc.querySelector(".incoming-resources"),
-        doc.querySelector(".resources-incoming"),
-        ...doc.querySelectorAll(".sum_incoming"),
-        ...doc.querySelectorAll(".incoming_total")
-      ].filter(Boolean);
-      for (const element of summaryElements) {
-        const resources2 = extractResourcesFromElement(element);
-        if (resources2.wood > 0 || resources2.stone > 0 || resources2.iron > 0) {
-          incoming.madeira = resources2.wood;
-          incoming.argila = resources2.stone;
-          incoming.ferro = resources2.iron;
-          foundIncomingData = true;
-          transportLogger.log("Recursos encontrados em elemento de sum\xE1rio:", incoming);
-          break;
         }
-      }
     }
-    if (foundIncomingData) {
-      transportLogger.log("Parseamento conclu\xEDdo com sucesso. Recursos CHEGANDO:", incoming);
-      return { madeira: incoming.madeira, argila: incoming.argila, ferro: incoming.ferro };
+    if(incomingContainer) console.log(`${logPrefix} -> Estratégia 1 (Sumário c/ Contexto) definiu a tabela container.`);
+
+
+    // --- Estratégia 2: Buscar por Cabeçalho Hx ANTES da Tabela (Fallback) ---
+    if (!incomingContainer) {
+        console.log(`${logPrefix} Estratégia 2: Tentando por Cabeçalho Hx/Strong ANTES da tabela...`);
+        foundIncomingData = false; // Reseta se a estratégia 1 falhou em achar a tabela
+        const headerSelectors = ['h2', 'h3', 'h4', 'div.vis_item > strong', 'div.boxtitle > span']; // Adicionado div.boxtitle > span (comum em algumas interfaces)
+        headerLoop:
+        for (const selector of headerSelectors) {
+            const headers = doc.querySelectorAll(selector);
+            for (const header of headers) {
+                const headerText = header.textContent.toLowerCase();
+                // Usa a lista completa de keywords (inclui entrada)
+                if (allKeywords.some(keyword => headerText.includes(keyword))) {
+                     console.log(`${logPrefix}   -> Encontrou cabeçalho <${header.tagName}> candidato (${selector}): "${header.textContent}"`);
+                    // Procura tabela .vis ou .borderlist como irmã seguinte OU dentro do pai próximo
+                    let nextElement = header.nextElementSibling;
+                    let parentElement = header.parentElement;
+                    let searchProximity = 0;
+                    while (searchProximity < 4 && !incomingContainer) { // Limita busca
+                        // Tabela irmã?
+                         if (nextElement && nextElement.matches('table.vis, table.borderlist')) {
+                             incomingContainer = nextElement;
+                             console.log(`${logPrefix}     -> Tabela IRMÃ encontrada (${nextElement.className})! MÉTODO: Hx + Tabela Irmã.`);
+                             break headerLoop;
+                         }
+                        // Tabela dentro do pai? (Evita body)
+                        if (parentElement && parentElement.tagName !== 'BODY') {
+                            const tableInParent = parentElement.querySelector('table.vis, table.borderlist');
+                             if (tableInParent && !tableInParent.contains(header)) { // Garante que não seja uma tabela *antes* do header
+                                 // Verifica se a tabela encontrada está DEPOIS do header no DOM relativo ao pai
+                                 let elementCursor = header;
+                                 let foundTableAfter = false;
+                                 while(elementCursor = elementCursor.nextSibling) { // Percorre irmãos depois do header
+                                    if(elementCursor === tableInParent) { foundTableAfter = true; break;}
+                                    if(elementCursor.contains && elementCursor.contains(tableInParent)) { foundTableAfter = true; break;}
+                                 }
+
+                                 if(foundTableAfter) {
+                                     incomingContainer = tableInParent;
+                                     console.log(`${logPrefix}     -> Tabela encontrada no PAI (${parentElement.tagName}) e DEPOIS do header! MÉTODO: Hx + Tabela Pai.`);
+                                     break headerLoop;
+                                 }
+                            }
+                             parentElement = parentElement.parentElement; // Sobe um nível
+                         }
+                         // Avança para o próximo irmão (se houver)
+                         if(nextElement) nextElement = nextElement.nextElementSibling; else break; // Se não houver próximo irmão, para a busca por irmãos
+                         searchProximity++;
+                    }
+                }
+                if (incomingContainer) break headerLoop; // Sai se achou
+            }
+        }
+        if(incomingContainer) console.log(`${logPrefix} -> Estratégia 2 (Cabeçalho Hx) definiu a tabela container.`);
+        else console.log(`${logPrefix} -> Estratégia 2 (Cabeçalho Hx) FALHOU.`);
+    }
+
+
+    // --- Estratégia 3: Tentar IDs Específicos (Fallback) ---
+    if (!incomingContainer) {
+         console.log(`${logPrefix} Estratégia 3: Tentando por IDs #market_transports_in ou #market_status_in...`);
+         foundIncomingData = false;
+        const specificIdSelectors = ["#market_transports_in", "#market_status_in"];
+         for (const selector of specificIdSelectors) {
+            const containerDiv = doc.querySelector(selector);
+             if (containerDiv) {
+                const tableInside = containerDiv.querySelector("table.vis, table.borderlist");
+                 if (tableInside) {
+                     incomingContainer = tableInside;
+                    console.log(`${logPrefix}     -> Encontrou ${tableInside.tagName}.${tableInside.className} DENTRO de ${selector}! MÉTODO: ID Específico.`);
+                    break;
+                }
+            }
+        }
+         if(incomingContainer) console.log(`${logPrefix} -> Estratégia 3 (ID Específico) definiu a tabela container.`);
+         else console.log(`${logPrefix} -> Estratégia 3 (ID Específico) FALHOU.`);
+     }
+
+
+    // --- Estratégia 4: Buscar por Texto em Cabeçalho de Tabela <th> (Fallback) ---
+    if (!incomingContainer) {
+         console.log(`${logPrefix} Estratégia 4: Tentando por texto em <th> (Header Tabela)...`);
+         foundIncomingData = false;
+         const allTables = doc.querySelectorAll('table.vis, table.borderlist');
+         tableLoop:
+         for (const table of allTables) {
+             const thElements = table.querySelectorAll('th');
+             for (const th of thElements) {
+                 const thText = th.textContent.toLowerCase();
+                 if (allKeywords.some(keyword => thText.includes(keyword))) { // Usa lista completa agora
+                     console.log(`${logPrefix}  -> Encontrou tabela candidata por TH: "${th.textContent.trim()}"`);
+                    const hasResourceIcon = table.querySelector(".icon.header.wood, .icon.header.stone, .icon.header.iron, img[src*='wood'], img[src*='stone'], img[src*='iron']");
+                     if (hasResourceIcon) {
+                         incomingContainer = table;
+                        console.log(`${logPrefix}     -> Tabela CONFIRMADA por TH (contém ícones)! MÉTODO: TH.`);
+                        break tableLoop;
+                     }
+                 }
+             }
+         }
+        if(incomingContainer) console.log(`${logPrefix} -> Estratégia 4 (TH) definiu a tabela container.`);
+        else console.log(`${logPrefix} -> Estratégia 4 (TH) FALHOU.`);
+    }
+
+
+    // =======================================================
+    // --- PROCESSAMENTO DA TABELA ENCONTRADA (SE HOUVER) ---
+    // =======================================================
+    if (incomingContainer) {
+        // Tenta logar o método de forma mais simples
+        let foundMethod = "Desconhecido";
+        if (incomingContainer.closest('#market_transports_in, #market_status_in')) foundMethod = "ID Específico";
+        else if (Array.from(incomingContainer.querySelectorAll('th')).some(th => allKeywords.some(kw => th.textContent.toLowerCase().includes(kw)))) foundMethod = "TH";
+        else if (incomingContainer.previousElementSibling?.matches('h2, h3, h4, div.vis_item > strong')) foundMethod = "Hx/Strong";
+        else if (incomingContainer.querySelector('tr.sum, tr.total, tr.summary')) foundMethod = "Sumário Direto";
+
+        console.log(`${logPrefix} PROCESSANDO tabela encontrada usando MÉTODO: ${foundMethod}`);
+
+        // Reavalia Sumário (SE ainda não tiver dados dele)
+        if (!foundIncomingData) {
+             console.log(`${logPrefix}   -> Re-tentando extrair de sumário DENTRO da tabela encontrada...`);
+             let summaryRowEl = incomingContainer.querySelector('tr.sum, tr.total, tr.summary');
+             if (summaryRowEl) {
+                 const resourcesExtracted = extractResourcesFromElement(summaryRowEl);
+                 if (resourcesExtracted.wood > 0 || resourcesExtracted.stone > 0 || resourcesExtracted.iron > 0) {
+                     console.log(`${logPrefix}     -> SUCESSO (Sumário Interno)! Usando valores do sumário.`);
+                     incoming.wood = resourcesExtracted.wood; incoming.stone = resourcesExtracted.stone; incoming.iron = resourcesExtracted.iron;
+                     foundIncomingData = true;
+                 } else { console.log(`${logPrefix}     -> Sumário interno encontrado, mas com 0 recursos.`); }
+             } else { console.log(`${logPrefix}     -> Nenhuma linha de sumário (.sum/total/summary) interna encontrada.`); }
+        }
+
+
+        // Processa linhas individuais SE NENHUM DADO foi encontrado ainda
+        if (!foundIncomingData) {
+             console.log(`${logPrefix}   -> Sumário ZERADO/NÃO ENCONTRADO. Processando linhas INDIVIDUAIS...`);
+             const dataRows = incomingContainer.querySelectorAll("tr:has(td):not(:has(th))");
+             let processedRowCount = 0;
+             console.log(`${logPrefix}      -> ${dataRows.length} linhas de dados candidatas.`);
+
+             dataRows.forEach((row, index) => {
+                // Evita linhas que sejam *apenas* um aviso/placeholder comum no TW
+                 const rowTextLower = row.textContent.toLowerCase();
+                 const isPlaceholderRow = ["próxima página", "anterior", "nenhum", "aldeia"].every(p => rowTextLower.includes(p)); // Heurística simples
+                 if (isPlaceholderRow) {
+                    // console.log(`${logPrefix}        -> Pulando Linha ${index+1} (parece placeholder)`);
+                    return; // Pula a iteração
+                 }
+                 // console.log(`${logPrefix}        -> Verificando Linha Individual ${index+1} HTML:`, row.innerHTML.substring(0,300)); // Log do HTML da linha
+
+                 const resourcesExtracted = extractResourcesFromElement(row);
+
+                 if (resourcesExtracted.wood > 0 || resourcesExtracted.stone > 0 || resourcesExtracted.iron > 0) {
+                     console.log(`${logPrefix}          -> Extração > 0 na Linha ${index+1}: W=${resourcesExtracted.wood}, S=${resourcesExtracted.stone}, I=${resourcesExtracted.iron}.`);
+                     incoming.wood += resourcesExtracted.wood; incoming.stone += resourcesExtracted.stone; incoming.iron += resourcesExtracted.iron;
+                     foundIncomingData = true;
+                     processedRowCount++;
+                 }
+             }); // Fim forEach dataRows
+
+            if (foundIncomingData) console.log(`${logPrefix}   -> FIM Individual: TOTAL acumulado W=${incoming.wood}, S=${incoming.stone}, I=${incoming.iron} de ${processedRowCount} linha(s).`);
+            else console.log(`${logPrefix}   -> FIM Individual: NENHUM recurso > 0 nas linhas individuais.`);
+        }
+
     } else {
-      transportLogger.error("N\xE3o foi poss\xEDvel encontrar dados de transportes em chegada na p\xE1gina.");
-      return { madeira: 0, argila: 0, ferro: 0 };
+        console.warn(`${logPrefix} Nenhuma tabela/container de transporte de chegada identificada.`);
+         // <<<<<<< Log Adicional para Falha Total >>>>>>>>
+         // Se nenhuma tabela foi encontrada, vamos logar os cabeçalhos e divs principais para análise
+        console.log(`${logPrefix} >> DIAGNÓSTICO FALHA GERAL <<`);
+         console.log(`${logPrefix} -> H2/H3/H4 Encontrados:`);
+         doc.querySelectorAll('h2, h3, h4').forEach((h, i) => console.log(`   ${i}: <${h.tagName}> ${h.textContent.trim().substring(0, 100)}`));
+         console.log(`${logPrefix} -> TH (Cabeçalhos Tabela) Encontrados:`);
+         doc.querySelectorAll('th').forEach((th, i) => console.log(`   ${i}: <TH> ${th.textContent.trim().substring(0, 100)} (Em tabela: ${th.closest('table')?.className || 'N/A'})`));
+         console.log(`${logPrefix} -> DIVs com ID 'market':`);
+         doc.querySelectorAll('div[id*="market"]').forEach((div, i) => console.log(`   ${i}: <DIV id="${div.id}">`));
+         console.log(`${logPrefix} >> FIM DIAGNÓSTICO <<`);
     }
-  }
+
+    // Conclusão final
+    if (!foundIncomingData) {
+        console.log(`${logPrefix} Nenhuma informação ÚTIL de transporte de recursos em chegada encontrada.`);
+    }
+    console.log(`${logPrefix} Parseamento v6.1 concluído. Retornando (Madeira/Argila/Ferro):`, { madeira: incoming.wood, argila: incoming.stone, ferro: incoming.iron });
+
+    return { madeira: incoming.wood, argila: incoming.stone, ferro: incoming.iron }; // Nomes em Português
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   async function fetchIncomingResources() {
     return new Promise((resolve, reject) => {
       const gameData = typeof TribalWars !== "undefined" && TribalWars.getGameData ? TribalWars.getGameData() : {};
@@ -6027,346 +4366,148 @@ const performSaveOperation = () => {
 
 
 
-
-
-
-
-
-
-
-
 // ================================================================
-// ===       FUNÇÃO setupEvents (vPausa Persist + AutoSave)      ===
-// ===     Listeners de Pausa, Auto-Save, Toggles, Modais...    ===
+// ===       FUNÇÃO setupEvents ATUALIZADA (vPausa+AutoSave+SaveTrigger) ===
 // ================================================================
 const setupEvents = () => {
-    const debounceDelay = 300; // Delay (ms) para inputs da UI principal reagirem
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Iniciando configuração de eventos...");
+    const debounceDelay = 300;
+    //console.log("[DEBUG setupEvents vPausa+AutoSave+SaveTrigger] Iniciando configuração de eventos...");
 
-    // --- 1. Listeners de Input da UI Principal (Debounced) ---
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'input' UI Principal...");
-    Object.values(resources).forEach((resource) => {
-        // Listener: Taxa Compra Mínima (userRateTooltip)
-        if (resource.config.uiRateInput) {
-            resource.config.uiRateInput.addEventListener("input", _.debounce(() => {
-                //console.log(`[Input Change UI] Taxa compra ${resource.name}`);
-                if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) {
-                    processBuyBasedOnResources(); // Reavalia compra
-                }
-            }, debounceDelay));
-        }
-        // Listener: Estoque Desejado (stockDesiredTooltip)
-        const desiredStockInput = document.querySelector(`.rate-input[data-resource="${resource.name}-stock"]`);
-        if (desiredStockInput) {
-            desiredStockInput.addEventListener("input", _.debounce(() => {
-                //console.log(`[Input Change UI] Estoque desejado ${resource.name}`);
-                if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) {
-                    processBuyBasedOnResources(); // Reavalia compra
-                }
-            }, debounceDelay));
-        }
-        // Listener: Taxa Venda Máxima (reserveRateTooltip)
-        if (resource.config.uiReserveRateInput) {
-            resource.config.uiReserveRateInput.addEventListener("input", _.debounce(() => {
-                //console.log(`[Input Change UI] Taxa reserva (máx. venda) ${resource.name}`);
-                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
-                    updateSell(); // Reavalia venda
-                }
-            }, debounceDelay));
-        }
-        // Listener: Reserva Mínima (reserveAmountTooltip)
-        const reserveAmountInput = document.querySelector(`.rate-input[data-resource="reserve-${resource.name}"]`);
-        if (reserveAmountInput) {
-            reserveAmountInput.addEventListener("input", _.debounce(() => {
-                //console.log(`[Input Change UI] Quantidade reserva ${resource.name}`);
-                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
-                    updateSell(); // Reavalia venda
-                }
-            }, debounceDelay));
-        }
-        // Listener: Limite Venda Específico (sellLimitTooltip)
-        const specificSellLimitInput = document.querySelector(`.rate-input[data-resource="sell-limit-${resource.name}"]`);
-        if (specificSellLimitInput) {
-           specificSellLimitInput.addEventListener("input", _.debounce(() => {
-                //console.log(`[Input Change UI] Limite venda específico ${resource.name}`);
-                if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
-                    updateSell(); // Reavalia venda
-                }
-            }, debounceDelay));
-        }
-        // Listener: Limite Venda Legado ('sell-limit' para wood)
-        if (resource.name === 'wood') {
-            const legacySellLimitInput = document.querySelector('.rate-input[data-resource="sell-limit"]');
-            if (legacySellLimitInput) {
-                 legacySellLimitInput.addEventListener("input", _.debounce(() => {
-                     //console.log(`[Input Change UI] Limite venda GERAL (legacy wood)`);
-                    if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) {
-                        updateSell(); // Reavalia venda
-                    }
-                 }, debounceDelay));
-            }
-        }
-    });
-
-    // Listeners: Inputs Gerais da UI Principal (buyPerTime, storageLimit, maxSpend)
-    const buyPerTimeInput = document.querySelector('.rate-input[data-resource="buy-per-time"]');
-    if (buyPerTimeInput) { buyPerTimeInput.addEventListener("input", _.debounce(() => { //console.log("[Input Change UI] Limite por compra (buy-per-time)");
-
-
-                                                                                       if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
-    const storageLimitInput = document.querySelector('.rate-input[data-resource="storage-limit"]');
-    if (storageLimitInput) { storageLimitInput.addEventListener("input", _.debounce(() => { //console.log("[Input Change UI] Limite por armazém (storage-limit)");
-                                                                                           if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
-    const maxSpendInput = document.querySelector('.rate-input[data-resource="max-spend"]');
-    if (maxSpendInput) { maxSpendInput.addEventListener("input", _.debounce(() => { //console.log("[Input Change UI] Gasto máx por compra (max-spend)");
-                                                                                   if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
-
-    // --- 2. Listeners de Botões (Click) ---
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'click' botões...");
-
+    // >>>>>>>>> DEFINIÇÃO DA FUNÇÃO AUXILIAR (PRECISA ESTAR AQUI DENTRO) <<<<<<<<<
     const setupClickListener = (elementId, handler) => {
         const element = ui.getElement(elementId);
         if (element) {
             element.removeEventListener('click', handler); // Previne duplicados
             element.addEventListener('click', handler);
-        } // else { console.warn(`[setupEvents] Elemento #${elementId} não encontrado.`); }
+        } else {
+             //console.warn(`[setupClickListener] Elemento com ID "${elementId}" não encontrado.`);
+        }
     };
+    // >>>>>>>>> FIM DA DEFINIÇÃO <<<<<<<<<
 
-    // Botões Ativar/Desativar Modo
-    setupClickListener("buyModeToggle", () => toggleMode("buyModeActive")); // Usa a função toggleMode atualizada
-    setupClickListener("sellModeToggle", () => toggleMode("sellModeActive")); // Usa a função toggleMode atualizada
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-       // Botões Pausar Compra/Venda (com persistência via localStorage)
-    setupClickListener("buyPause", () => {
-        const now = Date.now();
-        const pauseStateKey = 'buyPausedUntil';
-        const storageKey = 'aquila_buyPauseEndTime';
-        const durationMinutes = state.buyPauseDurationMinutes;
-        const modeString = 'Compra'; // Para logs e notificações
-
-        console.log(`[Pause Click - ${modeString}] Ativo: ${state.buyModeActive}, Pausado até: ${state[pauseStateKey] ? new Date(state[pauseStateKey]).toLocaleString() : 'Não'}`);
-
-        // *** PASSO 1: INÍCIO DA MODIFICAÇÃO ***
-        // Verifica PRIMEIRO se JÁ está pausado
-        if (state[pauseStateKey] && state[pauseStateKey] > now) {
-            // ESTÁ PAUSADO -> LÓGICA DE RETOMAR
-            console.log(`[Pause Click - ${modeString}] Ação: RETOMAR manualmente.`);
-
-            // 1. Limpa o timeout agendado
-            if (buyPauseTimeoutId) {
-                clearTimeout(buyPauseTimeoutId);
-                buyPauseTimeoutId = null; // Limpa a referência do ID
-                console.log(" -> Timeout existente limpo.");
-            } else {
-                 console.log(" -> Nenhum timeout encontrado para limpar (pode já ter sido limpo ou nunca definido).");
+    // --- 1. Listeners de Input da UI Principal (Debounced) ---
+    //console.log("[DEBUG setupEvents vPausa+AutoSave+SaveTrigger] Configurando listeners 'input' UI Principal...");
+     Object.values(resources).forEach((resource) => {
+        if (resource.config.uiRateInput) {
+            resource.config.uiRateInput.addEventListener("input", _.debounce(() => { if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) { processBuyBasedOnResources(); } }, debounceDelay));
+        }
+        const desiredStockInput = document.querySelector(`.rate-input[data-resource="${resource.name}-stock"]`);
+        if (desiredStockInput) {
+            desiredStockInput.addEventListener("input", _.debounce(() => { if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) { processBuyBasedOnResources(); } }, debounceDelay));
+        }
+        if (resource.config.uiReserveRateInput) {
+            resource.config.uiReserveRateInput.addEventListener("input", _.debounce(() => { if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) { updateSell(); } }, debounceDelay));
+        }
+        const reserveAmountInput = document.querySelector(`.rate-input[data-resource="reserve-${resource.name}"]`);
+        if (reserveAmountInput) {
+            reserveAmountInput.addEventListener("input", _.debounce(() => { if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) { updateSell(); } }, debounceDelay));
+        }
+        const specificSellLimitInput = document.querySelector(`.rate-input[data-resource="sell-limit-${resource.name}"]`);
+        if (specificSellLimitInput) {
+           specificSellLimitInput.addEventListener("input", _.debounce(() => { if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) { updateSell(); } }, debounceDelay));
+        }
+        if (resource.name === 'wood') {
+            const legacySellLimitInput = document.querySelector('.rate-input[data-resource="sell-limit"]');
+            if (legacySellLimitInput) {
+                 legacySellLimitInput.addEventListener("input", _.debounce(() => { if (state.sellModeActive && !isProcessingSell && (!state.sellPausedUntil || state.sellPausedUntil <= Date.now())) { updateSell(); } }, debounceDelay));
             }
-
-            // 2. Limpa o estado da pausa no MobX
-            mobx.runInAction(() => {
-                state[pauseStateKey] = null;
-            });
-            console.log(" -> State da pausa ('buyPausedUntil') limpo.");
-
-            // 3. Limpa a pausa do localStorage
-            localStorage.removeItem(storageKey);
-            console.log(` -> localStorage ('${storageKey}') limpo.`);
-
-            // 4. Atualiza a UI imediatamente para refletir a retomada
-            updateUI();
-            console.log(" -> UI atualizada.");
-
-            // 5. Notifica o usuário
-            // Use uma chave de tradução específica ou texto direto
-            notifyUser(i18n.t("statusResumedManually", { mode: i18n.t('buy', {defaultValue: modeString}) }) || `${modeString} retomado manualmente.`, "success");
-             console.log(" -> Notificação de retomada enviada.");
-
-            // 6. Opcional: Tenta executar a ação de compra imediatamente se o modo ainda estiver ativo
-            if (state.buyModeActive && !isProcessingBuy) {
-                 console.log(" -> Modo Compra está ativo e não está processando. Tentando executar 'processBuyBasedOnResources()'...");
-                processBuyBasedOnResources();
-            } else {
-                console.log(` -> Não tentando comprar: buyModeActive=${state.buyModeActive}, isProcessingBuy=${isProcessingBuy}`);
-            }
-
-            return; // Sai do listener após retomar a pausa
         }
-        // *** PASSO 1: FIM DA MODIFICAÇÃO ***
-
-        // --- LÓGICA ORIGINAL DE AGENDAR A PAUSA ---
-        // (O código que verifica !state.buyModeActive, durationMinutes, calcula pauseEndTime,
-        // agenda o setTimeout, etc., continua aqui ABAIXO da nova lógica de retomar)
-
-        // Verifica se o modo principal está inativo (antes de tentar pausar)
-        if (!state.buyModeActive) {
-            console.log(` -> Ignorado: Modo Compra está INATIVO. Não é possível pausar.`);
-            return;
-        }
-
-        // Verifica se a duração é válida
-        if (durationMinutes > 0) {
-            // LÓGICA ORIGINAL de cálculo de pauseEndTime, set state, localStorage, etc.
-            const pauseEndTime = now + durationMinutes * 60 * 1000;
-            mobx.runInAction(() => { state[pauseStateKey] = pauseEndTime; });
-            localStorage.setItem(storageKey, pauseEndTime);
-            console.log(` -> Pausa ${modeString} AGENDADA até: ${new Date(pauseEndTime).toLocaleString()}. State e Storage atualizados.`);
-            updateUI(); // Atualiza a UI para mostrar "Pausado até..."
-            notifyUser(i18n.t("pauseDurationSet", { mode: i18n.t('buy', { defaultValue: modeString }), duration: durationMinutes }), "warning");
-
-            // Limpa timeout antigo (se houver) e agenda novo
-            if (buyPauseTimeoutId) clearTimeout(buyPauseTimeoutId);
-            buyPauseTimeoutId = setTimeout(() => {
-                console.log(`[Pause Timeout Callback - ${modeString}] Pausa expirou naturalmente.`);
-                mobx.runInAction(() => { state[pauseStateKey] = null; });
-                localStorage.removeItem(storageKey);
-                buyPauseTimeoutId = null;
-                updateUI();
-                notifyUser(i18n.t("pauseExpired", { mode: i18n.t('buy', { defaultValue: modeString }) }), "success");
-                if (state.buyModeActive && !isProcessingBuy) {
-                     console.log(" -> Tentando reativar Compra pós-expiração...");
-                    processBuyBasedOnResources();
-                }
-            }, durationMinutes * 60 * 1000); // Usa a duração correta
-            console.log(` -> Timeout (${buyPauseTimeoutId}) agendado para a expiração.`);
-
-        } else { // Se duração inválida
-            notifyError(i18n.t("setPauseDurationError"));
-            console.warn(` -> Duração inválida para pausar: ${durationMinutes}`);
-        }
-    }); // Fim do listener buyPause
-
-
-
-
-
-
-
-
-
-  // DENTRO da função setupEvents:
-
-    setupClickListener("sellPause", () => {
-        const now = Date.now();
-        const pauseStateKey = 'sellPausedUntil';        // <--- Variável correta para Venda
-        const storageKey = 'aquila_sellPauseEndTime';   // <--- Variável correta para Venda
-        const durationMinutes = state.sellPauseDurationMinutes; // <--- Variável correta para Venda
-        const modeString = 'Venda';                     // <--- Texto correto para logs/notificações
-
-        console.log(`[Pause Click - ${modeString}] Ativo: ${state.sellModeActive}, Pausado até: ${state[pauseStateKey] ? new Date(state[pauseStateKey]).toLocaleString() : 'Não'}`);
-
-        // *** VERIFICAÇÃO INICIAL: JÁ ESTÁ PAUSADO? -> RETOMAR ***
-        if (state[pauseStateKey] && state[pauseStateKey] > now) {
-            // ESTÁ PAUSADO -> LÓGICA DE RETOMAR (Igual à de Compra, mas com vars de Venda)
-            console.log(`[Pause Click - ${modeString}] Ação: RETOMAR manualmente.`);
-
-            // 1. Limpa o timeout agendado (usa sellPauseTimeoutId)
-            if (sellPauseTimeoutId) {
-                clearTimeout(sellPauseTimeoutId);
-                sellPauseTimeoutId = null;
-                console.log(" -> Timeout existente limpo.");
-            } else {
-                 console.log(" -> Nenhum timeout encontrado para limpar.");
-            }
-
-            // 2. Limpa o estado da pausa no MobX (usa state.sellPausedUntil)
-            mobx.runInAction(() => {
-                state[pauseStateKey] = null; // Define sellPausedUntil como null
-            });
-            console.log(" -> State da pausa ('sellPausedUntil') limpo.");
-
-            // 3. Limpa a pausa do localStorage (usa a storageKey correta)
-            localStorage.removeItem(storageKey);
-            console.log(` -> localStorage ('${storageKey}') limpo.`);
-
-            // 4. Atualiza a UI
-            updateUI();
-            console.log(" -> UI atualizada.");
-
-            // 5. Notifica o usuário
-           notifyUser(i18n.t("statusResumedManually", { mode: i18n.t('sell', {defaultValue: modeString}) }) || `${modeString} retomado manualmente.`, "success");
-            console.log(" -> Notificação de retomada enviada.");
-
-            // 6. Opcional: Tenta executar a ação de VENDA imediatamente (usa state.sellModeActive, !isProcessingSell, updateSell)
-            if (state.sellModeActive && !isProcessingSell) {
-                 console.log(" -> Modo Venda está ativo e não está processando. Tentando executar 'updateSell()'...");
-                updateSell(); // ou debouncedUpdateSell() se preferir
-            } else {
-                 console.log(` -> Não tentando vender: sellModeActive=${state.sellModeActive}, isProcessingSell=${isProcessingSell}`);
-            }
-
-            return; // Sai do listener após retomar a pausa
-        }
-        // *** FIM DA LÓGICA DE RETOMAR ***
-
-
-        // --- LÓGICA ORIGINAL DE AGENDAR A PAUSA DE VENDA ---
-        // (Só executa se a condição 'if' acima for falsa)
-
-        // Verifica se o modo principal está inativo (usa state.sellModeActive)
-        if (!state.sellModeActive) {
-            console.log(` -> Ignorado: Modo Venda está INATIVO. Não é possível pausar.`);
-            return;
-        }
-
-        // Verifica se a duração é válida
-        if (durationMinutes > 0) {
-            const pauseEndTime = now + durationMinutes * 60 * 1000;
-            mobx.runInAction(() => { state[pauseStateKey] = pauseEndTime; }); // Define sellPausedUntil
-            localStorage.setItem(storageKey, pauseEndTime);
-            console.log(` -> Pausa ${modeString} AGENDADA até: ${new Date(pauseEndTime).toLocaleString()}. State e Storage atualizados.`);
-            updateUI();
-            notifyUser(i18n.t("pauseDurationSet", { mode: i18n.t('sell', { defaultValue: modeString }), duration: durationMinutes }), "warning");
-
-            // Limpa timeout antigo (usa sellPauseTimeoutId) e agenda novo
-            if (sellPauseTimeoutId) clearTimeout(sellPauseTimeoutId);
-            sellPauseTimeoutId = setTimeout(() => {
-                console.log(`[Pause Timeout Callback - ${modeString}] Pausa expirou naturalmente.`);
-                mobx.runInAction(() => { state[pauseStateKey] = null; }); // Limpa sellPausedUntil
-                localStorage.removeItem(storageKey);
-                sellPauseTimeoutId = null;
-                updateUI();
-                notifyUser(i18n.t("pauseExpired", { mode: i18n.t('sell', { defaultValue: modeString }) }), "success");
-                // Tenta VENDER após expirar (usa state.sellModeActive, !isProcessingSell, updateSell)
-                if (state.sellModeActive && !isProcessingSell) {
-                     console.log(" -> Tentando reativar Venda pós-expiração...");
-                    updateSell();
-                }
-            }, durationMinutes * 60 * 1000); // Usa a duração correta
-            console.log(` -> Timeout (${sellPauseTimeoutId}) agendado para a expiração.`);
-
-        } else { // Se duração inválida
-            notifyError(i18n.t("setPauseDurationError"));
-            console.warn(` -> Duração inválida para pausar: ${durationMinutes}`);
-        }
-    }); // Fim do listener sellPause
-
-
-
-
-
-
-
-
-
-
-    // Botão Salvar Config (Manual)
-    setupClickListener("saveConfig", () => {
-        console.log("[SaveConfig Button Click] Acionado save manual.");
-        performSaveOperation(); // Salva estado atual da UI Principal E Modal Configs
-        notifySuccess(i18n.t("saveSuccess"));
     });
+    const buyPerTimeInput = document.querySelector('.rate-input[data-resource="buy-per-time"]');
+    if (buyPerTimeInput) { buyPerTimeInput.addEventListener("input", _.debounce(() => { if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
+    const storageLimitInput = document.querySelector('.rate-input[data-resource="storage-limit"]');
+    if (storageLimitInput) { storageLimitInput.addEventListener("input", _.debounce(() => { if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
+    const maxSpendInput = document.querySelector('.rate-input[data-resource="max-spend"]');
+    if (maxSpendInput) { maxSpendInput.addEventListener("input", _.debounce(() => { if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay)); }
+    const premiumPointsInputListenerTarget = ui.getElement("premiumPointsInput"); // Garante pegar o elemento correto para o listener do limite PP
+    if (premiumPointsInputListenerTarget) { premiumPointsInputListenerTarget.addEventListener("input", _.debounce(() => { if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) processBuyBasedOnResources(); }, debounceDelay));}
+
+
+    // --- 2. Listeners de Botões (Click) ---
+    setupClickListener("buyModeToggle", () => toggleMode("buyModeActive"));
+    setupClickListener("sellModeToggle", () => toggleMode("sellModeActive"));
+
+    setupClickListener("buyPause", () => { const now = Date.now(); const pauseStateKey = 'buyPausedUntil'; const storageKey = 'aquila_buyPauseEndTime'; const durationMinutes = state.buyPauseDurationMinutes; const modeString = 'Compra'; if (state[pauseStateKey] && state[pauseStateKey] > now) { if (buyPauseTimeoutId) { clearTimeout(buyPauseTimeoutId); buyPauseTimeoutId = null; } mobx.runInAction(() => { state[pauseStateKey] = null; }); localStorage.removeItem(storageKey); updateUI(); notifyUser(i18n.t("statusResumedManually", { mode: i18n.t('buy', {defaultValue: modeString}) }) || `${modeString} retomado manualmente.`, "success"); if (state.buyModeActive && !isProcessingBuy) { processBuyBasedOnResources(); } return; } if (!state.buyModeActive) { return; } if (durationMinutes > 0) { const pauseEndTime = now + durationMinutes * 60 * 1000; mobx.runInAction(() => { state[pauseStateKey] = pauseEndTime; }); localStorage.setItem(storageKey, pauseEndTime.toString()); updateUI(); notifyUser(i18n.t("pauseDurationSet", { mode: i18n.t('buy', { defaultValue: modeString }), duration: durationMinutes }), "warning"); if (buyPauseTimeoutId) clearTimeout(buyPauseTimeoutId); buyPauseTimeoutId = setTimeout(() => { mobx.runInAction(() => { state[pauseStateKey] = null; }); localStorage.removeItem(storageKey); buyPauseTimeoutId = null; updateUI(); notifyUser(i18n.t("pauseExpired", { mode: i18n.t('buy', { defaultValue: modeString }) }), "success"); if (state.buyModeActive && !isProcessingBuy) { processBuyBasedOnResources(); } }, durationMinutes * 60 * 1000); } else { notifyError(i18n.t("setPauseDurationError")); } });
+     setupClickListener("sellPause", () => { const now = Date.now(); const pauseStateKey = 'sellPausedUntil'; const storageKey = 'aquila_sellPauseEndTime'; const durationMinutes = state.sellPauseDurationMinutes; const modeString = 'Venda'; if (state[pauseStateKey] && state[pauseStateKey] > now) { if (sellPauseTimeoutId) { clearTimeout(sellPauseTimeoutId); sellPauseTimeoutId = null; } mobx.runInAction(() => { state[pauseStateKey] = null; }); localStorage.removeItem(storageKey); updateUI(); notifyUser(i18n.t("statusResumedManually", { mode: i18n.t('sell', {defaultValue: modeString}) }) || `${modeString} retomado manualmente.`, "success"); if (state.sellModeActive && !isProcessingSell) { updateSell(); } return; } if (!state.sellModeActive) { return; } if (durationMinutes > 0) { const pauseEndTime = now + durationMinutes * 60 * 1000; mobx.runInAction(() => { state[pauseStateKey] = pauseEndTime; }); localStorage.setItem(storageKey, pauseEndTime.toString()); updateUI(); notifyUser(i18n.t("pauseDurationSet", { mode: i18n.t('sell', { defaultValue: modeString }), duration: durationMinutes }), "warning"); if (sellPauseTimeoutId) clearTimeout(sellPauseTimeoutId); sellPauseTimeoutId = setTimeout(() => { mobx.runInAction(() => { state[pauseStateKey] = null; }); localStorage.removeItem(storageKey); sellPauseTimeoutId = null; updateUI(); notifyUser(i18n.t("pauseExpired", { mode: i18n.t('sell', { defaultValue: modeString }) }), "success"); if (state.sellModeActive && !isProcessingSell) { updateSell(); } }, durationMinutes * 60 * 1000); } else { notifyError(i18n.t("setPauseDurationError")); } });
+
+    // *** MODIFICADO: Listener Botão Salvar Config ***
+    setupClickListener("saveConfig", () => {
+        performSaveOperation(); // Salva primeiro
+        notifySuccess(i18n.t("saveSuccess")); // Notifica
+
+        // --- ADICIONADO: Trigger Compra Imediata ---
+        console.log("[SaveConfig Click] Verificando se a compra deve ser acionada..."); // Log
+        if (state.buyModeActive && !isProcessingBuy && (!state.buyPausedUntil || state.buyPausedUntil <= Date.now())) {
+            console.log(" -> Condições OK! Chamando processBuyBasedOnResources() após salvar..."); // Log
+            processBuyBasedOnResources(); // Chama a função de compra
+        } else {
+             console.log(` -> Compra não acionada. Condições: buyModeActive=${state.buyModeActive}, isProcessingBuy=${isProcessingBuy}, buyPaused=${!!state.buyPausedUntil}`); // Log explicando por que não chamou
+        }
+        // --- FIM DA ADIÇÃO ---
+    });
+    // *** FIM MODIFICAÇÃO ***
+
+    setupClickListener("resetAll", resetAll);
+
+    setupClickListener("aiAssistantBtn", () => { const modal = ui.getElement("aiModal"); if (modal) modal.style.display = "flex"; const prompt = ui.getElement("aiPrompt"); if(prompt) prompt.value = ""; const response = ui.getElement("aiResponse"); if (response) response.innerHTML = ""; });
+     setupClickListener("settingsBtn", () => { populateUserInfo(); const buyPauseInput = document.getElementById('buyPauseDurationInput'); if (buyPauseInput) buyPauseInput.value = state.buyPauseDurationMinutes; const sellPauseInput = document.getElementById('sellPauseDurationInput'); if (sellPauseInput) sellPauseInput.value = state.sellPauseDurationMinutes; const closeHCaptchaCheck = document.getElementById('closeOnHCaptchaInput'); if (closeHCaptchaCheck) closeHCaptchaCheck.checked = state.closeTabOnHCaptcha; const langSelectModal = document.getElementById('languageSelect'); if (langSelectModal) langSelectModal.value = state.language || 'pt'; mobx.runInAction(() => { state.isSettingsModalOpen = true; }); const settingsModal = ui.getElement("settingsModal"); if(settingsModal) settingsModal.style.display = "flex"; });
+    setupClickListener("submitAI", async () => { const promptInput = ui.getElement("aiPrompt"); const prompt = promptInput ? promptInput.value : ""; if (!prompt.trim()) return; const responseArea = ui.getElement("aiResponse"); if(responseArea) responseArea.innerHTML = `<p>${i18n.t("aiLoading")}</p>`; try { const response = await callGeminiAPI(prompt); if (responseArea) responseArea.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`; } catch (error) { if(responseArea) responseArea.innerHTML = `<p class="error">${i18n.t("aiError")}: ${error.message || error}</p>`; } });
+    setupClickListener("closeAIModal", () => { const modal = ui.getElement("aiModal"); if (modal) modal.style.display = "none"; });
+    setupClickListener("closeSettingsModal", () => { mobx.runInAction(() => { state.isSettingsModalOpen = false; }); const modal = ui.getElement("settingsModal"); if (modal) modal.style.display = "none"; });
+    setupClickListener("minimizeButton", () => { const c=ui.getElement("market-container"), b=ui.getElement("minimizedMarketBox"); if(c&&b){ mobx.runInAction(() => { state.isMinimized = true; }); c.style.display="none"; b.style.display="flex"; localStorage.setItem("isMinimized", "true"); }});
+    setupClickListener("minimizedMarketBox", () => { const c=ui.getElement("market-container"), b=ui.getElement("minimizedMarketBox"); if(c&&b){ mobx.runInAction(() => { state.isMinimized = false; }); c.style.display="block"; b.style.display="none"; localStorage.setItem("isMinimized", "false"); }});
+
+    // --- 3. Listeners de Select (Idioma e Aldeia) ---
+    const languageSelect = ui.getElement("languageSelect"); if (languageSelect) { languageSelect.removeEventListener("change", handleLanguageChange); languageSelect.addEventListener("change", handleLanguageChange); }
+    const villageSelect = ui.getElement("villageSelect"); if (villageSelect) { villageSelect.removeEventListener("change", handleVillageChange); villageSelect.addEventListener("change", handleVillageChange); }
+
+    // --- 4. SEÇÃO AUTO-SAVE para Modal Configs ---
+    const modalConfigElementsSelector = '#settingsModal .settings-input, #settingsModal .settings-checkbox, #settingsModal .aquila-select';
+    const modalConfigElements = document.querySelectorAll(modalConfigElementsSelector);
+    const autoSaveDelay = 1500;
+    const debouncedAutoSave = _.debounce(() => { performSaveOperation(); }, autoSaveDelay);
+    modalConfigElements.forEach(element => { const eventType = (element.type === 'checkbox') ? 'change' : 'input'; element.removeEventListener(eventType, debouncedAutoSave); element.addEventListener(eventType, debouncedAutoSave); });
+
+    // --- 5. Listeners para Tooltip ---
+    const tooltipTriggerSelector = '[data-tooltip], [data-tooltip-key]';
+    const tooltipElements = document.querySelectorAll(`.market-container ${tooltipTriggerSelector}, .modal ${tooltipTriggerSelector}`);
+    tooltipElements.forEach((element) => { element.removeEventListener("mouseenter", showTooltip); element.removeEventListener("mousemove", updateTooltipPosition); element.removeEventListener("mouseleave", hideTooltip); element.addEventListener("mouseenter", showTooltip); element.addEventListener("mousemove", updateTooltipPosition); element.addEventListener("mouseleave", hideTooltip); });
+
+    // --- 6. Listener para fechar modais com clique fora ---
+    window.removeEventListener('click', handleOutsideModalClick, true);
+    window.addEventListener('click', handleOutsideModalClick, true);
+
+    //console.log("[DEBUG setupEvents vPausa+AutoSave+SaveTrigger] Configuração de TODOS os eventos concluída.");
+}; // --- Fim da função setupEvents (vPausa+AutoSave+SaveTrigger) ---
+
+
+// (As funções handleLanguageChange, handleVillageChange, handleOutsideModalClick devem estar definidas DEPOIS desta função, como já estavam antes)
+// ... Coloque aqui as funções handleLanguageChange, handleVillageChange, handleOutsideModalClick ...
+function handleLanguageChange(event) {
+    const newLang = event.target.value;
+    if (["pt", "ru", "en"].includes(newLang)) {
+        if (state.language !== newLang) { mobx.runInAction(() => { state.language = newLang; }); /* console.log(`[Idioma Change] State: ${newLang}`); */ }
+        i18n.changeLanguage(newLang).then(() => { localStorage.setItem("language", state.language); /* console.log(`[Idioma Change] i18n/Storage: ${newLang}. Atualizando UI...`); */ updateUI();
+        }).catch(error => { console.error(`[Idioma Change] Erro i18next ${newLang}:`, error); });
+    } else { console.warn(`[Idioma Change] Idioma inválido: ${newLang}`); }
+}
+
+function handleVillageChange(event) { /* console.log(`[Village Change] Seleção: ${event.target.value}`); */ if (event.target.value === "current") { updateVillageInfo(); } }
+
+function handleOutsideModalClick(event) {
+    const checkAndClose = (modalId, stateKey = null) => {
+        const modalElement = ui.getElement(modalId);
+        if (modalElement && modalElement.style.display === 'flex' && !modalElement.querySelector('.modal-content')?.contains(event.target)) {
+            //console.log(`[Click Fora] Fechando #${modalId}...`);
+            modalElement.style.display = 'none';
+            if (stateKey && typeof state[stateKey] !== 'undefined') { mobx.runInAction(() => { state[stateKey] = false; }); }
+            return true;
+        }
+        return false;
+    };
+    checkAndClose("settingsModal", "isSettingsModalOpen");
+    checkAndClose("aiModal");
+}
 
 
 
@@ -6376,14 +4517,9 @@ const setupEvents = () => {
 
 
 
-
-
-
-
-
-  // FUNÇÃO resetAll ATUALIZADA (v2 - Clear Current World Cache)
-setupClickListener("resetAll", () => {
-    console.warn("[ResetAll Button Click v2] INICIANDO RESET...");
+// FUNÇÃO resetAll ATUALIZADA (v3 - Sem Tx Cache Clear)
+const resetAll = () => { // REMOVIDO: Parâmetro setupClickListener daqui
+    console.warn("[ResetAll Button Click v3] INICIANDO RESET...");
     // Limpa inputs UI principal
     document.querySelectorAll('.market-container .rate-input').forEach(input => input.value = "");
     const premiumInput = ui.getElement("premiumPointsInput"); if (premiumInput) premiumInput.value = "";
@@ -6393,18 +4529,9 @@ setupClickListener("resetAll", () => {
     const langSelect = document.getElementById('languageSelect'); if (langSelect) langSelect.value = 'pt';
     const buyPauseInputEl = document.getElementById('buyPauseDurationInput'); if (buyPauseInputEl) buyPauseInputEl.value = 5;
     const sellPauseInputEl = document.getElementById('sellPauseDurationInput'); if (sellPauseInputEl) sellPauseInputEl.value = 5;
-    console.log("[ResetAll v2] Inputs UI e Modal resetados.");
+    console.log("[ResetAll v3] Inputs UI e Modal resetados.");
 
-    // === INÍCIO: LIMPAR CACHE DO MUNDO ATUAL ===
-    const currentWorld = state.currentVillage?.world || getActiveWorld();
-    if (currentPlayerNickname && currentWorld) {
-        const storageKey = `ragnarokMarketTransactions_${currentPlayerNickname}_${currentWorld}`;
-        localStorage.removeItem(storageKey);
-        console.log(`[ResetAll v2] Cache de logs para o mundo atual (${currentWorld}) removido do localStorage.`);
-    } else {
-        console.warn("[ResetAll v2] Não foi possível determinar nickname ou mundo atual para limpar cache específico.");
-    }
-    // === FIM: LIMPAR CACHE DO MUNDO ATUAL ===
+    // REMOVIDO: Limpeza de Cache de Transações
 
     // Remove config geral e idioma
     localStorage.removeItem("compressedConfig");
@@ -6412,7 +4539,7 @@ setupClickListener("resetAll", () => {
     // Remove pausas persistentes
     localStorage.removeItem('aquila_buyPauseEndTime');
     localStorage.removeItem('aquila_sellPauseEndTime');
-    console.log("[ResetAll v2] localStorage (configs, lang, pausas) limpo.");
+    console.log("[ResetAll v3] localStorage (configs, lang, pausas) limpo.");
 
     // Reseta state MobX
     mobx.runInAction(() => {
@@ -6421,13 +4548,12 @@ setupClickListener("resetAll", () => {
         state.buyPausedUntil = null; state.sellPausedUntil = null;
         state.buyPauseDurationMinutes = 5; state.sellPauseDurationMinutes = 5;
         state.language = 'pt';
-        state.transactions.replace([]); // Limpa transações no state
-        state.worldProfit = 0;        // Zera lucro no state
-        state.allTransactionsFetched = false; // Reseta flag de busca
-        state.closeTabOnHCaptcha = false; // Reseta hCaptcha state
-        // Resetar outros states MobX se aplicável
+        // state.transactions.replace([]); // REMOVIDO
+        // state.worldProfit = 0;        // REMOVIDO
+        // state.allTransactionsFetched = false; // REMOVIDO
+        state.closeTabOnHCaptcha = false;
     });
-    console.log("[ResetAll v2] State MobX redefinido.");
+    console.log("[ResetAll v3] State MobX redefinido.");
 
     // Reseta flags de modo no storage
     localStorage.setItem("buyModeActive", "false");
@@ -6438,10 +4564,10 @@ setupClickListener("resetAll", () => {
     if (sellPauseTimeoutId) { clearTimeout(sellPauseTimeoutId); sellPauseTimeoutId = null; console.log(" -> Timeout pausa venda limpo."); }
 
     updateUI(); // Atualiza UI
-    console.log("[ResetAll v2] Concluído.");
+    console.log("[ResetAll v3] Concluído.");
     notifySuccess(i18n.t("resetAllSuccess", { defaultValue: "Configurações resetadas com sucesso!" }));
-});
-// === FIM resetAll ATUALIZADA (v2 - Clear Current World Cache) ===
+};
+// === FIM resetAll ATUALIZADA (v3 - Sem Tx Cache Clear) ===
 
 
 
@@ -6452,192 +4578,6 @@ setupClickListener("resetAll", () => {
 
 
 
-
-
-
-
-
-
-
-    // Botões Abrir Modais
-    setupClickListener("transactionsBtn", showTransactions);
-    setupClickListener("aiAssistantBtn", () => {
-        const aiModal = ui.getElement("aiModal"); if (aiModal) aiModal.style.display = "flex";
-        const aiPrompt = ui.getElement("aiPrompt"); if(aiPrompt) aiPrompt.value = "";
-        const aiResponse = ui.getElement("aiResponse"); if (aiResponse) aiResponse.innerHTML = "";
-    });
-    setupClickListener("settingsBtn", () => {
-        populateUserInfo(); // Atualiza Nick, Licença, etc.
-        // Aplica VALORES ATUAIS DO STATE aos inputs da modal
-        const buyPauseInput = document.getElementById('buyPauseDurationInput'); if (buyPauseInput) buyPauseInput.value = state.buyPauseDurationMinutes;
-        const sellPauseInput = document.getElementById('sellPauseDurationInput'); if (sellPauseInput) sellPauseInput.value = state.sellPauseDurationMinutes;
-        const checkIntInput = document.getElementById('checkIntervalInput'); if (checkIntInput) checkIntInput.value = checkIntInput.placeholder || 30; // TODO: Pegar do state se existir
-        const sellCoolInput = document.getElementById('sellCooldownInput'); if (sellCoolInput) sellCoolInput.value = sellCoolInput.placeholder || 6; // TODO: Pegar do state se existir
-        const merchResInput = document.getElementById('merchantReserveInput'); if (merchResInput) merchResInput.value = merchResInput.placeholder || 0; // TODO: Pegar do state se existir
-        const autoRelCheck = document.getElementById('autoReloadOnErrorInput'); if (autoRelCheck) autoRelCheck.checked = true; // TODO: Pegar do state se existir
-        const langSelectModal = document.getElementById('languageSelect'); if (langSelectModal) langSelectModal.value = state.language || 'pt';
-        mobx.runInAction(() => { state.isSettingsModalOpen = true; }); // Marca como aberta
-        const settingsModal = ui.getElement("settingsModal"); if(settingsModal) settingsModal.style.display = "flex"; // Exibe
-        console.log("[DEBUG setupEvents] Modal Configs aberta, inputs populados via state.");
-    });
-
-    // Botões DENTRO das Modais
-    setupClickListener("submitAI", async () => {
-         const promptInput = ui.getElement("aiPrompt"); const prompt = promptInput ? promptInput.value : ""; if (!prompt.trim()) return;
-         const responseArea = ui.getElement("aiResponse"); if(responseArea) responseArea.innerHTML = `<p>${i18n.t("aiLoading")}</p>`;
-         try { const response = await callGeminiAPI(prompt); if (responseArea) responseArea.innerHTML = `<p>${response.replace(/\n/g, '<br>')}</p>`;
-         } catch (error) { if(responseArea) responseArea.innerHTML = `<p class="error">${i18n.t("aiError")}: ${error.message || error}</p>`; }
-    });
-    setupClickListener("closeModal", () => { // Fecha Modal Transações
-        const modal = ui.getElement("transactionsModal"); if (modal) modal.style.display = "none";
-        if (chartInstance) { chartInstance.destroy(); chartInstance = null; } // Limpa gráfico
-        const chartContainer = document.getElementById("transactionsChartContainer");
-        if (chartContainer) { chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>'; chartContainer.style.display = 'none'; }
-    });
-    setupClickListener("closeAIModal", () => { const modal = ui.getElement("aiModal"); if (modal) modal.style.display = "none"; });
-    setupClickListener("closeSettingsModal", () => { // Fecha Modal Configs
-        mobx.runInAction(() => { state.isSettingsModalOpen = false; });
-        const modal = ui.getElement("settingsModal"); if (modal) modal.style.display = "none";
-    });
-
-    // Botões Minimizar/Restaurar
-    setupClickListener("minimizeButton", () => { const c=ui.getElement("market-container"), b=ui.getElement("minimizedMarketBox"); if(c&&b){ mobx.runInAction(() => { state.isMinimized = true; }); c.style.display="none"; b.style.display="flex"; localStorage.setItem("isMinimized", "true"); }});
-    setupClickListener("minimizedMarketBox", () => { const c=ui.getElement("market-container"), b=ui.getElement("minimizedMarketBox"); if(c&&b){ mobx.runInAction(() => { state.isMinimized = false; }); c.style.display="block"; b.style.display="none"; localStorage.setItem("isMinimized", "false"); }});
-
-    // --- 3. Listeners de Select (Idioma e Aldeia) ---
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners 'change' selects...");
-    const languageSelect = ui.getElement("languageSelect"); if (languageSelect) { languageSelect.removeEventListener("change", handleLanguageChange); languageSelect.addEventListener("change", handleLanguageChange); }
-    const villageSelect = ui.getElement("villageSelect"); if (villageSelect) { villageSelect.removeEventListener("change", handleVillageChange); villageSelect.addEventListener("change", handleVillageChange); }
-
-    // --- 4. SEÇÃO AUTO-SAVE para Modal Configs ---
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando auto-save da modal...");
-    const modalConfigElementsSelector = '#settingsModal .settings-input, #settingsModal .settings-checkbox, #settingsModal .aquila-select';
-    const modalConfigElements = document.querySelectorAll(modalConfigElementsSelector);
-    const autoSaveDelay = 1500; // Delay de 1.5s
-    const debouncedAutoSave = _.debounce(() => { // Cria função debounced
-        //console.log(`[AutoSave Triggered] Mudança na modal detectada. Salvando após ${autoSaveDelay}ms...`);
-        performSaveOperation(); // Chama a função que salva TUDO
-    }, autoSaveDelay);
-    modalConfigElements.forEach(element => { // Adiciona listener a cada controle
-        const eventType = (element.type === 'checkbox') ? 'change' : 'input';
-        element.removeEventListener(eventType, debouncedAutoSave); // Limpa anterior
-        element.addEventListener(eventType, debouncedAutoSave);    // Adiciona novo
-    });
-    //console.log(`[DEBUG setupEvents AutoSave] Auto-save listeners adicionados (${modalConfigElements.length} elementos).`);
-    // --- FIM AUTO-SAVE MODAL ---
-
-    // --- 5. Listeners para Tooltip ---
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configurando listeners tooltip...");
-    const tooltipTriggerSelector = '[data-tooltip], [data-tooltip-key]';
-    const tooltipElements = document.querySelectorAll(`.market-container ${tooltipTriggerSelector}, .modal ${tooltipTriggerSelector}`);
-    tooltipElements.forEach((element) => {
-        element.removeEventListener("mouseenter", showTooltip); element.removeEventListener("mousemove", updateTooltipPosition); element.removeEventListener("mouseleave", hideTooltip);
-        element.addEventListener("mouseenter", showTooltip); element.addEventListener("mousemove", updateTooltipPosition); element.addEventListener("mouseleave", hideTooltip);
-    });
-    //console.log(`[DEBUG setupEvents Tooltip] Listeners adicionados/atualizados (${tooltipElements.length}).`);
-
-    // --- 6. Listener para fechar modais com clique fora ---
-    window.removeEventListener('click', handleOutsideModalClick, true);
-    window.addEventListener('click', handleOutsideModalClick, true); // Usa handler externo
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Listener 'click fora modal' adicionado.");
-
-    // --- 7. Conclusão ---
-    //console.log("[DEBUG setupEvents vPausaPersist+AutoSave] Configuração de TODOS os eventos concluída.");
-}; // --- Fim da função setupEvents ---
-
-
-// ========================================================
-// === FUNÇÕES AUXILIARES (Handlers de Eventos Externos) ===
-// ========================================================
-// (Coloque este bloco DEPOIS do final de 'const setupEvents = () => {', mas ANTES de 'const init = async () => {')
-
-// Handler para mudança de Idioma no Select das Configurações
-function handleLanguageChange(event) {
-    const newLang = event.target.value; // Pega valor selecionado (ex: 'pt', 'en', 'ru')
-    if (["pt", "ru", "en", "nl"].includes(newLang)) { // <<< MODIFICAR AQUI
-        // Atualiza o state do MobX SÓ se o idioma realmente mudou
-        if (state.language !== newLang) {
-            mobx.runInAction(() => { state.language = newLang; }); // Atualiza state reativamente
-            console.log(`[Idioma Change] State atualizado para: ${newLang}`);
-        }
-        // Tenta aplicar a mudança no i18next para tradução
-        i18n.changeLanguage(newLang).then(() => {
-            localStorage.setItem("language", state.language); // Salva no localStorage APÓS sucesso
-            console.log(`[Idioma Change] i18next e localStorage atualizados para ${newLang}. Chamando updateUI...`);
-            updateUI(); // Atualiza TODOS os textos da interface principal e modais abertas
-        }).catch(error => { // Se i18next falhar
-            console.error(`[Idioma Change] Erro ao mudar idioma com i18next para ${newLang}:`, error);
-            // O state ainda foi atualizado, mas a UI não refletirá imediatamente
-        });
-    } else {
-        console.warn(`[Idioma Change] Idioma selecionado inválido: ${newLang}`);
-    }
-}
-
-// Handler para mudança de Aldeia no Select do Cabeçalho
-function handleVillageChange(event) {
-   //console.log(`[Village Change] Seleção alterada para: ${event.target.value}`);
-    // Exemplo: Se tiver múltiplas aldeias, poderia carregar dados da selecionada.
-    // Por enquanto, se selecionar "current", apenas atualiza info da aldeia atual.
-    if (event.target.value === "current") {
-        updateVillageInfo(); // Função que pega nome/coords da aldeia atual do jogo
-        // Poderia disparar re-cálculo de lucro aqui: fetchAndUpdateProfit();
-    }
-    // Adicionar lógica para `else` se houver outras aldeias no select
-}
-
-// Handler para cliques na janela (detecta clique fora das modais para fechá-las)
-function handleOutsideModalClick(event) {
-    // Função interna para verificar e fechar UMA modal específica
-    const checkAndClose = (modalId, stateKey = null, cleanupFn = null) => {
-        const modalElement = ui.getElement(modalId); // Busca modal pelo ID
-
-        // Condições para fechar:
-        // 1. Modal existe no DOM.
-        // 2. Modal está visível (display: flex).
-        // 3. O alvo do clique (event.target) NÃO está contido dentro do elemento .modal-content da modal.
-        if (modalElement && modalElement.style.display === 'flex' && !modalElement.querySelector('.modal-content')?.contains(event.target))
-        {
-            console.log(`[Click Fora] Detectado clique fora de #${modalId}. Fechando...`);
-            modalElement.style.display = 'none'; // Esconde a modal
-
-            // Atualiza o state MobX (se stateKey foi fornecido) para 'false'
-            // Ex: state.isSettingsModalOpen = false;
-            if (stateKey && typeof state[stateKey] !== 'undefined') {
-                 mobx.runInAction(() => { state[stateKey] = false; });
-                 //console.log(` -> State '${stateKey}' definido como false.`);
-            }
-            // Executa função de limpeza (ex: destruir gráfico) se foi fornecida
-            if (typeof cleanupFn === 'function') {
-                 cleanupFn();
-                 //console.log(` -> Função de cleanup executada para #${modalId}.`);
-            }
-            return true; // Indica que fechou
-        }
-        return false; // Indica que não fechou
-    };
-
-    // Função de limpeza específica para a modal de Transações
-    const transactionsCleanup = () => {
-        if (chartInstance) { // Se existe uma instância do gráfico
-            chartInstance.destroy(); // Destroi para liberar memória
-            chartInstance = null;    // Limpa a referência
-            //console.log(" -> Instância do gráfico destruída.");
-        }
-        const chartContainer = document.getElementById("transactionsChartContainer"); // Pega o container
-        if (chartContainer) { // Limpa o container e recria o canvas vazio, escondendo-o
-            chartContainer.innerHTML = '<canvas id="transactionsChart"></canvas>';
-            chartContainer.style.display = 'none';
-            //console.log(" -> Container do gráfico limpo.");
-        }
-    };
-
-    // Chama checkAndClose para cada modal
-    checkAndClose("settingsModal", "isSettingsModalOpen");        // Passa chave do state MobX
-    checkAndClose("transactionsModal", null, transactionsCleanup); // Passa função de limpeza
-    checkAndClose("aiModal");                                       // Sem state ou cleanup específico
-}
-// --- FIM DAS FUNÇÕES AUXILIARES ---
 
 
 
@@ -6647,10 +4587,10 @@ function handleOutsideModalClick(event) {
 
 
 // ================================================================
-// ===        FUNÇÃO updateUI COMPLETA E ATUALIZADA (v14.3 - Remove Title Pausa) ===
+// ===  FUNÇÃO updateUI ATUALIZADA (v14.3 - Sem Logs/Transações) ===
 // ================================================================
 const updateUI = () => {
-    // console.log("[DEBUG updateUI v14.3 - Remove Title Pausa] Iniciando...");
+    //console.log("[DEBUG updateUI v14.3 - NoTx] Iniciando...");
 
     const updateElement = (elementId, textContent = null, innerHTML = null, attribute = null, attributeValue = null, placeholder = null) => {
         const element = ui.getElement(elementId);
@@ -6678,10 +4618,10 @@ const updateUI = () => {
     updateElement("headerTitle", i18n.t("title"));
     updateElement("saveConfig", null, `<i class="fa-solid fa-floppy-disk"></i> ${i18n.t("saveConfig")}`);
     updateElement("resetAll", `\u21BB ${i18n.t("resetAll")}`);
-    updateElement("transactionsBtn", i18n.t("transactions"));
-    updateElement("settingsBtn", null, `<i class="fa-solid fa-gear"></i>`); // Title removido
-    updateElement("aiAssistantBtn", null, `<i class="fa-solid fa-robot"></i>`); // Title removido
-    updateElement("minimizeButton", null, `<i class="fa-solid fa-window-minimize"></i>`); // Title removido
+    // updateElement("transactionsBtn", i18n.t("transactions")); // REMOVIDO
+    updateElement("settingsBtn", null, `<i class="fa-solid fa-gear"></i>`);
+    updateElement("aiAssistantBtn", null, `<i class="fa-solid fa-robot"></i>`);
+    updateElement("minimizeButton", null, `<i class="fa-solid fa-window-minimize"></i>`);
     updateElement("buyStatusLabel", i18n.t("statusLabel"));
     updateElement("sellStatusLabel", i18n.t("statusLabel"));
 
@@ -6707,7 +4647,7 @@ const updateUI = () => {
          sellStatus.className = `status ${state.sellModeActive ? "green" : "red"}`;
     }
 
-    // --- ATUALIZAÇÃO BOTÕES PAUSAR (SEM title attribute) ---
+    // --- ATUALIZAÇÃO BOTÕES PAUSAR (sem título) ---
     const now = Date.now();
     const buyPauseBtn = ui.getElement("buyPause");
     if (buyPauseBtn) {
@@ -6717,25 +4657,18 @@ const updateUI = () => {
             buyPauseBtn.innerHTML = `<i class="fas fa-hourglass-end"></i> ${i18n.t('pausedUntil', { time: resumeTimeFormatted })}`;
             buyPauseBtn.disabled = false;
             buyPauseBtn.classList.add("paused");
-            // buyPauseBtn.setAttribute('title', i18n.t('clickToResumeTooltip')); // REMOVIDO - usa data-tooltip-key
+            // Garante que o data-tooltip-key seja para retomar
+            const expectedKey = 'clickToResumeTooltip';
+            if (buyPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) { buyPauseBtn.setAttribute('data-tooltip-key', expectedKey); }
         } else {
             buyPauseBtn.innerHTML = `<i class="fas fa-pause"></i> ${i18n.t('pause')}`;
             buyPauseBtn.disabled = !state.buyModeActive;
             buyPauseBtn.classList.remove("paused");
-            // buyPauseBtn.setAttribute('title', i18n.t('tooltipPauseBuy')); // REMOVIDO - usa data-tooltip-key
-        }
-        // Garante que o data-tooltip-key original do HTML não seja removido
-        if (!buyPauseBtn.hasAttribute('data-tooltip-key')) {
-             buyPauseBtn.setAttribute('data-tooltip-key', (state.buyPausedUntil && state.buyPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseBuy');
-        } else {
-            // Atualiza a chave se o estado mudou
-            const expectedKey = (state.buyPausedUntil && state.buyPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseBuy';
-            if (buyPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) {
-                 buyPauseBtn.setAttribute('data-tooltip-key', expectedKey);
-            }
+            // Garante que o data-tooltip-key seja para pausar
+            const expectedKey = 'tooltipPauseBuy';
+            if (buyPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) { buyPauseBtn.setAttribute('data-tooltip-key', expectedKey); }
         }
     }
-
     const sellPauseBtn = ui.getElement("sellPause");
     if (sellPauseBtn) {
         if (state.sellPausedUntil && state.sellPausedUntil > now) {
@@ -6744,70 +4677,44 @@ const updateUI = () => {
             sellPauseBtn.innerHTML = `<i class="fas fa-hourglass-end"></i> ${i18n.t('pausedUntil', { time: resumeTimeFormatted })}`;
             sellPauseBtn.disabled = false;
             sellPauseBtn.classList.add("paused");
-            // sellPauseBtn.setAttribute('title', i18n.t('clickToResumeTooltip')); // REMOVIDO
+            // Garante que o data-tooltip-key seja para retomar
+            const expectedKey = 'clickToResumeTooltip';
+            if (sellPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) { sellPauseBtn.setAttribute('data-tooltip-key', expectedKey); }
         } else {
             sellPauseBtn.innerHTML = `<i class="fas fa-pause"></i> ${i18n.t('pause')}`;
             sellPauseBtn.disabled = !state.sellModeActive;
             sellPauseBtn.classList.remove("paused");
-            // sellPauseBtn.setAttribute('title', i18n.t('tooltipPauseSell')); // REMOVIDO
-        }
-         // Garante que o data-tooltip-key original do HTML não seja removido
-         if (!sellPauseBtn.hasAttribute('data-tooltip-key')) {
-              sellPauseBtn.setAttribute('data-tooltip-key', (state.sellPausedUntil && state.sellPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseSell');
-         } else {
-            // Atualiza a chave se o estado mudou
-            const expectedKey = (state.sellPausedUntil && state.sellPausedUntil > now) ? 'clickToResumeTooltip' : 'tooltipPauseSell';
-            if (sellPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) {
-                 sellPauseBtn.setAttribute('data-tooltip-key', expectedKey);
-            }
+            // Garante que o data-tooltip-key seja para pausar
+            const expectedKey = 'tooltipPauseSell';
+            if (sellPauseBtn.getAttribute('data-tooltip-key') !== expectedKey) { sellPauseBtn.setAttribute('data-tooltip-key', expectedKey); }
          }
      }
-    // --- FIM da Atualização dos Botões "Pausar" ---
 
-    // --- Lucro e Idioma ---
-     // Dentro da função updateUI:
- const worldProfitEl = ui.getElement("worldProfit");
- if (worldProfitEl) {
-    // Mostra o valor apenas se for um número, caso contrário mostra o texto (ex: "Carregando...") ou um fallback
-    const profitValue = state.worldProfit;
-    worldProfitEl.textContent = typeof profitValue === 'number' ? String(profitValue) : (profitValue || '...');
- }
+    // --- REMOVIDO: Atualização Lucro ---
+    // const worldProfitEl = ui.getElement("worldProfit"); // REMOVIDO
 
+    // --- Atualização Idioma (igual) ---
     const languageSelect = ui.getElement("languageSelect");
-if (languageSelect) {
-  const currentLangValue = state.language; // Usa o state como valor correto
-  languageSelect.innerHTML = `
-        <option value="pt" ${currentLangValue === "pt" ? "selected" : ""}>🇧🇷 ${i18n.t("portuguese")}</option>
-        <option value="ru" ${currentLangValue === "ru" ? "selected" : ""}>🇷🇺 ${i18n.t("russian")}</option>
-        <option value="en" ${currentLangValue === "en" ? "selected" : ""}>🇬🇧 ${i18n.t("english")}</option>
-        <option value="nl" ${currentLangValue === "nl" ? "selected" : ""}>🇳🇱 ${i18n.t("dutch")}</option> {/* <<< ADICIONAR ESTA LINHA */}
-    `;
-  // Certifica que o valor selecionado reflete o estado, mesmo que a opção ainda não existisse antes
-  languageSelect.value = ["pt", "ru", "en", "nl"].includes(currentLangValue) ? currentLangValue : 'pt';
-}
-    // Verifica o container do select de idioma para remover title, se houver
-    const langDropdown = languageSelect?.closest('.dropdown');
-    if (langDropdown && langDropdown.hasAttribute('title')) {
-        // langDropdown.removeAttribute('title'); // Comentado pois ele tem data-tooltip-key
-    }
-    // Verifica o container do select de aldeia
-    const villageDropdown = ui.getElement("villageSelect")?.closest('.dropdown');
-    if (villageDropdown && villageDropdown.hasAttribute('title')) {
-        // villageDropdown.removeAttribute('title'); // Comentado pois ele tem data-tooltip-key
+    if (languageSelect) {
+      const currentLangValue = languageSelect.value;
+      languageSelect.innerHTML = `
+            <option value="pt" ${state.language === "pt" ? "selected" : ""}>🇧🇷 ${i18n.t("portuguese")}</option>
+            <option value="ru" ${state.language === "ru" ? "selected" : ""}>🇷🇺 ${i18n.t("russian")}</option>
+            <option value="en" ${state.language === "en" ? "selected" : ""}>🇬🇧 ${i18n.t("english")}</option>
+        `;
+       languageSelect.value = ["pt", "ru", "en"].includes(currentLangValue) ? currentLangValue : state.language;
     }
 
-
-    // --- Atualização do Conteúdo Textual das Modais ---
+    // --- Atualização do Conteúdo Textual das Modais (igual) ---
     const updateModalContent = (modalId) => {
         const modalElement = document.getElementById(modalId);
         if (modalElement && (modalElement.style.display !== 'none' || modalId === 'settingsModal')) {
+             // (Código interno de updateModalContent permanece igual)
             const elementsToTranslate = modalElement.querySelectorAll("[data-i18n-key]");
-
             elementsToTranslate.forEach((el) => {
                 const key = el.dataset.i18nKey;
                 if (key) {
                      const translation = i18n.t(key, { defaultValue: key });
-
                      if ((el.tagName === "INPUT" || el.tagName === "TEXTAREA") && typeof el.placeholder !== 'undefined') {
                         if(el.placeholder !== translation) el.placeholder = translation;
                     } else if (el.tagName === "BUTTON") {
@@ -6816,76 +4723,31 @@ if (languageSelect) {
                          if(el.innerHTML.trim() !== newButtonHTML.trim()) el.innerHTML = newButtonHTML;
                      }
                      else {
-                         const iconElement = el.querySelector('i.fas');
-                         let textNodeToUpdate = null;
-                         if (iconElement) {
-                             let sibling = iconElement.nextSibling;
-                             while (sibling) {
-                                 if (sibling.nodeType === Node.TEXT_NODE && sibling.nodeValue.trim() !== '') {
-                                     textNodeToUpdate = sibling; break;
-                                 }
-                                 sibling = sibling.nextSibling;
-                             }
-                             if (!textNodeToUpdate) {
-                                 const childNodes = Array.from(el.childNodes);
-                                 for (let i = childNodes.length - 1; i >= 0; i--) {
-                                     if (childNodes[i].nodeType === Node.TEXT_NODE && childNodes[i].nodeValue.trim() !== '') {
-                                         textNodeToUpdate = childNodes[i]; break;
-                                     }
-                                 }
-                             }
-                         } else {
-                             textNodeToUpdate = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== '');
-                             if (!textNodeToUpdate && el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE) {
-                                 textNodeToUpdate = el.firstChild;
-                             }
-                         }
-
-                         if (textNodeToUpdate) {
-                            const currentText = textNodeToUpdate.nodeValue.trim();
-                            const translatedText = translation.trim();
-                            if (currentText !== translatedText) {
-                                textNodeToUpdate.nodeValue = ` ${translation}`;
-                            }
-                         } else if (!iconElement && el.textContent.trim() !== translation.trim()) {
-                             el.textContent = translation;
-                         } else if (iconElement && !textNodeToUpdate){
-                             const currentTextContent = el.textContent.replace(iconElement.outerText, '').trim();
-                             if(currentTextContent !== translation.trim()){
-                                Array.from(el.childNodes).forEach(node => {
-                                    if(node.nodeType === Node.TEXT_NODE) { el.removeChild(node); }
-                                });
-                                el.appendChild(document.createTextNode(` ${translation}`));
-                             }
-                         }
+                         const iconElement = el.querySelector('i.fas'); let textNodeToUpdate = null;
+                         if (iconElement) { let sibling = iconElement.nextSibling; while (sibling) { if (sibling.nodeType === Node.TEXT_NODE && sibling.nodeValue.trim() !== '') { textNodeToUpdate = sibling; break; } sibling = sibling.nextSibling; } if (!textNodeToUpdate) { const childNodes = Array.from(el.childNodes); for (let i = childNodes.length - 1; i >= 0; i--) { if (childNodes[i].nodeType === Node.TEXT_NODE && childNodes[i].nodeValue.trim() !== '') { textNodeToUpdate = childNodes[i]; break; } } }
+                         } else { textNodeToUpdate = Array.from(el.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== ''); if (!textNodeToUpdate && el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE) { textNodeToUpdate = el.firstChild; } }
+                         if (textNodeToUpdate) { const currentText = textNodeToUpdate.nodeValue.trim(); const translatedText = translation.trim(); if (currentText !== translatedText) { textNodeToUpdate.nodeValue = ` ${translation}`; }
+                         } else if (!iconElement && el.textContent.trim() !== translation.trim()) { el.textContent = translation;
+                         } else if (iconElement && !textNodeToUpdate){ const currentTextContent = el.textContent.replace(iconElement.outerText, '').trim(); if(currentTextContent !== translation.trim()){ Array.from(el.childNodes).forEach(node => { if(node.nodeType === Node.TEXT_NODE) { el.removeChild(node); } }); el.appendChild(document.createTextNode(` ${translation}`)); } }
                      }
                 }
             });
-
-                   // Atualiza tooltips (atributo title) APENAS para os ícones de informação
-        const tooltipIcons = modalElement.querySelectorAll(".tooltip-icon[data-tooltip-key]");
-        tooltipIcons.forEach((el) => {
-            const key = el.dataset.tooltipKey;
-             if (key) {
-                const titleText = i18n.t(key, { defaultValue: key });
-                 // LINHA REMOVIDA
-             }
-        });
+             // Atualiza tooltips apenas dos ícones
+            const tooltipIcons = modalElement.querySelectorAll(".tooltip-icon[data-tooltip-key]");
+            tooltipIcons.forEach((el) => { const key = el.dataset.tooltipKey; if (key) { const titleText = i18n.t(key, { defaultValue: key }); /* REMOVIDO: el.setAttribute('title', titleText); */ } });
         }
     };
 
-    updateModalContent("transactionsModal");
+    // updateModalContent("transactionsModal"); // REMOVIDO
     updateModalContent("settingsModal");
     updateModalContent("aiModal");
 
-    updateElement("closeModal", i18n.t("close"));
-    updateElement("closeAIModal", i18n.t("close"));
+    // updateElement("closeModal", i18n.t("close")); // REMOVIDO
+    updateElement("closeAIModal", i18n.t("close")); // Fechar Modal AI
+    updateElement("closeSettingsModal", null, '×'); // Fechar Modal Configs (usa só o '×')
 
-    // console.log("[DEBUG updateUI v14.3] Atualização completa da UI concluída.");
-  }; // --- Fim da função updateUI (Modificada v14.3) ---
-
-
-
+    // console.log("[DEBUG updateUI v14.3-NoTx] Atualização UI concluída.");
+}; // --- Fim da função updateUI ---
 
 
 
@@ -6971,14 +4833,13 @@ const loadConfig = () => {
     }
 
     // 4. Carrega Idioma
-   const langFromStorage = localStorage.getItem("language");
- const langFromConfig = configData.language;
- // Modifica a validação para incluir 'nl'
- const langToLoad = ["pt", "ru", "en", "nl"].includes(langFromStorage) ? langFromStorage : (["pt", "ru", "en", "nl"].includes(langFromConfig) ? langFromConfig : 'pt'); // <<< MODIFICAR AQUI
- if (state.language !== langToLoad) {
-    mobx.runInAction(() => { state.language = langToLoad; });
- }
- const langSelectModalEl = document.getElementById('languageSelect'); if (langSelectModalEl) langSelectModalEl.value = state.language;
+    const langFromStorage = localStorage.getItem("language");
+    const langFromConfig = configData.language;
+    const langToLoad = ["pt", "ru", "en"].includes(langFromStorage) ? langFromStorage : (["pt", "ru", "en"].includes(langFromConfig) ? langFromConfig : 'pt');
+    if (state.language !== langToLoad) {
+        mobx.runInAction(() => { state.language = langToLoad; });
+    }
+    const langSelectModalEl = document.getElementById('languageSelect'); if (langSelectModalEl) langSelectModalEl.value = state.language;
 
     // 5. Restaura Pausas Ativas
     const now = Date.now();
@@ -7244,96 +5105,52 @@ function checkAndHandleHCaptcha() {
 
 
 
- /// Variável global para rastrear se Chart.js foi carregado
-let isChartJsLoaded = false;
-let chartJsLoadingPromise = null; // Para evitar múltiplas tentativas de carregamento
+// ========================================================
+// === FUNÇÃO initializeResources (Recursos e Handlers) ===
+// ========================================================
+const initializeResources = () => {
+    const resourcesData = Object.keys(resourceConfigs).reduce((acc, name) => {
+      // Pega a configuração base
+      const config = { ...resourceConfigs[name] };
+      // Busca e associa os elementos da UI correspondentes
+      config.uiRateInput = document.querySelector(`.rate-input[data-resource="${name}"]`); // Input de Taxa Mín/Máx (Compra/Venda)
+      config.uiReserveInput = document.querySelector(`.rate-input[data-resource="reserve-${name}"]`); // Input de Quantidade de Reserva (Venda)
+      config.uiReserveRateInput = document.querySelector(`.rate-input[data-resource="reserve-${name}-rate"]`); // Input de Taxa de Reserva (Venda)
+      // Adiciona o handler ao acumulador
+      acc[name] = new ResourceHandler(name, config);
+      return acc;
+    }, {});
 
-// Função para carregar Chart.js dinamicamente usando GM_xmlhttpRequest
-function loadChartJsDynamically() {
-    // Se já está carregado, retorna imediatamente uma Promise resolvida
-    if (isChartJsLoaded) {
-        // console.log("[Chart.js Loader] Já carregado."); // Log opcional
-        return Promise.resolve();
-    }
-    // Se já está carregando, retorna a Promise existente
-    if (chartJsLoadingPromise) {
-        // console.log("[Chart.js Loader] Carregamento já em progresso."); // Log opcional
-        return chartJsLoadingPromise;
-    }
+    // Itera sobre os recursos inicializados para definir valores padrão se necessário
+    Object.keys(resourcesData).forEach((name) => {
+      // Cacheia os inputs de compra/venda na UI
+      ui.buyInputs.set(name, resourcesData[name].getBuyInput());
+      ui.sellInputs.set(name, resourcesData[name].getSellInput());
 
-    console.log("[Chart.js Loader] Iniciando carregamento dinâmico...");
-    // Cria a Promise que controlará o carregamento
-    chartJsLoadingPromise = new Promise((resolve, reject) => { // <--- Promise criada aqui
-        const chartJsUrl = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+      // Define um valor padrão para o input de compra (exemplo) se não houver um
+      const buyInput = ui.buyInputs.get(name);
+      if (buyInput && !buyInput.dataset.default) {
+        // Poderia buscar de config ou usar um fixo
+        buyInput.dataset.default = "1000"; // Ou um valor mais apropriado
+      }
+    });
 
-        GM_xmlhttpRequest({
-            method: 'GET',
-            url: chartJsUrl,
-            timeout: 10000,
-            onload: function(response) { // <--- O callback onload começa aqui
-                if (response.status >= 200 && response.status < 300) {
-                    console.log("[Chart.js Loader] Script baixado com sucesso.");
-                    try {
-                        console.log("[Chart.js Loader] Tentando injetar script no <head>...");
-                        const scriptElement = document.createElement('script');
-                        scriptElement.textContent = response.responseText; // USA O response AQUI DENTRO
-                        scriptElement.setAttribute('data-chartjs-loaded', 'true');
+    return resourcesData; // Retorna o objeto com todos os handlers de recursos
+};
+// --- FIM DA FUNÇÃO initializeResources ---
 
-                        const oldScript = document.querySelector('script[data-chartjs-loaded="true"]');
-                        if (oldScript) {
-                            oldScript.remove();
-                            console.log("[Chart.js Loader] Script antigo removido.");
-                        }
-
-                        document.head.appendChild(scriptElement);
-                        console.log("[Chart.js Loader] Script injetado no <head>.");
-
-                        setTimeout(() => {
-                            if (typeof Chart !== 'undefined') { // Verifica Chart global
-                                console.log("[Chart.js Loader] Chart.js carregado e 'Chart' definido globalmente com sucesso!");
-                                isChartJsLoaded = true;
-                                chartJsLoadingPromise = null;
-                                resolve(); // <--- Resolve a Promise externa AQUI
-                            } else {
-                                console.error("[Chart.js Loader] Script injetado, mas 'Chart' não foi definido globalmente após atraso.");
-                                if (scriptElement.parentNode) { scriptElement.remove(); }
-                                chartJsLoadingPromise = null;
-                                reject(new Error("Falha ao definir Chart globalmente após injeção do script.")); // <--- Rejeita a Promise externa AQUI
-                            }
-                        }, 100);
-
-                    } catch (e) {
-                        console.error("[Chart.js Loader] Erro durante a injeção do script Chart.js:", e);
-                        chartJsLoadingPromise = null;
-                        reject(e); // <--- Rejeita a Promise externa AQUI
-                    }
-                } else {
-                    console.error(`[Chart.js Loader] Falha ao baixar Chart.js. Status: ${response.status}`);
-                    chartJsLoadingPromise = null;
-                    reject(new Error(`Falha ao baixar Chart.js (Status: ${response.status})`)); // <--- Rejeita a Promise externa AQUI
-                }
-            }, // <--- Fim do callback onload
-            onerror: function(error) {
-                console.error("[Chart.js Loader] Erro de rede ao baixar Chart.js:", error);
-                chartJsLoadingPromise = null;
-                reject(error); // <--- Rejeita a Promise externa AQUI
-            },
-            ontimeout: function() {
-                console.error("[Chart.js Loader] Timeout ao baixar Chart.js");
-                chartJsLoadingPromise = null;
-                reject(new Error("Timeout ao baixar Chart.js")); // <--- Rejeita a Promise externa AQUI
-            }
-        }); // <--- Fim do objeto GM_xmlhttpRequest
-    }); // <--- Fim da criação da new Promise
-    return chartJsLoadingPromise;
-}
-
-
-
-
-
-
-
+// ======================================================
+// === FUNÇÃO updateGameElements (Botões Jogo & Merc.) ===
+// ======================================================
+const updateGameElements = () => {
+    // Cacheia o elemento de contagem de mercadores
+    ui.gameElements.set("merchants", document.querySelector("#market_merchant_available_count"));
+    // Cacheia o botão de calcular/confirmar compra
+    ui.gameElements.set("calculateButton", document.querySelector("input.btn-premium-exchange-buy"));
+    // Cacheia o botão de confirmar venda
+    ui.gameElements.set("sellButton", document.querySelector("#premium_exchange_form > input.btn[type='submit']")); // Seletor mais específico
+};
+// --- FIM DA FUNÇÃO updateGameElements ---
 
 
 
@@ -7344,17 +5161,17 @@ function loadChartJsDynamically() {
 
 
 // ================================================================
-// ===      FUNÇÃO init ATUALIZADA (v9 - Background Log Fetch)    ===
+// ===           FUNÇÃO init ATUALIZADA (v10 - Sem Logs/Transações) ===
 // ================================================================
 const init = async () => {
-    console.log(`[Init v9 - Background Fetch] ${SCRIPT_NAME}: Iniciando inicialização...`);
+    console.log(`[Init v10] ${SCRIPT_NAME}: Iniciando inicialização...`);
     try {
         // 1. Inicializa a Interface Gráfica Base
         initializeUI();
 
         // 2. Mapeia e Cacheia Elementos Essenciais da UI do Script
-        if (!initializeElements()) {
-            throw new Error("Falha CRÍTICA ao inicializar elementos da UI RAGNAROK. O script não pode continuar.");
+        if (!initializeElements()) { // initializeElements já foi atualizada
+            throw new Error("Falha CRÍTICA ao inicializar elementos da UI RAGNAROK.");
         }
 
         // 3. Configura Observadores
@@ -7367,110 +5184,63 @@ const init = async () => {
 
         // 4. Busca Informações Iniciais e Aplica Estilos
         updateVillageInfo();
-        applyStyles();
+        applyStyles(); // applyStyles será atualizada depois
 
         // 5. Inicializa Handlers de Recursos e Cacheia Botões do Jogo
         resources = initializeResources();
         updateGameElements();
 
         // 6. Carrega Configurações Salvas
-        loadConfig();
+        loadConfig(); // loadConfig será atualizada depois
 
         // 7. Configura Listeners de Eventos
-        setupEvents();
+        setupEvents(); // setupEvents já foi atualizada
 
-        // 8. Aplica Tema e Atualiza UI (primeira vez, antes dos dados dinâmicos)
+        // 8. Aplica Tema
         updateTheme();
-        updateUI();
-         console.log("[Init v9] Setup inicial da UI concluído.");
 
-        // 9. Verifica hCaptcha
+        // 9. Atualiza a UI uma primeira vez
+        updateUI(); // updateUI já foi atualizada
+
+        // 10. Verifica hCaptcha ANTES de buscas
         if (checkAndHandleHCaptcha()) {
-             console.warn("[Init v9] hCaptcha detectado na inicialização. Interrompendo.");
+             console.warn("[Init v10] hCaptcha detectado na inicialização. Interrompendo buscas.");
              return;
         }
 
-        // 10. Busca Dados Dinâmicos Essenciais (Rápidos)
-        try {
-            await Promise.all([
-                fetchResources(),
-                fetchIncomingResources()
-            ]);
-             console.log("[Init v9] Recursos/Chegando buscados (rápidos).");
-        } catch (fetchError) {
-            console.error("[Init v9] Erro ao buscar recursos/entradas iniciais:", fetchError);
-             // Continua mesmo com erro aqui, mas avisa
-             notifyError("Falha ao buscar dados iniciais da aldeia.");
-        }
+        // 11. Busca Dados Dinâmicos Essenciais (REMOVIDO fetchPremiumLogs)
+        console.log("[Init v10] Buscando recursos atuais e chegando...");
+        await Promise.all([
+            fetchResources(),
+            fetchIncomingResources()
+        ]);
+        console.log("[Init v10] Recursos atuais e chegando obtidos.");
 
+        // 12. REMOVIDO: Busca Logs Premium
 
-        // 11. *** INICIA A BUSCA DE LOGS EM SEGUNDO PLANO ***
-        console.log("[Init v9] Iniciando fetchPremiumLogs em SEGUNDO PLANO...");
-        fetchPremiumLogs(false) // Inicia a busca (false = não forçar busca completa inicialmente)
-            .then(() => {
-                // A função fetchPremiumLogs v17 já atualiza o state e chama updateUI internamente antes de resolver.
-                // Podemos apenas logar aqui que a busca em segundo plano terminou bem.
-                console.log("[Init v9] fetchPremiumLogs (background) CONCLUÍDO com sucesso.");
-                // Uma chamada extra de updateUI aqui PODE ser redundante, mas garante consistência final.
-                // updateUI(); // Descomente se notar inconsistências visuais após a carga.
-            })
-            .catch((error) => {
-                // Lida com erros que ocorreram DENTRO do fetchPremiumLogs
-                console.error("[Init v9] Erro durante fetchPremiumLogs (background):", error);
-                // Notifica o usuário que a busca de logs falhou
-                notifyError(i18n.t("logFetchError", { defaultValue: "Erro ao buscar histórico de PP." }));
-                 // Garante que o lucro não fique como "Carregando..."
-                mobx.runInAction(() => {
-                     // Define como 0 ou "Erro" se preferir
-                     if(state.worldProfit === "Carregando...") state.worldProfit = 0;
-                });
-                updateUI(); // Atualiza a UI para remover possível estado de erro/carregamento
-            });
-        console.log("[Init v9] Chamada para fetchPremiumLogs feita (continuando inicialização...)");
-
-
-        // 12. Popula Informações do Usuário na Modal (Rápido)
+        // 13. Popula Informações do Usuário na Modal
         populateUserInfo();
 
-        // 13. Executa a Primeira Verificação de Compra/Venda (Rápido se não travar)
-        //     Isso pode rodar enquanto os logs carregam.
-        try {
-             console.log("[Init v9] Chamando updateAll inicial...");
-             await updateAll();
-        } catch(updateAllError) {
-            console.error("[Init v9] Erro durante updateAll inicial:", updateAllError);
-        }
+        // 14. Executa a Primeira Verificação de Compra/Venda (Pode descomentar se necessário)
+        // await updateAll();
+        console.log("[Init v10] Primeira verificação updateAll() comentada.");
 
-        // 14. Log Final de Sucesso da Inicialização SÍNCRONA
-        //     A busca de logs continuará em segundo plano.
-        console.log(`[Init v9] ${SCRIPT_NAME}: Inicialização SÍNCRONA completa e bem-sucedida! (Logs carregando em background)`);
+        // 15. Chamada Final para Garantir a UI Atualizada
+        updateUI();
+        console.log("[Init v10] Chamada final de updateUI executada.");
+
+        // 16. Log Final de Sucesso
+        console.log(`[Init v10] ${SCRIPT_NAME}: Inicialização completa e bem-sucedida!`);
 
     } catch (error) {
-        // Erros CRÍTICOS que impedem a inicialização básica
-        console.error(`${SCRIPT_NAME}: Erro CRÍTICO durante a inicialização:`, error);
-        const errorMessage = i18n.t("initError", { defaultValue: "Erro grave na inicialização" });
+        console.error(`${SCRIPT_NAME}: Erro CRÍTICO durante a inicialização (Init v10):`, error);
+        const errorMessage = i18n?.t ? i18n.t("initError", { defaultValue: "Erro grave na inicialização" }) : "Erro grave na inicialização";
         const detail = error.message || String(error);
-        try { notifyError(`${errorMessage}: ${detail}. Verifique o console (F12).`); } catch(e){}
-        const container = ui.getElement("market-container");
-        if (container) container.style.display = 'none'; // Esconde UI se falhar criticamente
+        try { notifyError(`${errorMessage}: ${detail}.`); } catch(e){}
+        const container = document.getElementById("market-container");
+        if (container) container.style.display = 'none';
     }
-}; // --- Fim da função init (v9 - Background Log Fetch) ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+}; // --- Fim da função init (v10 - Sem Logs/Transações) ---
 
 
   const checkGameLoaded = () => {
@@ -7845,53 +5615,7 @@ const applyStyles = () => {
      .market-container .footer-buttons-row { gap: 6px; padding: 5px 10px; flex-wrap: wrap; }
      .market-container #premiumPointsInput { width: 50px; font-size: 11px; padding: 3px; height: 26px; }
 }
- /* ====================================================== */
- /* ===    ESTILO STATUS FETCH LOGS (Aquila Theme)     === */
- /* ====================================================== */
- .log-fetch-status {
-    /* --- Texto & Fonte --- */
-    font-family: 'Poppins', sans-serif; /* Fonte padrão do tema */
-    font-size: 0.9em;                   /* Um pouco maior para legibilidade */
-    font-weight: 500;                   /* Meio-termo entre normal e bold */
-    color: #D4AF37;                     /* Cor principal Aquila Gold */
-    text-align: center;
-    text-shadow: 0 0 4px rgba(212, 175, 55, 0.3); /* Sombra de texto sutil (como no lucro) */
-    letter-spacing: 0.5px;              /* Espaçamento leve */
-
-    /* --- Caixa e Layout --- */
-    display: inline-block;              /* Mantém perto do título */
-    padding: 5px 12px;                  /* Padding um pouco maior */
-    margin: -5px auto 10px auto;        /* Ajusta margens (auto centraliza se o pai tiver text-align:center) */
-    min-height: 22px;                   /* Altura mínima ajustada */
-    border-radius: 5px;                 /* Consistente com outros elementos */
-
-    /* --- Fundo e Borda --- */
-    background-color: rgba(14, 21, 37, 0.6); /* Fundo escuro consistente, um pouco mais opaco */
-    border: 1px solid #303848;             /* Borda padrão do tema */
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.5); /* Sombra interna sutil */
-
-    /* --- Animação Temática --- */
-    animation: aquilaStatusGlow 2s infinite alternate ease-in-out; /* Nova animação */
-
-    /* --- Transição (Opcional, mas ajuda) --- */
-    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
-
-    /* Ocultação será feita via JS (style.display), não precisa de opacity aqui */
- }
-
-
-
- /* Nova animação de brilho na borda */
- @keyframes aquilaStatusGlow {
-    from {
-        border-color: #3A4558; /* Começa com borda escura/média */
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.5), 0 0 3px rgba(184, 134, 11, 0.1); /* Sombra inicial */
-    }
-    to {
-        border-color: #B8860B; /* Brilha para a cor de destaque Aquila */
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.5), 0 0 8px rgba(212, 175, 55, 0.4); /* Brilho externo suave */
-    }
- }
+/* === FIM Media Queries === */
 
     `;
     document.head.appendChild(style);
