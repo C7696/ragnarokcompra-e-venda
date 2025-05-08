@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5.3
+// @version      0.0.5.4
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -5539,6 +5539,28 @@ const updateGameElements = () => {
 
 
 
+(function autoReloadIfIdle() {
+  let lastActivityTimestamp = Date.now();
+
+  // Atualiza o timestamp a cada interação com o DOM ou execução do heartbeat
+  const activityEvents = ['click', 'keydown', 'mousemove', 'scroll'];
+  activityEvents.forEach(event => {
+    window.addEventListener(event, () => {
+      lastActivityTimestamp = Date.now();
+    }, { passive: true });
+  });
+
+  // Checagem periódica para ver se a página está ociosa
+  setInterval(() => {
+    const now = Date.now();
+    const secondsSinceLastActivity = (now - lastActivityTimestamp) / 1000;
+
+    if (secondsSinceLastActivity > 30) {
+      console.warn("Página inativa por mais de 30s. Recarregando...");
+      location.reload();
+    }
+  }, 5000); // checa a cada 5s
+})();
 
 
 
