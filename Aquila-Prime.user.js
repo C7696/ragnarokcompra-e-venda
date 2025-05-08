@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5.1
+// @version      0.0.5.2
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -35,7 +35,7 @@
 // @connect      googleapis.com
 // @connect      gstatic.com
 // @connect      cdn.jsdelivr.net
-// @icon         https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico
+// @icon         https://cdn.jsdelivr.net/gh/C7696/ragnarokcompra-e-venda@main/erasebg-transformed.ico
 // @require      https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js
 // @require      https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js
 // @require      https://unpkg.com/i18next@23.15.1/dist/umd/i18next.min.js
@@ -2003,7 +2003,7 @@ const initializeUI = () => {
                  <div class="modal-content settings-content aquila-panel">
                     <div class="settings-header aquila-header">
                        <span class="aquila-icon">
-                          <img src="https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;">
+                          <img src="https://cdn.jsdelivr.net/gh/C7696/ragnarokcompra-e-venda@main/erasebg-transformed.ico" alt="Aquila Icon" style="height: 24px; width: 24px; display: block;">
                        </span>
                        <h3 data-i18n-key="settings">Configurações Aquila</h3>
                        <button id="closeSettingsModal" class="close-btn aquila-close-btn">×</button>
@@ -5730,7 +5730,7 @@ const applyStyles = () => {
 .notification.error { background-color: rgba(123, 28, 28, 0.85); border-color: rgba(176, 44, 44, 1); }
 .notification.warning { background-color: rgba(184, 134, 11, 0.85); border-color: rgba(212, 175, 55, 1); color: #0A0F1A; }
 .notification.show, .notification[style*="display: block"] { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-.minimized-box { position: fixed; right: 15px; top: 4px; width: 34px; height: 34px; background-color: #0a0d14; border: 1px solid #4d3f1a; border-top: 2px solid #b8860b; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 0 6px rgba(184, 134, 11, 0.1); display: flex; align-items: center; justify-content: center; border-radius: 5px; cursor: pointer; z-index: 2147483647; transition: all 0.25s ease; background-image: url('https://raw.githubusercontent.com/C7696/ragnarokcompra-e-venda/refs/heads/main/erasebg-transformed.ico'); background-size: 70% 70%; background-repeat: no-repeat; background-position: center center; }
+.minimized-box { position: fixed; right: 15px; top: 4px; width: 34px; height: 34px; background-color: #0a0d14; border: 1px solid #4d3f1a; border-top: 2px solid #b8860b; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 0 6px rgba(184, 134, 11, 0.1); display: flex; align-items: center; justify-content: center; border-radius: 5px; cursor: pointer; z-index: 2147483647; transition: all 0.25s ease; background-image: url('https://cdn.jsdelivr.net/gh/C7696/ragnarokcompra-e-venda@main/erasebg-transformed.ico'); background-size: 70% 70%; background-repeat: no-repeat; background-position: center center; }
 .minimized-box:hover { transform: scale(1.08) translateY(-1px); border-color: #d4af37; background-color: #111522; box-shadow: 0 6px 15px rgba(0, 0, 0, 0.7), 0 0 10px rgba(212, 175, 55, 0.25); }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
