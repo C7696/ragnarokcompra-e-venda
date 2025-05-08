@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5.4
+// @version      0.0.5.5
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -67,12 +67,13 @@
     appId: "1:896525993752:web:1f99c76f66e16669f3c06d",
     measurementId: "G-1B10ECJN01"
   };
-  const SCRIPT_NAME = "RAGNAROK_AUTH_SESSION";
+const SCRIPT_NAME = "RAGNAROK_AUTH_SESSION";
   const SESSION_HEARTBEAT_MINUTES = 3;
   const SESSION_VALIDITY_MINUTES = 7;
   const IP_API_URL = "http://ip-api.com/json/?fields=status,message,query,city,country";
   const GM_SESSION_KEY_PREFIX = `${SCRIPT_NAME}_session_`;
   const GM_EXPIRATION_KEY_PREFIX = `${SCRIPT_NAME}_expiration_`;
+  const GM_LAST_REG_DATE_KEY_PREFIX = `${SCRIPT_NAME}_last_reg_date_`; // <<< ADICIONE ESTA LINHA
   let isScriptActive = false;
   let firestoreListenerUnsubscribe = null;
   let sessionHeartbeatTimer = null;
@@ -91,7 +92,11 @@
     }
   }
 
-        // >>> INÍCIO: Função para Logar no Firebase (ADICIONAR ESTE BLOCO) <<<
+  // >>> INÍCIO: Função para Logar no Firebase (CORRIGIDA P/ STRICT MODE, SÓ ERROS) <<<
+
+  // Flag movida para fora da função para evitar arguments.callee
+  let isCurrentlyLogging_logToFirebase = false;
+
   /**
    * Envia um log ou erro formatado para a coleção 'script_logs' no Firestore.
    * @param {'INFO' | 'WARN' | 'ERROR'} level - O nível do log.
@@ -99,17 +104,24 @@
    * @param {Error | any} [errorOrDetails] - O objeto de erro (se aplicável) ou detalhes adicionais.
    */
   async function logToFirebase(level, message, errorOrDetails = null) {
-    // Evitar loop infinito se o próprio logging falhar
-    if (logToFirebase.isLogging) return; // <<< MODIFICADO AQUI
-    logToFirebase.isLogging = true;      // <<< MODIFICADO AQUI
+    // Se o nível não for ERROR, não fazemos nada no Firebase.
+    if (level !== 'ERROR') {
+      // A flag isCurrentlyLogging_logToFirebase só é relevante para logging de ERRO,
+      // então não precisamos resetá-la aqui.
+      return;
+    }
+
+    // Evitar loop infinito se o próprio logging de ERRO falhar
+    if (isCurrentlyLogging_logToFirebase) return; // Usa a flag externa
+    isCurrentlyLogging_logToFirebase = true; // Define a flag externa
 
     try {
+      // Se chegamos aqui, level É 'ERROR'. Tentaremos logar.
       const db = initializeFirebase();
       if (!db) {
-        // Se o DB não inicializar, loga no console original (se possível)
-        if(originalConsoleError) originalConsoleError('logToFirebase: Firestore não inicializado, não é possível logar.');
-        else console.error('logToFirebase: Firestore não inicializado, não é possível logar.');
-        logToFirebase.isLogging = false; // <<< MODIFICADO AQUI
+        if(originalConsoleError) originalConsoleError('logToFirebase (ERROR): Firestore não inicializado, não é possível logar o erro.');
+        else console.error('logToFirebase (ERROR): Firestore não inicializado, não é possível logar o erro.');
+        isCurrentlyLogging_logToFirebase = false; // Reseta a flag externa
         return;
       }
 
@@ -124,11 +136,11 @@
 
       // Monta o objeto de log
       const logData = {
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(), // Usa o timestamp do servidor
-        level: level, // INFO, WARN, ERROR
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        level: level, // Deverá ser 'ERROR'
         message: String(message),
         context: context,
-        details: {} // Objeto para detalhes extras
+        details: {}
       };
 
       // Se um erro foi passado, extrai informações relevantes
@@ -137,7 +149,6 @@
         logData.details.errorStack = errorOrDetails.stack || 'Sem stack trace';
         logData.details.errorName = errorOrDetails.name || 'Erro genérico';
       } else if (errorOrDetails !== null) {
-        // Se não for um erro, mas houver detalhes, tenta serializar
         try {
           logData.details.extraData = JSON.stringify(errorOrDetails);
         } catch (e) {
@@ -146,26 +157,18 @@
       }
 
       // Adiciona o documento à coleção 'script_logs'
-      // Usar '.add()' cria um ID de documento automático
       await db.collection('script_logs').add(logData);
 
-      // Sucesso (não logamos o sucesso para evitar ruído)
-
     } catch (logError) {
-      // Se a escrita no Firebase falhar, loga no console *original*
-       if (originalConsoleError) originalConsoleError('Falha CRÍTICA ao logar para o Firebase:', logError, 'Log original era:', level, message);
-       else console.error('Falha CRÍTICA ao logar para o Firebase:', logError, 'Log original era:', level, message);
+       if (originalConsoleError) originalConsoleError('Falha CRÍTICA ao logar ERRO para o Firebase:', logError, 'Log original era:', level, message);
+       else console.error('Falha CRÍTICA ao logar ERRO para o Firebase:', logError, 'Log original era:', level, message);
     } finally {
         // Garante que a flag seja resetada, mesmo se ocorrer um erro
-        logToFirebase.isLogging = false; // <<< MODIFICADO AQUI
+        isCurrentlyLogging_logToFirebase = false; // Reseta a flag externa
     }
   }
-  // Flag para evitar loop infinito (será definida na função em si)
-  logToFirebase.isLogging = false;
-  // >>> FIM: Função para Logar no Firebase <<<
-
-
-
+  // REMOVIDA a flag interna .isLogging
+  // >>> FIM: Função para Logar no Firebase (CORRIGIDA) <<<
 
 
 
@@ -352,6 +355,12 @@
       });
     });
   }
+
+
+
+
+
+
   async function checkLicenseAndRegisterSession(playerNickname) {
     if (!playerNickname) {
       return { authorized: false, reason: "Nickname inv\xE1lido fornecido." };
@@ -360,27 +369,66 @@
     if (!db) {
       return { authorized: false, reason: "Firestore n\xE3o inicializado." };
     }
+
+    const todayStr = new Date().toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    const lastRegistrationDateKey = GM_LAST_REG_DATE_KEY_PREFIX + playerNickname;
+    const lastRegisteredDateStored = GM_getValue(lastRegistrationDateKey);
+
+    const FirestoreTimestamp = firebase.firestore.Timestamp;
+    let expirationDate = null; // Para armazenar a data de expiração da licença
+
+    // Primeiro, sempre verificamos a validade da licença
+    try {
+      const playerDocRefForLicenseCheck = db.collection("jogadores_permitidos").doc(playerNickname);
+      const playerDocSnapForLicenseCheck = await playerDocRefForLicenseCheck.get();
+
+      if (!playerDocSnapForLicenseCheck.exists) {
+        throw new Error("Nickname n\xE3o encontrado na lista de permiss\xF5es.");
+      }
+      const playerDataForLicenseCheck = playerDocSnapForLicenseCheck.data();
+      if (!playerDataForLicenseCheck || !playerDataForLicenseCheck.data_expiracao || typeof playerDataForLicenseCheck.data_expiracao.toDate !== "function") {
+        throw new Error("Formato da data de expira\xE7\xE3o inv\xE1lido no banco de dados.");
+      }
+      expirationDate = playerDataForLicenseCheck.data_expiracao.toDate();
+      const currentDate = new Date();
+      if (currentDate >= expirationDate) {
+        throw new Error(`Licen\xE7a expirada em ${expirationDate.toLocaleString()}.`);
+      }
+      // Se chegou aqui, a licença está OK.
+    } catch (licenseError) {
+      // Se a verificação da licença falhar, retornamos o erro imediatamente.
+      return {
+        authorized: false,
+        reason: `Falha na verifica\xE7\xE3o da licen\xE7a: ${licenseError.message}` || "Erro desconhecido na verifica\xE7\xE3o da licen\xE7a.",
+        sessionId: null
+      };
+    }
+
+    // Agora, verificamos se já houve um registro de sessão bem-sucedido hoje
+    if (lastRegisteredDateStored === todayStr) {
+      // Já registrou uma sessão hoje e a licença está OK (verificado acima).
+      // Não criamos uma nova entrada em 'sessoes_ativas'.
+      // Retornamos 'authorized: true' mas com sessionId: null para indicar que não uma *nova* sessão foi criada no Firestore.
+      // A função 'verificarLicenca' usará o sessionId já armazenado no GM_SESSION_KEY_PREFIX para o heartbeat.
+      return {
+        authorized: true,
+        reason: "Licen\xE7a OK. Sess\xE3o di\xE1ria j\xE1 registrada anteriormente.",
+        sessionId: null, // Importante: indica que NENHUMA NOVA SESSÃO Firestore foi criada.
+        expirationDate // Retornamos a data de expiração da licença que já foi verificada
+      };
+    }
+
+    // Se não registrou hoje OU se a chave 'lastRegisteredDateStored' foi limpa (ex: por falha de heartbeat)
+    // E a licença está OK (verificado no início da função), então tentamos registrar uma nova sessão.
     const newSessionId = generateSessionId();
     const playerDocRef = db.collection("jogadores_permitidos").doc(playerNickname);
     const sessionsColRef = playerDocRef.collection("sessoes_ativas");
-    let finalResult = { authorized: false, reason: "Falha desconhecida na verifica\xE7\xE3o.", sessionId: null };
-    const FirestoreTimestamp = firebase.firestore.Timestamp;
+    let finalResult = { authorized: false, reason: "Falha desconhecida no registro da sess\xE3o.", sessionId: null, expirationDate };
+
     try {
-      let expirationDate = null;
       await db.runTransaction(async (transaction) => {
-        const playerDocSnap = await transaction.get(playerDocRef);
-        if (!playerDocSnap.exists) {
-          throw new Error("Nickname n\xE3o encontrado na lista de permiss\xF5es.");
-        }
-        const playerData = playerDocSnap.data();
-        if (!playerData || !playerData.data_expiracao || typeof playerData.data_expiracao.toDate !== "function") {
-          throw new Error("Formato da data de expira\xE7\xE3o inv\xE1lido no banco de dados.");
-        }
-        expirationDate = playerData.data_expiracao.toDate();
-        const currentDate = /* @__PURE__ */ new Date();
-        if (currentDate >= expirationDate) {
-          throw new Error(`Licen\xE7a expirada em ${expirationDate.toLocaleString()}.`);
-        }
+        // A verificação da licença (playerDocSnap.exists e data_expiracao) já foi feita no início.
+        // Aqui apenas criamos a nova sessão.
         const newSessionRef = sessionsColRef.doc(newSessionId);
         const nowTimestamp = FirestoreTimestamp.now();
         const sessionData = {
@@ -389,6 +437,10 @@
         };
         transaction.set(newSessionRef, sessionData);
       });
+
+      // Se a transação foi bem-sucedida, registramos a data.
+      GM_setValue(lastRegistrationDateKey, todayStr);
+
       try {
         const geoInfo = await fetchGeoInfo();
         const sessionRef = sessionsColRef.doc(newSessionId);
@@ -399,22 +451,32 @@
           info_navegador: navigator.userAgent || "N/A"
         });
       } catch (updateError) {
+        logger.warn(`${SCRIPT_NAME}: Falha ao atualizar info GEO/Navegador da sessão ${newSessionId} (Não crítico):`, updateError);
       }
+
       finalResult = {
         authorized: true,
-        reason: "Licen\xE7a OK, Sess\xE3o Registrada.",
+        reason: "Licen\xE7a OK, Nova Sess\xE3o Registrada.",
         sessionId: newSessionId,
-        expirationDate
+        expirationDate // expirationDate já foi obtido
       };
     } catch (error) {
+      // Este catch é para erros na transação de criação da sessão.
       finalResult = {
         authorized: false,
-        reason: `Falha na verifica\xE7\xE3o: ${error.message}` || "Erro desconhecido na verifica\xE7\xE3o.",
-        sessionId: null
+        reason: `Falha no registro da sess\xE3o: ${error.message}` || "Erro desconhecido no registro da sess\xE3o.",
+        sessionId: null,
+        expirationDate // Mantém a data de expiração se já foi obtida
       };
     }
     return finalResult;
   }
+
+
+
+
+
+
   async function sendHeartbeat(playerNickname, sessionId) {
     if (!playerNickname || !sessionId) return false;
     const db = initializeFirebase();
@@ -541,23 +603,46 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
       },
       (error) => desativarScript(`Erro de conex\xE3o no monitoramento (${error.code}).`)
     );
-    sessionHeartbeatTimer = setInterval(async () => {
+
+
+
+
+
+
+
+       sessionHeartbeatTimer = setInterval(async () => {
       try {
         const success = await sendHeartbeat(playerNickname, sessionId);
         if (!success && isScriptActive) {
+          // Se o heartbeat falhou (ex: sessão não encontrada no Firestore)
+          // Limpamos a data do último registro para permitir que checkLicenseAndRegisterSession crie uma nova.
+          const lastRegistrationDateKey = GM_LAST_REG_DATE_KEY_PREFIX + playerNickname;
+          GM_deleteValue(lastRegistrationDateKey); // <<< ADICIONE ESTA LINHA
+          logger.warn(`${SCRIPT_NAME}: Heartbeat falhou para sessão ${sessionId}. Chave ${lastRegistrationDateKey} limpa para permitir novo registro.`);
+
           const checkResult = await checkLicenseAndRegisterSession(playerNickname);
           if (checkResult.authorized && checkResult.sessionId) {
-            currentSessionId = checkResult.sessionId;
+            currentSessionId = checkResult.sessionId; // Atualiza o currentSessionId com o novo
+            sessionId = currentSessionId; // Atualiza o sessionId local do loop também
+            // Atualiza o GM_SESSION_KEY_PREFIX com o novo sessionId
+            const newStorageKey = GM_SESSION_KEY_PREFIX + playerNickname;
+            GM_setValue(newStorageKey, { sessionId: currentSessionId, timestamp: Date.now(), expirationDate: checkResult.expirationDate.toISOString() });
+            logger.log(`${SCRIPT_NAME}: Nova sessão ${currentSessionId} registrada e armazenada após falha de heartbeat.`);
           } else {
-            desativarScript(checkResult.reason || "Falha ao recriar sess\xE3o.");
+            desativarScript(checkResult.reason || "Falha ao recriar sess\xE3o ap\xF3s heartbeat.");
           }
         }
       } catch (error) {
         desativarScript(`Erro de comunica\xE7\xE3o com o servidor (${error.code || "desconhecido"}).`);
       }
     }, SESSION_HEARTBEAT_MINUTES * 60 * 1e3);
-    window.addEventListener("beforeunload", () => cleanupSessionOnUnload(playerNickname, sessionId));
-  }
+
+
+
+
+
+
+
   function getStoredExpiration(nickname) {
     const key = GM_EXPIRATION_KEY_PREFIX + nickname;
     const storedExpiration = GM_getValue(key);
@@ -573,40 +658,102 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
     const key = GM_EXPIRATION_KEY_PREFIX + nickname;
     GM_setValue(key, expirationDate.toISOString());
   }
+
+
+
+
+
+
   async function verificarLicenca() {
     currentPlayerNickname = getPlayerNickname();
     if (!currentPlayerNickname) {
       desativarScript("N\xE3o foi poss\xEDvel identificar o Nickname.");
       return false;
     }
+
     const storedExpiration = getStoredExpiration(currentPlayerNickname);
-    const currentDate = /* @__PURE__ */ new Date();
+    const currentDate = new Date();
+
+    // Tenta usar a sessão já armazenada se a licença ainda parecer válida localmente
     if (storedExpiration && currentDate < storedExpiration) {
-      currentSessionId = GM_getValue(GM_SESSION_KEY_PREFIX + currentPlayerNickname)?.sessionId || generateSessionId();
-      return true;
+      const storedSessionData = GM_getValue(GM_SESSION_KEY_PREFIX + currentPlayerNickname);
+      if (storedSessionData && storedSessionData.sessionId) {
+        currentSessionId = storedSessionData.sessionId;
+        // Poderíamos adicionar uma verificação rápida aqui se a sessão ainda existe no Firestore,
+        // mas o heartbeat já fará isso. Por enquanto, confiamos na sessão armazenada.
+        logger.log(`${SCRIPT_NAME}: Usando sessão armazenada localmente: ${currentSessionId} (Licença local válida).`);
+        return true;
+      }
     }
+
+    // Se não há sessão local válida ou a licença local expirou, verifica com o servidor.
     const checkResult = await checkLicenseAndRegisterSession(currentPlayerNickname);
-    if (checkResult.authorized && checkResult.sessionId && checkResult.expirationDate) {
-      storeExpiration(currentPlayerNickname, checkResult.expirationDate);
-      currentSessionId = checkResult.sessionId;
+
+    if (checkResult.authorized) {
+      // Licença está OK.
+      if (checkResult.expirationDate) { // Garante que temos a data de expiração
+        storeExpiration(currentPlayerNickname, checkResult.expirationDate);
+      }
+
+      if (checkResult.sessionId) {
+        // Um NOVO sessionId foi criado no Firestore.
+        currentSessionId = checkResult.sessionId;
+        logger.log(`${SCRIPT_NAME}: Nova sessão Firestore ${currentSessionId} registrada.`);
+      } else {
+        // NENHUM novo sessionId foi criado no Firestore (já havia um para hoje).
+        // Tentamos obter o sessionId da sessão ativa armazenada localmente.
+        const existingSessionData = GM_getValue(GM_SESSION_KEY_PREFIX + currentPlayerNickname);
+        if (existingSessionData && existingSessionData.sessionId) {
+          currentSessionId = existingSessionData.sessionId;
+          logger.log(`${SCRIPT_NAME}: Usando sessionId existente ${currentSessionId} (registro diário já feito).`);
+        } else {
+          // Se não houver nenhum sessionId armazenado (raro, mas possível), geramos um localmente.
+          // O heartbeat tentará usá-lo; se falhar (porque não existe no Firestore),
+          // a lógica de falha do heartbeat limpará GM_LAST_REG_DATE e registrará um novo.
+          currentSessionId = generateSessionId();
+          logger.warn(`${SCRIPT_NAME}: Nenhum sessionId Firestore novo nem local encontrado. Gerado localmente: ${currentSessionId}.`);
+        }
+      }
+
+      // Atualiza/salva o GM_SESSION_KEY_PREFIX com o currentSessionId (seja novo, existente ou gerado)
+      // e a data de expiração da licença.
       const storageKey = GM_SESSION_KEY_PREFIX + currentPlayerNickname;
-      GM_setValue(storageKey, { sessionId: currentSessionId, timestamp: Date.now(), expirationDate: checkResult.expirationDate.toISOString() });
+      GM_setValue(storageKey, {
+        sessionId: currentSessionId,
+        timestamp: Date.now(),
+        expirationDate: checkResult.expirationDate ? checkResult.expirationDate.toISOString() : getStoredExpiration(currentPlayerNickname)?.toISOString()
+      });
       return true;
     } else {
+      // Se checkResult.authorized for false
+           // Se checkResult.authorized for false
       desativarScript(checkResult.reason || "Falha na verifica\xE7\xE3o da licen\xE7a.");
       return false;
     }
-  }
+  } // <<< FINAL CORRETO DA FUNÇÃO verificarLicenca
+
+  // <<< A CHAVE EXTRA FOI REMOVIDA DAQUI >>>
+
   if (typeof firebase === "undefined" || typeof firebase.firestore === "undefined") {
-    alert(`${SCRIPT_NAME}: Erro cr\xEDtico - Componentes de verifica\xE7\xE3o n\xE3o encontrados.`);
-    return;
+    // alert(`${SCRIPT_NAME}: Erro cr\xEDtico - Componentes de verifica\xE7\xE3o n\xE3o encontrados.`); // Troca alert por desativarScript
+    desativarScript("Firebase não encontrado. Script não pode continuar."); // Mais informativo
+    return; // Para a execução aqui
   }
-  const licencaValida = await verificarLicenca();
+
+  // Verifica a licença ANTES de continuar
+  const licencaValida = await verificarLicenca(); // <<< ESTA LINHA AGORA DEVE FUNCIONAR
   if (!licencaValida) {
-    return;
+    // A função verificarLicenca já chama desativarScript se a licença for inválida.
+    logger.error(`${SCRIPT_NAME}: Verificação de licença falhou. Script interrompido.`);
+    return; // Interrompe a execução do script
   }
+
+  // Se a licença for válida, marca o script como ativo e inicia o monitoramento/heartbeat
   isScriptActive = true;
   iniciarMonitoramentoRealtimeEHeartbeat(currentPlayerNickname, currentSessionId);
+  logger.log(`${SCRIPT_NAME}: Licença VÁLIDA. Script ativo. Iniciando monitoramento e heartbeat para ${currentPlayerNickname} / ${currentSessionId}`);
+
+  // --- Continuação da inicialização do script ---
   let isSellCooldownActive = false;
   const SELL_COOLDOWN_MS = 6e3;
   const VOLATILITY_WINDOW = 5;
@@ -643,9 +790,7 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
         this.cacheKeys.push(url);
       }
     }
-  };
-
-
+  }; // <<< FIM DO BLOCO A SER SUBSTITUÍDO
 
 
 // Função fetchMarketData ATUALIZADA para garantir o servidor correto
@@ -5900,4 +6045,4 @@ const applyStyles = () => {
     `;
     document.head.appendChild(style);
 }; // --- Fim da função applyStyles (v1.3 - Refine Input Width & Hide Spinners) ---
-})();
+}})();
