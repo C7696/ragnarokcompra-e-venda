@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5.2
+// @version      0.0.5.3
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -2888,7 +2888,15 @@ const processBuyBasedOnResources = async () => {
     if (!state.buyModeActive) { resetProcessingFlagIfNeeded(); return; }
     if (isProcessingBuy) { /* logger.log(`${logPrefix} - Compra JÁ em processamento. Saindo.`); */ return; } // Silenciado
     if (state.buyPausedUntil && state.buyPausedUntil > now) { return; }
-    if (isProcessingSell) { logger.log(`${logPrefix} - VENDA em andamento. Aguardando.`); return; }
+       // Adiciona um pequeno delay antes de checar a flag da venda para reduzir chance de conflito rápido
+    await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100)); // Atraso ~50-150ms
+
+    if (isProcessingSell) {
+        // Mesmo após o delay, se a venda AINDA estiver processando, aí sim espera.
+        logger.log(`${logPrefix} - VENDA ainda em andamento após delay. Aguardando.`);
+        resetProcessingFlagIfNeeded(); // <<< ADICIONADO: Reseta a flag de COMPRA se for esperar
+        return;
+    }
 
     logger.log(`${logPrefix} - Verificações Iniciais OK.`);
     isProcessingBuy = true; // Marca como processando
