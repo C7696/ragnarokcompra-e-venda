@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5
+// @version      0.0.5.1
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -4145,8 +4145,10 @@ function calculateProfit(resource, amountSold) {
 
 
 
+// === updateSell (v1.1 - Ajuste unitSize para Worker) ===
 async function updateSell() {
-    console.log("[updateSell] Iniciando função updateSell"); // Log de entrada
+    const logPrefix = "[updateSell v1.1]"; // Log de entrada atualizado
+    //logger.log(`${logPrefix} Iniciando função...`);
 
     // --- COOLDOWN PERSISTENTE CHECK ---
     const COOLDOWN_DURATION = 6000;
@@ -4155,101 +4157,108 @@ async function updateSell() {
     const nowForCooldown = Date.now();
     const timeSinceLastTx = lastTxTime && !isNaN(lastTxTime) ? nowForCooldown - lastTxTime : Infinity;
 
-    console.log(`[Cooldown] Última transação: ${lastTxTime}, Tempo decorrido: ${timeSinceLastTx}ms`);
+    //logger.log(`${logPrefix} [Cooldown] Última transação: ${lastTxTime}, Tempo decorrido: ${timeSinceLastTx}ms`);
 
     if (timeSinceLastTx < COOLDOWN_DURATION) {
         const secondsRemaining = Math.ceil((COOLDOWN_DURATION - timeSinceLastTx) / 1000);
-        console.log(`[Cooldown] Cooldown ativo. Aguardando ${secondsRemaining}s.`);
+        //logger.log(`${logPrefix} [Cooldown] Cooldown ativo. Aguardando ${secondsRemaining}s.`);
         return;
     }
     // --- FIM COOLDOWN PERSISTENTE CHECK ---
 
     const initialDelay = Math.random() * 200 + 50;
-    console.log(`[Delay] Aguardando ${initialDelay}ms antes de continuar`);
+    //logger.log(`${logPrefix} [Delay] Aguardando ${initialDelay}ms antes de continuar`);
     await new Promise(resolve => setTimeout(resolve, initialDelay));
 
     // Verifica hCaptcha
     if (checkAndHandleHCaptcha()) {
-        console.log("[hCaptcha] Detectado - Abortando venda");
-        isProcessingSell = false;
+        logger.log(`${logPrefix} [hCaptcha] Detectado - Abortando venda`);
+        if(isProcessingSell) isProcessingSell = false; // Garante reset da flag
         return;
     }
 
     // --- VERIFICAÇÕES INICIAIS ---
-    console.log("[Verificações] Estado atual:",
-        `SellModeActive: ${state.sellModeActive}`,
-        `isProcessingSell: ${isProcessingSell}`,
-        `sellPausedUntil: ${state.sellPausedUntil}`
-    );
+    //logger.log(`${logPrefix} [Verificações] Estado atual: SellModeActive: ${state.sellModeActive}, isProcessingSell: ${isProcessingSell}, sellPausedUntil: ${state.sellPausedUntil}`);
 
     if (!state.sellModeActive) {
-        console.log("[Verificações] Modo venda desativado - Abortando");
+        //logger.log(`${logPrefix} [Verificações] Modo venda desativado - Abortando`);
         return;
     }
     if (isProcessingSell) {
-        console.log("[Verificações] Venda já em processamento - Abortando");
+        //logger.log(`${logPrefix} [Verificações] Venda já em processamento - Abortando`);
         return;
     }
     if (state.sellPausedUntil && state.sellPausedUntil > Date.now()) {
-        console.log("[Verificações] Modo venda pausado - Abortando");
+        //logger.log(`${logPrefix} [Verificações] Modo venda pausado - Abortando`);
         return;
     }
     // --- FIM VERIFICAÇÕES INICIAIS ---
 
     // --- INÍCIO DA LÓGICA DE VENDA ---
-    console.log("[Venda] Iniciando lógica principal");
+    //logger.log(`${logPrefix} [Venda] Iniciando lógica principal`);
     const merchantsAvailableInitial = getMerchantsAvailable();
-    console.log(`[Mercadores] Disponíveis inicialmente: ${merchantsAvailableInitial}`);
+    //logger.log(`${logPrefix} [Mercadores] Disponíveis inicialmente: ${merchantsAvailableInitial}`);
 
     if (enforceMerchantLimit && merchantsAvailableInitial <= 0) {
-        console.log("[Mercadores] Sem mercadores disponíveis - Abortando");
+        //logger.log(`${logPrefix} [Mercadores] Sem mercadores disponíveis - Abortando`);
         return;
     }
 
     isProcessingSell = true;
-    console.log("[Estado] isProcessingSell marcado como true");
+    //logger.log(`${logPrefix} [Estado] isProcessingSell marcado como true`);
 
     // --- Preparação de Dados para o Web Worker ---
-    console.log("[Worker] Preparando dados para o Worker");
+    //logger.log(`${logPrefix} [Worker] Preparando dados para o Worker`);
     const resourcesDataForWorker = Object.values(resources)
       .map((resource) => {
           if (!resource || !resource.name) {
-              console.warn("[Worker] Recurso inválido encontrado");
+              logger.warn(`${logPrefix} [Worker] Recurso inválido encontrado`);
               return null;
           }
 
           const currentTotal = resource.getTotal();
           const currentReserve = resource.getReserved();
           const currentMarketCapacity = getMarketCapacity(resource);
-          const currentExchangeRate = getExchangeRate(resource);
-          const currentMarketRate = getMarketRate(resource);
-          const currentMinRate = resource.getReserveRate();
-          const currentSellLimit = getSellLimit(resource);
+          const currentExchangeRate = getExchangeRate(resource); // Taxa Recursos / PP
+          const currentMarketRate = resource.getMarketValue(); // Taxa Recursos / PP (deve ser a mesma que exchange rate)
+          const currentMinRate = resource.getReserveRate(); // Limite Máximo do Usuário (Recursos / PP)
+          const currentSellLimit = getSellLimit(resource); // Limite por Transação
 
-          console.log(`[Dados][${resource.name}]`, {
-              Total: currentTotal,
-              Reserva: currentReserve,
-              CapacidadeMercado: currentMarketCapacity,
-              TaxaCambio: currentExchangeRate,
-              TaxaMercado: currentMarketRate,
-              TaxaMinima: currentMinRate,
-              LimiteVenda: currentSellLimit
-          });
+          // Adiciona logs para verificar os valores antes de enviar
+           // logger.log(`${logPrefix} [Dados][${resource.name}] Total: ${currentTotal}, Reserva: ${currentReserve}, CapMercado: ${currentMarketCapacity}, TaxaCambio: ${currentExchangeRate}, TaxaMercado(getMarketValue): ${currentMarketRate}, LimiteUser: ${currentMinRate}, LimiteVendaTX: ${currentSellLimit}`);
+
+          // Validação básica antes de enviar
+          if (currentExchangeRate <= 0) {
+              logger.warn(`${logPrefix} [Dados][${resource.name}] Taxa de Câmbio inválida (${currentExchangeRate}). Pulando recurso.`);
+              return null;
+          }
+           if (currentMarketRate <= 0) {
+               logger.warn(`${logPrefix} [Dados][${resource.name}] Taxa de Mercado (getMarketValue) inválida (${currentMarketRate}). Pulando recurso.`);
+               return null;
+           }
+
 
           return {
                 name: resource.name,
-                marketRate: currentMarketRate,
-                minRate: currentMinRate,
+                marketRate: currentMarketRate,       // Taxa atual Recursos / PP
+                minRate: currentMinRate,             // Limite Máximo do Usuário (Recursos / PP) - Renomeado para clareza
+                maxRate: Infinity,                   // Mantém o campo 'maxRate' (teto opcional) como era antes, mesmo que não usado ativamente agora
                 total: currentTotal,
                 reserve: currentReserve,
-                sellLimit: currentSellLimit,
-                marketCapacityRaw: currentMarketCapacity,
-                exchangeRate: currentExchangeRate
+                sellLimit: currentSellLimit,         // Limite por transação
+                marketCapacityRaw: currentMarketCapacity, // Capacidade do mercado
+                exchangeRate: currentExchangeRate    // Taxa Recursos / PP (para cálculo de múltiplos)
           };
       })
       .filter(data => data !== null);
 
-    console.log("[Worker] Dados preparados para envio:", resourcesDataForWorker);
+    //logger.log(`${logPrefix} [Worker] Dados preparados para envio:`, resourcesDataForWorker);
+
+    if (resourcesDataForWorker.length === 0) {
+        logger.log(`${logPrefix} [Worker] Nenhum recurso válido para processar após coleta de dados.`);
+        isProcessingSell = false;
+        return;
+    }
 
     const workerData = {
         action: "calculateSellAmount",
@@ -4260,53 +4269,60 @@ async function updateSell() {
                 marketTrends: mobx.toJS(state.marketTrends),
                 marketVolatility: mobx.toJS(state.marketVolatility)
             },
+            // ***** AJUSTE PRINCIPAL AQUI *****
             config: {
                 enforceMerchantLimit,
-                unitSize,
+                unitSize: 60, // <<< REDUZIDO DE 100 PARA 60 (ou outro valor < ~65)
                 FIXED_FEE,
                 minProfitThreshold
             }
+            // ********************************
         }
     };
 
-    console.log("[Worker] Enviando mensagem para Worker com dados:", workerData);
+    //logger.log(`${logPrefix} [Worker] Enviando mensagem para Worker com dados:`, workerData);
 
     try {
         worker.postMessage(workerData);
-        console.log("[Worker] Mensagem enviada com sucesso");
+        //logger.log(`${logPrefix} [Worker] Mensagem enviada com sucesso`);
     } catch (error) {
-        console.error("[Worker] Erro ao enviar mensagem:", error);
+        logger.error(`${logPrefix} [Worker] Erro ao enviar mensagem:`, error);
         isProcessingSell = false;
         return;
     }
 
     // --- Callback para Resposta do Worker ---
     worker.onmessage = async (e) => {
-        console.log("[Worker] Resposta recebida:", e.data);
+        //logger.log(`${logPrefix} [Worker] Resposta recebida:`, e.data);
+
+        // Resetar a flag é importante aqui DENTRO do callback,
+        // porque a lógica assíncrona pode terminar a qualquer momento.
+        const resetSellFlag = () => {
+             if (isProcessingSell) {
+                 //logger.log(`${logPrefix} [Worker Callback Reset] Resetando isProcessingSell=false.`);
+                 isProcessingSell = false;
+             }
+        };
 
         if (checkAndHandleHCaptcha()) {
-            console.log("[Worker][hCaptcha] Detectado na resposta - Abortando");
-            isProcessingSell = false;
+            logger.log(`${logPrefix} [Worker][hCaptcha] Detectado na resposta - Abortando`);
+            resetSellFlag();
             return;
         }
 
         if (e.data.action === "sellAmountCalculated") {
             const result = e.data.result;
-            console.log("[Worker][Resultado] Processando resposta:", result);
+            //logger.log(`${logPrefix} [Worker][Resultado] Processando resposta:`, result);
 
             if (result.amountToSell > 0 && result.resourceName && resources[result.resourceName]) {
-                console.log(`[Worker][Ação] Venda recomendada: ${result.amountToSell} ${result.resourceName}`);
+                //logger.log(`${logPrefix} [Worker][Ação] Venda recomendada: ${result.amountToSell} ${result.resourceName}`);
 
                 // Verificação de estado antes da execução
-                console.log("[Verificação Final] Verificando estado atual:",
-                    `isProcessingBuy: ${isProcessingBuy}`,
-                    `Recursos disponíveis: ${resources[result.resourceName].getTotal() - resources[result.resourceName].getReserved()}`,
-                    `Mercadores disponíveis: ${getMerchantsAvailable()}`
-                );
+                //logger.log(`${logPrefix} [Verificação Final] Verificando estado atual: isProcessingBuy: ${isProcessingBuy}`);
 
                 if (isProcessingBuy) {
-                    console.log("[Conflito] Operação de compra detectada - Abortando venda");
-                    isProcessingSell = false;
+                    logger.log(`${logPrefix} [Conflito] Operação de compra detectada - Abortando venda`);
+                    resetSellFlag();
                     return;
                 }
 
@@ -4317,43 +4333,46 @@ async function updateSell() {
                 const currentMerchants = getMerchantsAvailable();
                 const requiredMerchants = Math.ceil(result.amountToSell / 1000);
 
-                console.log("[Validação Final] Dados atuais:", {
-                    amountToSell: result.amountToSell,
-                    currentAvailable,
-                    currentMerchants,
-                    requiredMerchants
-                });
+                 //logger.log(`${logPrefix} [Validação Final] Dados atuais: amountToSell: ${result.amountToSell}, currentAvailable: ${currentAvailable}, currentMerchants: ${currentMerchants}, requiredMerchants: ${requiredMerchants}`);
 
                 if (result.amountToSell <= currentAvailable && (!enforceMerchantLimit || currentMerchants >= requiredMerchants)) {
-                    console.log("[Validação Final] Pré-condições satisfeitas - Executando transação");
+                     //logger.log(`${logPrefix} [Validação Final] Pré-condições satisfeitas - Executando transação`);
 
                     try {
                         await executeTransaction("sell", resource, result.amountToSell);
-                        console.log("[Transação] Venda executada com sucesso");
-                        notifyUser(`${i18n.t("profit")}: <span class="icon header premium"></span> ${result.profit}`, "success");
+                        //logger.log(`${logPrefix} [Transação] Venda iniciada (executeTransaction chamado).`);
+                        // Não resetamos a flag aqui, executeTransaction fará isso.
+                         notifyUser(`${i18n.t("profit")}: <span class="icon header premium"></span> ${result.profit}`, "success");
+                         // O return implícito aqui encerra o processamento desta mensagem do worker.
                     } catch (txError) {
-                        console.error("[Transação] Erro na execução:", txError);
+                        logger.error(`${logPrefix} [Transação] Erro na execução de executeTransaction:`, txError);
+                         resetSellFlag(); // Resetar a flag se a execução falhar
                     }
                 } else {
-                    console.warn("[Validação Final] Pré-condições falharam - Cancelando transação");
+                    logger.warn(`${logPrefix} [Validação Final] Pré-condições falharam (Recursos: ${result.amountToSell} <= ${currentAvailable}, Mercadores: ${currentMerchants} >= ${requiredMerchants}) - Cancelando transação`);
+                    resetSellFlag(); // Resetar a flag se a validação final falhar
                 }
             } else {
-                console.log("[Worker][Resultado] Nenhuma ação de venda recomendada");
+                //logger.log(`${logPrefix} [Worker][Resultado] Nenhuma ação de venda recomendada pelo worker.`);
+                resetSellFlag(); // Resetar a flag se não houver recomendação
             }
-            isProcessingSell = false;
         } else if (e.data.error) {
-            console.error("[Worker][Erro]", e.data.error);
-            isProcessingSell = false;
+            logger.error(`${logPrefix} [Worker][Erro Mensagem]`, e.data.error);
+             resetSellFlag(); // Resetar em caso de erro na mensagem
+        } else {
+             logger.warn(`${logPrefix} [Worker] Ação desconhecida na mensagem: ${e.data.action}`);
+             resetSellFlag(); // Resetar para ações desconhecidas
         }
     };
 
     worker.onerror = (error) => {
-        console.error("[Worker][Erro Geral]", error);
-        isProcessingSell = false;
+        logger.error(`${logPrefix} [Worker][Erro Geral]`, error);
+        if (isProcessingSell) { // Garante reset mesmo em erro geral
+             isProcessingSell = false;
+        }
     };
 }
-
-
+// === FIM updateSell ===
 
 
 
