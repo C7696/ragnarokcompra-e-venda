@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5.5
+// @version      0.0.5.6
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -578,7 +578,12 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
     } catch (e) {
     }
   }
-  async function iniciarMonitoramentoRealtimeEHeartbeat(playerNickname, sessionId) {
+
+
+
+
+
+    async function iniciarMonitoramentoRealtimeEHeartbeat(playerNickname, sessionId) {
     if (!playerNickname || !sessionId) {
       desativarScript("Erro interno: Falta de dados para iniciar monitoramento.");
       return;
@@ -604,20 +609,14 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
       (error) => desativarScript(`Erro de conex\xE3o no monitoramento (${error.code}).`)
     );
 
-
-
-
-
-
-
-       sessionHeartbeatTimer = setInterval(async () => {
+    sessionHeartbeatTimer = setInterval(async () => {
       try {
         const success = await sendHeartbeat(playerNickname, sessionId);
         if (!success && isScriptActive) {
           // Se o heartbeat falhou (ex: sessão não encontrada no Firestore)
           // Limpamos a data do último registro para permitir que checkLicenseAndRegisterSession crie uma nova.
           const lastRegistrationDateKey = GM_LAST_REG_DATE_KEY_PREFIX + playerNickname;
-          GM_deleteValue(lastRegistrationDateKey); // <<< ADICIONE ESTA LINHA
+          GM_deleteValue(lastRegistrationDateKey);
           logger.warn(`${SCRIPT_NAME}: Heartbeat falhou para sessão ${sessionId}. Chave ${lastRegistrationDateKey} limpa para permitir novo registro.`);
 
           const checkResult = await checkLicenseAndRegisterSession(playerNickname);
@@ -636,9 +635,7 @@ Recarregue a p\xE1gina se o problema for resolvido.`);
         desativarScript(`Erro de comunica\xE7\xE3o com o servidor (${error.code || "desconhecido"}).`);
       }
     }, SESSION_HEARTBEAT_MINUTES * 60 * 1e3);
-
-
-
+  } // <<< ESTA É A CHAVE QUE ESTAVA FALTANDO
 
 
 
@@ -6045,4 +6042,4 @@ const applyStyles = () => {
     `;
     document.head.appendChild(style);
 }; // --- Fim da função applyStyles (v1.3 - Refine Input Width & Hide Spinners) ---
-}})();
+}());
