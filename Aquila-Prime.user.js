@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Aquila prime
 // @namespace    http://tampermonkey.net/
-// @version      0.0.5.6
+// @version      0.0.5.7
 // @description  [PT/RU/EN]
 // @match        https://*.tribalwars.com.br/game.php?village=*&screen=market&mode=exchange
 // @match        https://*.tribalwars.us/game.php?village=*&screen=market&mode=exchange
@@ -68,8 +68,8 @@
     measurementId: "G-1B10ECJN01"
   };
 const SCRIPT_NAME = "RAGNAROK_AUTH_SESSION";
-  const SESSION_HEARTBEAT_MINUTES = 3;
-  const SESSION_VALIDITY_MINUTES = 7;
+  const SESSION_HEARTBEAT_MINUTES = 30;
+  const SESSION_VALIDITY_MINUTES = 40;
   const IP_API_URL = "http://ip-api.com/json/?fields=status,message,query,city,country";
   const GM_SESSION_KEY_PREFIX = `${SCRIPT_NAME}_session_`;
   const GM_EXPIRATION_KEY_PREFIX = `${SCRIPT_NAME}_expiration_`;
@@ -3625,10 +3625,17 @@ function parseTransportData(html) {
     if (incomingContainer && !extractedFromSummaryTH) { // Só processa a tabela se NÃO pegamos dados do Sumário TH
         console.log(`${logPrefix} PROCESSANDO a tabela da LISTA encontrada...`);
         // Processa linhas individuais DENTRO da tabela encontrada (que NÃO é a de sumário TH)
-         const dataRows = incomingContainer.querySelectorAll("tr:has(td):not(:has(th))");
+         // const dataRows = incomingContainer.querySelectorAll("tr:has(td):not(:has(th))"); // << Linha original com :has()
+         const allRowsInContainer = incomingContainer.querySelectorAll("tr");
+         const dataRows = [];
+         allRowsInContainer.forEach(row => {
+             if (row.querySelector("td") && !row.querySelector("th")) {
+                 dataRows.push(row);
+             }
+         });
          let processedRowCount = 0;
-         console.log(`${logPrefix}      -> ${dataRows.length} linhas de dados candidatas na tabela da lista.`);
-         dataRows.forEach((row, index) => { /* ...código da iteração de linha da v6.1... */
+         console.log(`${logPrefix}      -> ${dataRows.length} linhas de dados candidatas na tabela da lista (após filtro manual).`); // Log atualizado
+         dataRows.forEach((row, index) => {
              const rowTextLower = row.textContent.toLowerCase();
              const isPlaceholderRow = ["próxima página", "anterior", "nenhum", "aldeia", "предыдущая страница", "следующая"].every(p => rowTextLower.includes(p));
              if (isPlaceholderRow) return;
@@ -3657,7 +3664,6 @@ function parseTransportData(html) {
     console.log(`${logPrefix} Parseamento v6.2 concluído. Retornando (Madeira/Argila/Ferro):`, { madeira: incoming.wood, argila: incoming.stone, ferro: incoming.iron });
     return { madeira: incoming.wood, argila: incoming.stone, ferro: incoming.iron }; // Nomes em Português
 }
-
 
 
 
