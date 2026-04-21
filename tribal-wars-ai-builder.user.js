@@ -40,8 +40,8 @@
 // @grant        GM_notification
 // @grant        GM_addStyle
 // @run-at       document-end
-// @updateURL    https://raw.githubusercontent.com/yourusername/tribal-wars-scripts/main/tribal-wars-ai-builder.user.js
-// @downloadURL  https://raw.githubusercontent.com/yourusername/tribal-wars-scripts/main/tribal-wars-ai-builder.user.js
+// @updateURL    https://cdn.jsdelivr.net/gh/tribal-wars-scripts/tribal-wars-ai-builder@main/tribal-wars-ai-builder.user.js
+// @downloadURL  https://cdn.jsdelivr.net/gh/tribal-wars-scripts/tribal-wars-ai-builder@main/tribal-wars-ai-builder.user.js
 // ==/UserScript==
 
 (function() {
