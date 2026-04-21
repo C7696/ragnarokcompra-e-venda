@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Tribal Wars AI Build Optimizer
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  Otimização automática de construções com IA para Tribal Wars - Configure uma vez, execute sozinho
-// @author       AI Assistant
+// @version      2.0
+// @description  IA automática para otimização de construções no Tribal Wars - Minimalista e Eficiente
+// @author       Steve Jobs Style
 // @match        https://*.tribalwars.nl/*
 // @match        https://*.tribalwars.com.br/*
 // @match        https://*.tribalwars.us/*
@@ -11,11 +11,7 @@
 // @match        https://*.tribalwars.de/*
 // @match        https://*.tribalwars.fr/*
 // @match        https://*.tribalwars.co.uk/*
-// @grant        GM_setValue
-// @grant        GM_getValue
-// @grant        GM_notification
-// @grant        GM_xmlhttpRequest
-// @connect      *
+// @grant        none
 // @run-at       document-end
 // ==/UserScript==
 
@@ -23,445 +19,530 @@
     'use strict';
 
     // Configurações padrão
-    const defaultConfig = {
-        enabled: true,
-        strategy: 'balanced', // balanced, military, economic, defensive
-        autoBuild: true,
-        checkInterval: 10000, // 10 segundos
-        minResourcesPercent: 80, // Constrói quando tem 80% dos recursos
-        maxQueueTime: 300, // Máximo 5 minutos na fila
-        prioritizeUpgrades: true,
-        ignoreBuildings: [],
-        debugMode: false
-    };
-
-    // Dados dos edifícios (níveis máximos e benefícios)
-    const buildingData = {
-        main: { name: 'Sede', maxLevel: 25, priority: 10 },
-        barracks: { name: 'Quartel', maxLevel: 25, priority: 8 },
-        stable: { name: 'Estábulo', maxLevel: 25, priority: 7 },
-        workshop: { name: 'Oficina', maxLevel: 25, priority: 6 },
-        warehouse: { name: 'Armazém', maxLevel: 30, priority: 9 },
-        hide: { name: 'Esconderijo', maxLevel: 10, priority: 5 },
-        farm: { name: 'Fazenda', maxLevel: 30, priority: 9 },
-        market: { name: 'Mercado', maxLevel: 25, priority: 7 },
-        wood: { name: 'Serraria', maxLevel: 30, priority: 8 },
-        clay: { name: 'Olaria', maxLevel: 30, priority: 8 },
-        iron: { name: 'Mina de Ferro', maxLevel: 30, priority: 8 },
-        storage: { name: 'Celeiro', maxLevel: 30, priority: 9 },
-        wall: { name: 'Muralha', maxLevel: 20, priority: 6 },
-        smith: { name: 'Ferreiro', maxLevel: 25, priority: 7 },
-        place: { name: 'Praça', maxLevel: 20, priority: 4 },
-        statue: { name: 'Estátua', maxLevel: 1, priority: 1 },
-        rally_point: { name: 'Ponto de Encontro', maxLevel: 15, priority: 5 }
+    const DEFAULT_CONFIG = {
+        enabled: false,
+        strategy: 'balanced',
+        interval: 10,
+        debug: false
     };
 
     // Estratégias de construção
-    const strategies = {
+    const STRATEGIES = {
         balanced: {
+            name: 'Equilibrada',
             weights: {
-                main: 10, barracks: 7, stable: 6, workshop: 5,
-                warehouse: 9, hide: 4, farm: 9, market: 6,
-                wood: 8, clay: 8, iron: 8, storage: 9,
-                wall: 5, smith: 6, place: 3, statue: 1, rally_point: 4
+                wood: 1.0, clay: 1.0, iron: 1.0,
+                farm: 0.8, storage: 0.9, hide: 0.7,
+                wall: 0.6, barracks: 0.5, stable: 0.4,
+                workshop: 0.3, smith: 0.5, market: 0.4,
+                church: 0.2, statue: 0.1
             }
         },
         military: {
+            name: 'Militar',
             weights: {
-                main: 8, barracks: 10, stable: 9, workshop: 8,
-                warehouse: 7, hide: 6, farm: 8, market: 5,
-                wood: 7, clay: 7, iron: 7, storage: 7,
-                wall: 7, smith: 10, place: 4, statue: 1, rally_point: 8
+                wood: 0.8, clay: 0.8, iron: 1.0,
+                farm: 0.9, storage: 0.7, hide: 0.6,
+                wall: 0.7, barracks: 1.0, stable: 0.9,
+                workshop: 0.8, smith: 1.0, market: 0.3,
+                church: 0.1, statue: 0.1
             }
         },
         economic: {
+            name: 'Econômica',
             weights: {
-                main: 9, barracks: 5, stable: 4, workshop: 4,
-                warehouse: 10, hide: 5, farm: 10, market: 9,
-                wood: 10, clay: 10, iron: 10, storage: 10,
-                wall: 4, smith: 5, place: 6, statue: 1, rally_point: 3
+                wood: 1.0, clay: 1.0, iron: 1.0,
+                farm: 1.0, storage: 1.0, hide: 0.5,
+                wall: 0.4, barracks: 0.3, stable: 0.2,
+                workshop: 0.2, smith: 0.4, market: 0.8,
+                church: 0.3, statue: 0.2
             }
         },
         defensive: {
+            name: 'Defensiva',
             weights: {
-                main: 9, barracks: 8, stable: 6, workshop: 5,
-                warehouse: 8, hide: 10, farm: 8, market: 6,
-                wood: 7, clay: 7, iron: 7, storage: 8,
-                wall: 10, smith: 7, place: 5, statue: 1, rally_point: 6
+                wood: 0.9, clay: 0.9, iron: 0.8,
+                farm: 0.8, storage: 0.9, hide: 1.0,
+                wall: 1.0, barracks: 0.7, stable: 0.5,
+                workshop: 0.4, smith: 0.6, market: 0.3,
+                church: 0.2, statue: 0.1
             }
         }
     };
 
-    let config = GM_getValue('tw_ai_config') || defaultConfig;
-    let isRunning = false;
-    let lastCheck = 0;
+    // Custos base dos edifícios
+    const BUILDING_COSTS = {
+        wood: { wood: 60, clay: 70, iron: 50 },
+        clay: { wood: 70, clay: 80, iron: 50 },
+        iron: { wood: 80, clay: 90, iron: 60 },
+        farm: { wood: 100, clay: 120, iron: 80 },
+        storage: { wood: 130, clay: 150, iron: 100 },
+        hide: { wood: 140, clay: 160, iron: 110 },
+        wall: { wood: 150, clay: 170, iron: 120 },
+        barracks: { wood: 160, clay: 180, iron: 130 },
+        stable: { wood: 200, clay: 220, iron: 150 },
+        workshop: { wood: 250, clay: 270, iron: 180 },
+        smith: { wood: 180, clay: 200, iron: 140 },
+        market: { wood: 170, clay: 190, iron: 130 },
+        church: { wood: 300, clay: 320, iron: 220 },
+        statue: { wood: 400, clay: 420, iron: 300 }
+    };
 
-    // Função para salvar configuração
-    function saveConfig() {
-        GM_setValue('tw_ai_config', config);
-    }
+    // Nomes dos edifícios em NL (Holandês)
+    const BUILDING_NAMES_NL = {
+        wood: 'Houthakkersgebouw',
+        clay: 'Leemgroeve',
+        iron: 'Ijzermijn',
+        farm: 'Boerderij',
+        storage: 'Opslagplaats',
+        hide: 'Schuilplaats',
+        wall: 'Muur',
+        barracks: 'Kazerne',
+        stable: 'Stal',
+        workshop: 'Werkplaats',
+        smith: 'Smederij',
+        market: 'Markt',
+        church: 'Kerk',
+        statue: 'Standbeeld'
+    };
 
-    // Função para obter recursos atuais
-    function getResources() {
-        try {
-            const woodEl = document.querySelector('#resource_bar .wood');
-            const clayEl = document.querySelector('#resource_bar .stone');
-            const ironEl = document.querySelector('#resource_bar .iron');
-            
-            if (!woodEl || !clayEl || !ironEl) return null;
-
-            const parseResource = (text) => {
-                return parseInt(text.replace(/\./g, '').replace(/\s/g, ''));
-            };
-
-            return {
-                wood: parseResource(woodEl.textContent),
-                clay: parseResource(clayEl.textContent),
-                iron: parseResource(ironEl.textContent),
-                timestamp: Date.now()
-            };
-        } catch (e) {
-            if (config.debugMode) console.log('Erro ao obter recursos:', e);
-            return null;
+    class TribalWarsOptimizer {
+        constructor() {
+            this.config = this.loadConfig();
+            this.resources = { wood: 0, clay: 0, iron: 0, storage: 0 };
+            this.buildings = {};
+            this.queueActive = false;
+            this.intervalId = null;
+            this.init();
         }
-    }
 
-    // Função para obter níveis atuais dos edifícios
-    function getBuildingLevels() {
-        const levels = {};
-        try {
-            const buildings = document.querySelectorAll('#buildings_table tr[id^="building_"]');
-            buildings.forEach(building => {
-                const id = building.id.replace('building_', '');
-                const levelEl = building.querySelector('.lvl');
+        loadConfig() {
+            const saved = localStorage.getItem('tw_optimizer_config');
+            return saved ? JSON.parse(saved) : { ...DEFAULT_CONFIG };
+        }
+
+        saveConfig() {
+            localStorage.setItem('tw_optimizer_config', JSON.stringify(this.config));
+        }
+
+        init() {
+            if (!this.isInVillage()) return;
+            
+            this.createUI();
+            this.updateResources();
+            this.scanBuildings();
+            
+            if (this.config.enabled) {
+                this.startAutoBuild();
+            }
+
+            // Atualizar recursos a cada 3 segundos
+            setInterval(() => this.updateResources(), 3000);
+        }
+
+        isInVillage() {
+            return document.querySelector('#wood.res') !== null;
+        }
+
+        updateResources() {
+            const woodEl = document.querySelector('#wood.res');
+            const stoneEl = document.querySelector('#stone.res');
+            const ironEl = document.querySelector('#iron.res');
+            const storageEl = document.querySelector('#storage');
+
+            if (woodEl) this.resources.wood = parseInt(woodEl.textContent.replace(/\D/g, '')) || 0;
+            if (stoneEl) this.resources.clay = parseInt(stoneEl.textContent.replace(/\D/g, '')) || 0;
+            if (ironEl) this.resources.iron = parseInt(ironEl.textContent.replace(/\D/g, '')) || 0;
+            if (storageEl) this.resources.storage = parseInt(storageEl.textContent.replace(/\D/g, '')) || 1000;
+
+            if (this.config.debug) {
+                console.log('Recursos:', this.resources);
+            }
+        }
+
+        scanBuildings() {
+            const buildingRows = document.querySelectorAll('tr[id^="production_build_"], tr[id^="main_build_"]');
+            
+            buildingRows.forEach(row => {
+                const id = row.id;
+                const levelEl = row.querySelector('.lvl');
+                
                 if (levelEl) {
-                    const levelText = levelEl.textContent;
-                    const match = levelText.match(/(\d+)/);
-                    if (match) {
-                        levels[id] = parseInt(match[1]);
-                    }
+                    const level = parseInt(levelEl.textContent) || 0;
+                    
+                    if (id.includes('wood')) this.buildings.wood = level;
+                    else if (id.includes('clay') || id.includes('stone')) this.buildings.clay = level;
+                    else if (id.includes('iron')) this.buildings.iron = level;
+                    else if (id.includes('farm')) this.buildings.farm = level;
+                    else if (id.includes('storage')) this.buildings.storage = level;
+                    else if (id.includes('hide')) this.buildings.hide = level;
+                    else if (id.includes('wall')) this.buildings.wall = level;
+                    else if (id.includes('barracks')) this.buildings.barracks = level;
+                    else if (id.includes('stable')) this.buildings.stable = level;
+                    else if (id.includes('workshop')) this.buildings.workshop = level;
+                    else if (id.includes('smith')) this.buildings.smith = level;
+                    else if (id.includes('market')) this.buildings.market = level;
+                    else if (id.includes('church')) this.buildings.church = level;
+                    else if (id.includes('statue')) this.buildings.statue = level;
                 }
             });
-        } catch (e) {
-            if (config.debugMode) console.log('Erro ao obter níveis:', e);
-        }
-        return levels;
-    }
 
-    // Função para verificar se há construção em andamento
-    function isBuildingInProgress() {
-        try {
-            const queueEl = document.querySelector('#building_queue');
-            if (!queueEl) return false;
-            
-            const activeBuilds = queueEl.querySelectorAll('.building_active');
-            return activeBuilds.length > 0;
-        } catch (e) {
-            return false;
-        }
-    }
+            // Verificar fila de construção
+            const queueEl = document.querySelector('.buildingqueue');
+            this.queueActive = queueEl && queueEl.querySelectorAll('tr').length > 0;
 
-    // Função para obter custos de construção (simulado - precisa ser ajustado por servidor)
-    function getBuildingCosts(buildingId, currentLevel) {
-        const baseCosts = {
-            main: { wood: 40, clay: 80, iron: 40 },
-            barracks: { wood: 100, clay: 80, iron: 40 },
-            stable: { wood: 200, clay: 150, iron: 100 },
-            workshop: { wood: 200, clay: 250, iron: 150 },
-            warehouse: { wood: 100, clay: 150, iron: 100 },
-            hide: { wood: 100, clay: 100, iron: 50 },
-            farm: { wood: 70, clay: 90, iron: 50 },
-            market: { wood: 100, clay: 100, iron: 100 },
-            wood: { wood: 60, clay: 40, iron: 20 },
-            clay: { wood: 80, clay: 40, iron: 20 },
-            iron: { wood: 100, clay: 80, iron: 40 },
-            storage: { wood: 130, clay: 170, iron: 90 },
-            wall: { wood: 0, clay: 50, iron: 80 },
-            smith: { wood: 50, clay: 100, iron: 150 },
-            place: { wood: 100, clay: 100, iron: 100 },
-            statue: { wood: 1000, clay: 1000, iron: 1000 },
-            rally_point: { wood: 50, clay: 50, iron: 50 }
-        };
-
-        const base = baseCosts[buildingId] || { wood: 100, clay: 100, iron: 100 };
-        const multiplier = Math.pow(1.5, currentLevel); // Fórmula exponencial comum
-
-        return {
-            wood: Math.floor(base.wood * multiplier),
-            clay: Math.floor(base.clay * multiplier),
-            iron: Math.floor(base.iron * multiplier)
-        };
-    }
-
-    // Função de IA para decidir próxima construção
-    function aiDecideNextBuilding() {
-        const resources = getResources();
-        const levels = getBuildingLevels();
-        
-        if (!resources || !levels) return null;
-
-        const strategy = strategies[config.strategy] || strategies.balanced;
-        const candidates = [];
-
-        // Analisar cada edifício
-        Object.keys(buildingData).forEach(buildingId => {
-            if (config.ignoreBuildings.includes(buildingId)) return;
-            
-            const currentLevel = levels[buildingId] || 0;
-            const maxLevel = buildingData[buildingId].maxLevel;
-            
-            if (currentLevel >= maxLevel) return;
-
-            const costs = getBuildingCosts(buildingId, currentLevel);
-            const weight = strategy.weights[buildingId] || 5;
-            
-            // Calcular score baseado em múltiplos fatores
-            let score = weight;
-
-            // Bônus por estar abaixo do nível médio
-            const avgLevel = Object.values(levels).reduce((a, b) => a + b, 0) / Object.keys(levels).length;
-            if (currentLevel < avgLevel) score += 2;
-
-            // Bônus por recursos suficientes
-            const hasResources = resources.wood >= costs.wood && 
-                               resources.clay >= costs.clay && 
-                               resources.iron >= costs.iron;
-            if (hasResources) score += 5;
-
-            // Penalidade por custo muito alto
-            const totalCost = costs.wood + costs.clay + costs.iron;
-            const totalResources = resources.wood + resources.clay + resources.iron;
-            if (totalCost > totalResources * 0.5) score -= 3;
-
-            candidates.push({
-                id: buildingId,
-                name: buildingData[buildingId].name,
-                currentLevel,
-                nextLevel: currentLevel + 1,
-                costs,
-                score,
-                hasResources
-            });
-        });
-
-        // Ordenar por score e retornar o melhor
-        candidates.sort((a, b) => b.score - a.score);
-        return candidates[0] || null;
-    }
-
-    // Função para iniciar construção
-    function startBuilding(buildingId) {
-        try {
-            const buildingRow = document.querySelector(`#building_${buildingId}`);
-            if (!buildingRow) return false;
-
-            const upgradeBtn = buildingRow.querySelector('a[href*="cmd=upgrade"]');
-            if (!upgradeBtn) return false;
-
-            if (config.debugMode) {
-                console.log(`Iniciando construção: ${buildingId}`);
-                return true; // Em debug mode, não clica realmente
-            }
-
-            upgradeBtn.click();
-            return true;
-        } catch (e) {
-            if (config.debugMode) console.log('Erro ao iniciar construção:', e);
-            return false;
-        }
-    }
-
-    // Função principal de verificação
-    function checkAndBuild() {
-        if (!config.enabled || !config.autoBuild) return;
-        
-        if (isBuildingInProgress()) {
-            if (config.debugMode) console.log('Construção em andamento, aguardando...');
-            return;
-        }
-
-        const decision = aiDecideNextBuilding();
-        if (!decision) {
-            if (config.debugMode) console.log('Nenhuma construção disponível no momento');
-            return;
-        }
-
-        if (!decision.hasResources) {
-            if (config.debugMode) console.log(`Recursos insuficientes para ${decision.name}`);
-            return;
-        }
-
-        if (startBuilding(decision.id)) {
-            GM_notification({
-                text: `Construindo ${decision.name} (nível ${decision.nextLevel})`,
-                title: 'Tribal Wars AI Builder',
-                timeout: 5000
-            });
-            
-            if (config.debugMode) {
-                console.log(`✅ Construção iniciada: ${decision.name}`);
+            if (this.config.debug) {
+                console.log('Edifícios:', this.buildings);
+                console.log('Fila ativa:', this.queueActive);
             }
         }
-    }
 
-    // Interface do usuário
-    function createUI() {
-        const uiContainer = document.createElement('div');
-        uiContainer.id = 'tw-ai-builder-ui';
-        uiContainer.style.cssText = `
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.85);
-            border: 2px solid #gold;
-            border-radius: 10px;
-            padding: 15px;
-            color: white;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            z-index: 10000;
-            width: 300px;
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-        `;
+        calculateCost(building, currentLevel) {
+            const base = BUILDING_COSTS[building];
+            if (!base) return null;
 
-        uiContainer.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <h3 style="margin: 0; color: #FFD700;">🤖 AI Build Optimizer</h3>
-                <button id="tw-ai-close" style="background: none; border: none; color: white; cursor: pointer; font-size: 16px;">×</button>
-            </div>
-            
-            <div style="margin-bottom: 10px;">
-                <label style="display: flex; align-items: center; margin-bottom: 5px;">
-                    <input type="checkbox" id="tw-ai-enabled" ${config.enabled ? 'checked' : ''} style="margin-right: 5px;">
-                    Ativar Auto-Construção
-                </label>
+            const multiplier = Math.pow(1.5, currentLevel);
+            return {
+                wood: Math.floor(base.wood * multiplier),
+                clay: Math.floor(base.clay * multiplier),
+                iron: Math.floor(base.iron * multiplier)
+            };
+        }
+
+        canAfford(cost) {
+            return cost && 
+                   this.resources.wood >= cost.wood && 
+                   this.resources.clay >= cost.clay && 
+                   this.resources.iron >= cost.iron;
+        }
+
+        getNextBuilding() {
+            const strategy = STRATEGIES[this.config.strategy];
+            let bestBuilding = null;
+            let bestScore = -Infinity;
+
+            for (const [building, weight] of Object.entries(strategy.weights)) {
+                const currentLevel = this.buildings[building] || 0;
+                const cost = this.calculateCost(building, currentLevel);
                 
-                <label style="display: block; margin-bottom: 5px;">
-                    Estratégia:
-                    <select id="tw-ai-strategy" style="width: 100%; margin-top: 3px; padding: 3px;">
-                        <option value="balanced" ${config.strategy === 'balanced' ? 'selected' : ''}>Equilibrada</option>
-                        <option value="military" ${config.strategy === 'military' ? 'selected' : ''}>Militar</option>
-                        <option value="economic" ${config.strategy === 'economic' ? 'selected' : ''}>Econômica</option>
-                        <option value="defensive" ${config.strategy === 'defensive' ? 'selected' : ''}>Defensiva</option>
-                    </select>
-                </label>
+                if (!cost || !this.canAfford(cost)) continue;
+
+                // Score baseado em peso da estratégia e nível atual (prioriza níveis mais baixos)
+                const score = weight * (1 / (currentLevel + 1)) * 100;
                 
-                <label style="display: block; margin-bottom: 5px;">
-                    Intervalo (segundos):
-                    <input type="number" id="tw-ai-interval" value="${config.checkInterval / 1000}" min="5" max="60" style="width: 100%; margin-top: 3px; padding: 3px;">
-                </label>
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestBuilding = { building, cost, level: currentLevel + 1, score };
+                }
+            }
+
+            return bestBuilding;
+        }
+
+        buildNext() {
+            if (this.queueActive) {
+                if (this.config.debug) console.log('Fila ocupada, aguardando...');
+                return;
+            }
+
+            const next = this.getNextBuilding();
+            if (!next) {
+                if (this.config.debug) console.log('Sem recursos para construir nada');
+                return;
+            }
+
+            // Clicar no botão de construir
+            const buildButton = document.querySelector(`#building_${next.building}_upgrade`);
+            if (buildButton) {
+                buildButton.click();
                 
-                <label style="display: flex; align-items: center; margin-bottom: 5px;">
-                    <input type="checkbox" id="tw-ai-debug" ${config.debugMode ? 'checked' : ''} style="margin-right: 5px;">
-                    Modo Debug
+                const buildingName = BUILDING_NAMES_NL[next.building] || next.building;
+                console.log(`🏗️ Construindo ${buildingName} nível ${next.level}`);
+                
+                // Notificação visual
+                this.showNotification(`Construindo ${buildingName} nível ${next.level}`);
+                
+                // Reescanear após construção
+                setTimeout(() => this.scanBuildings(), 2000);
+            }
+        }
+
+        showNotification(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideDown 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.animation = 'slideUp 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        startAutoBuild() {
+            if (this.intervalId) clearInterval(this.intervalId);
+            
+            this.intervalId = setInterval(() => {
+                this.scanBuildings();
+                this.buildNext();
+            }, this.config.interval * 1000);
+
+            console.log(`🤖 Auto-construção ativada (${this.config.interval}s)`);
+        }
+
+        stopAutoBuild() {
+            if (this.intervalId) {
+                clearInterval(this.intervalId);
+                this.intervalId = null;
+            }
+            console.log('⏸️ Auto-construção pausada');
+        }
+
+        createUI() {
+            // Container principal - Canto superior esquerdo (estilo minimalista)
+            const container = document.createElement('div');
+            container.id = 'tw-optimizer-panel';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                background: rgba(255, 255, 255, 0.98);
+                border-radius: 12px;
+                padding: 16px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 13px;
+                z-index: 9999;
+                min-width: 280px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(0,0,0,0.08);
+            `;
+
+            // Header
+            const header = document.createElement('div');
+            header.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid rgba(0,0,0,0.06);
+            `;
+            header.innerHTML = `
+                <div style="font-weight: 600; color: #1d1d1f; font-size: 15px;">Build Optimizer</div>
+                <div id="tw-status" style="width: 8px; height: 8px; border-radius: 50%; background: ${this.config.enabled ? '#34c759' : '#8e8e93'};"></div>
+            `;
+
+            // Toggle
+            const toggleRow = document.createElement('div');
+            toggleRow.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+            `;
+            toggleRow.innerHTML = `
+                <span style="color: #1d1d1f; font-weight: 500;">Auto-construir</span>
+                <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                    <input type="checkbox" ${this.config.enabled ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                    <span id="tw-toggle" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${this.config.enabled ? '#34c759' : '#e5e5ea'}; transition: 0.3s; border-radius: 24px;">
+                        <span style="position: absolute; content: ''; height: 20px; width: 20px; left: ${this.config.enabled ? '22px' : '2px'}; bottom: 2px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                    </span>
                 </label>
-            </div>
-            
-            <div id="tw-ai-status" style="background: rgba(255, 255, 255, 0.1); padding: 8px; border-radius: 5px; margin-bottom: 10px;">
-                <strong>Status:</strong> <span id="tw-ai-status-text">Aguardando...</span>
-            </div>
-            
-            <div id="tw-ai-next-build" style="background: rgba(255, 215, 0, 0.2); padding: 8px; border-radius: 5px; border: 1px solid #FFD700;">
-                <strong>Próxima Construção:</strong><br>
-                <span id="tw-ai-next-text">Analisando...</span>
-            </div>
-            
-            <div style="margin-top: 10px; display: flex; gap: 5px;">
-                <button id="tw-ai-save" style="flex: 1; background: #4CAF50; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer;">Salvar</button>
-                <button id="tw-ai-reset" style="flex: 1; background: #f44336; color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer;">Resetar</button>
-            </div>
-            
-            <div style="margin-top: 10px; font-size: 10px; color: #aaa; text-align: center;">
-                Configure uma vez, execute sozinho! ⚡
-            </div>
-        `;
+            `;
 
-        document.body.appendChild(uiContainer);
+            // Strategy selector
+            const strategyRow = document.createElement('div');
+            strategyRow.style.cssText = `margin-bottom: 12px;`;
+            strategyRow.innerHTML = `
+                <div style="color: #1d1d1f; font-weight: 500; margin-bottom: 6px;">Estratégia</div>
+                <select id="tw-strategy" style="width: 100%; padding: 8px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 13px; background: white; color: #1d1d1f;">
+                    ${Object.entries(STRATEGIES).map(([key, value]) => 
+                        `<option value="${key}" ${this.config.strategy === key ? 'selected' : ''}>${value.name}</option>`
+                    ).join('')}
+                </select>
+            `;
 
-        // Event listeners
-        document.getElementById('tw-ai-close').addEventListener('click', () => {
-            uiContainer.style.display = 'none';
-        });
+            // Interval selector
+            const intervalRow = document.createElement('div');
+            intervalRow.style.cssText = `margin-bottom: 12px;`;
+            intervalRow.innerHTML = `
+                <div style="color: #1d1d1f; font-weight: 500; margin-bottom: 6px;">Intervalo (segundos)</div>
+                <input type="range" id="tw-interval" min="5" max="60" value="${this.config.interval}" 
+                    style="width: 100%; accent-color: #007aff;">
+                <div style="text-align: center; color: #86868b; font-size: 12px; margin-top: 4px;">${this.config.interval}s</div>
+            `;
 
-        document.getElementById('tw-ai-save').addEventListener('click', () => {
-            config.enabled = document.getElementById('tw-ai-enabled').checked;
-            config.strategy = document.getElementById('tw-ai-strategy').value;
-            config.checkInterval = parseInt(document.getElementById('tw-ai-interval').value) * 1000;
-            config.debugMode = document.getElementById('tw-ai-debug').checked;
+            // Debug toggle
+            const debugRow = document.createElement('div');
+            debugRow.style.cssText = `
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 12px;
+            `;
+            debugRow.innerHTML = `
+                <span style="color: #1d1d1f; font-weight: 500;">Debug</span>
+                <label style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                    <input type="checkbox" ${this.config.debug ? 'checked' : ''} style="opacity: 0; width: 0; height: 0;">
+                    <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: ${this.config.debug ? '#34c759' : '#e5e5ea'}; transition: 0.3s; border-radius: 24px;">
+                        <span style="position: absolute; content: ''; height: 20px; width: 20px; left: ${this.config.debug ? '22px' : '2px'}; bottom: 2px; background-color: white; transition: 0.3s; border-radius: 50%;"></span>
+                    </span>
+                </label>
+            `;
+
+            // Resources display
+            const resourcesDiv = document.createElement('div');
+            resourcesDiv.id = 'tw-resources';
+            resourcesDiv.style.cssText = `
+                background: rgba(0,0,0,0.04);
+                border-radius: 8px;
+                padding: 10px;
+                margin-top: 12px;
+                font-size: 12px;
+            `;
+            resourcesDiv.innerHTML = `
+                <div style="color: #86868b; margin-bottom: 6px; font-weight: 500;">Recursos</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+                    <div><span style="color: #8B4513;">●</span> <span id="tw-wood">0</span></div>
+                    <div><span style="color: #CD853F;">●</span> <span id="tw-clay">0</span></div>
+                    <div><span style="color: #708090;">●</span> <span id="tw-iron">0</span></div>
+                </div>
+            `;
+
+            // Next build info
+            const nextBuildDiv = document.createElement('div');
+            nextBuildDiv.id = 'tw-next-build';
+            nextBuildDiv.style.cssText = `
+                background: rgba(0,122,255,0.08);
+                border-radius: 8px;
+                padding: 10px;
+                margin-top: 10px;
+                font-size: 12px;
+                color: #007aff;
+                display: none;
+            `;
+
+            // Montar UI
+            container.appendChild(header);
+            container.appendChild(toggleRow);
+            container.appendChild(strategyRow);
+            container.appendChild(intervalRow);
+            container.appendChild(debugRow);
+            container.appendChild(resourcesDiv);
+            container.appendChild(nextBuildDiv);
+            document.body.appendChild(container);
+
+            // Event listeners
+            const checkbox = toggleRow.querySelector('input[type="checkbox"]');
+            const toggle = document.getElementById('tw-toggle');
+            const status = document.getElementById('tw-status');
             
-            saveConfig();
-            updateStatus('Configurações salvas! ✅');
-            
-            GM_notification({
-                text: 'Configurações salvas com sucesso!',
-                title: 'Tribal Wars AI Builder',
-                timeout: 3000
+            checkbox.addEventListener('change', () => {
+                this.config.enabled = checkbox.checked;
+                toggle.querySelector('span').style.left = checkbox.checked ? '22px' : '2px';
+                toggle.style.backgroundColor = checkbox.checked ? '#34c759' : '#e5e5ea';
+                status.style.background = checkbox.checked ? '#34c759' : '#8e8e93';
+                this.saveConfig();
+                
+                if (checkbox.checked) {
+                    this.startAutoBuild();
+                } else {
+                    this.stopAutoBuild();
+                }
             });
-        });
 
-        document.getElementById('tw-ai-reset').addEventListener('click', () => {
-            config = { ...defaultConfig };
-            saveConfig();
-            location.reload();
-        });
+            const strategySelect = document.getElementById('tw-strategy');
+            strategySelect.addEventListener('change', () => {
+                this.config.strategy = strategySelect.value;
+                this.saveConfig();
+            });
 
-        // Atualizar status periodicamente
-        setInterval(updateStatusInfo, 2000);
-    }
+            const intervalInput = document.getElementById('tw-interval');
+            const intervalDisplay = intervalRow.querySelector('div:last-child');
+            intervalInput.addEventListener('input', () => {
+                this.config.interval = parseInt(intervalInput.value);
+                intervalDisplay.textContent = `${this.config.interval}s`;
+                this.saveConfig();
+                
+                if (this.config.enabled) {
+                    this.startAutoBuild();
+                }
+            });
 
-    function updateStatus(message) {
-        const statusEl = document.getElementById('tw-ai-status-text');
-        if (statusEl) statusEl.textContent = message;
-    }
+            const debugCheckbox = debugRow.querySelector('input[type="checkbox"]');
+            debugCheckbox.addEventListener('change', () => {
+                this.config.debug = debugCheckbox.checked;
+                this.saveConfig();
+            });
 
-    function updateStatusInfo() {
-        const nextBuildEl = document.getElementById('tw-ai-next-text');
-        const statusEl = document.getElementById('tw-ai-status-text');
-        
-        if (!nextBuildEl || !statusEl) return;
-
-        if (!config.enabled) {
-            statusEl.textContent = 'Desativado';
-            nextBuildEl.textContent = 'Ative para começar';
-            return;
+            // Atualizar display de recursos periodicamente
+            setInterval(() => this.updateResourceDisplay(), 2000);
+            setInterval(() => this.updateNextBuildDisplay(), 5000);
         }
 
-        statusEl.textContent = 'Ativo - Monitorando...';
-        
-        const decision = aiDecideNextBuilding();
-        if (decision) {
-            nextBuildEl.textContent = `${decision.name} (nível ${decision.nextLevel}) - ${decision.hasResources ? '✅ Pronto' : '⏳ Aguardando recursos'}`;
-        } else {
-            nextBuildEl.textContent = 'Nenhuma construção disponível';
-        }
-    }
-
-    // Inicialização
-    function init() {
-        // Aguardar carregamento da página
-        if (document.readyState !== 'complete') {
-            setTimeout(init, 100);
-            return;
+        updateResourceDisplay() {
+            document.getElementById('tw-wood').textContent = this.resources.wood.toLocaleString();
+            document.getElementById('tw-clay').textContent = this.resources.clay.toLocaleString();
+            document.getElementById('tw-iron').textContent = this.resources.iron.toLocaleString();
         }
 
-        // Verificar se estamos na página correta (aldeia)
-        if (!document.querySelector('#resource_bar')) {
-            if (config.debugMode) console.log('Não é uma página de aldeia, aguardando...');
-            setTimeout(init, 1000);
-            return;
-        }
-
-        createUI();
-        
-        // Iniciar loop de verificação
-        setInterval(checkAndBuild, config.checkInterval);
-        
-        if (config.debugMode) {
-            console.log('🤖 Tribal Wars AI Builder iniciado!');
-            console.log('Configuração:', config);
+        updateNextBuildDisplay() {
+            const nextBuildDiv = document.getElementById('tw-next-build');
+            
+            if (this.config.enabled && !this.queueActive) {
+                const next = this.getNextBuilding();
+                if (next) {
+                    const buildingName = BUILDING_NAMES_NL[next.building] || next.building;
+                    nextBuildDiv.style.display = 'block';
+                    nextBuildDiv.innerHTML = `
+                        <div style="font-weight: 600; margin-bottom: 4px;">Próxima construção</div>
+                        <div>${buildingName} → Nível ${next.level}</div>
+                        <div style="font-size: 11px; margin-top: 4px; opacity: 0.8;">
+                            🪵 ${next.cost.wood.toLocaleString()} | 🧱 ${next.cost.clay.toLocaleString()} | 🔩 ${next.cost.iron.toLocaleString()}
+                        </div>
+                    `;
+                    return;
+                }
+            }
+            
+            nextBuildDiv.style.display = 'none';
         }
     }
 
-    // Iniciar script
-    init();
+    // Inicializar quando a página carregar
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => new TribalWarsOptimizer());
+    } else {
+        new TribalWarsOptimizer();
+    }
+
+    // Adicionar animações CSS
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideDown {
+            from { transform: translate(-50%, -100%); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { transform: translate(-50%, 0); opacity: 1; }
+            to { transform: translate(-50%, -100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+
 })();
