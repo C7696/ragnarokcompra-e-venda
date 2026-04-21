@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tribal Wars AI Build Optimizer
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  IA automática para otimização de construções no Tribal Wars - Minimalista e Eficiente
 // @author       Steve Jobs Style
 // @match        https://*.tribalwars.nl/*
@@ -11,8 +11,37 @@
 // @match        https://*.tribalwars.de/*
 // @match        https://*.tribalwars.fr/*
 // @match        https://*.tribalwars.co.uk/*
-// @grant        none
+// @match        https://*.tribalwars.it/*
+// @match        https://*.tribalwars.es/*
+// @match        https://*.tribalwars.pl/*
+// @match        https://*.tribalwars.se/*
+// @match        https://*.tribalwars.dk/*
+// @match        https://*.tribalwars.no/*
+// @match        https://*.tribalwars.fi/*
+// @match        https://*.tribalwars.be/*
+// @match        https://*.tribalwars.at/*
+// @match        https://*.tribalwars.ch/*
+// @match        https://*.tribalwars.cz/*
+// @match        https://*.tribalwars.sk/*
+// @match        https://*.tribalwars.hu/*
+// @match        https://*.tribalwars.ro/*
+// @match        https://*.tribalwars.bg/*
+// @match        https://*.tribalwars.hr/*
+// @match        https://*.tribalwars.si/*
+// @match        https://*.tribalwars.lt/*
+// @match        https://*.tribalwars.lv/*
+// @match        https://*.tribalwars.ee/*
+// @match        https://*.tribalwars.gr/*
+// @match        https://*.tribalwars.tr/*
+// @match        https://*.tribalwars.ru/*
+// @match        https://*.tribalwars.com/*
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_notification
+// @grant        GM_addStyle
 // @run-at       document-end
+// @updateURL    https://raw.githubusercontent.com/yourusername/tribal-wars-scripts/main/tribal-wars-ai-builder.user.js
+// @downloadURL  https://raw.githubusercontent.com/yourusername/tribal-wars-scripts/main/tribal-wars-ai-builder.user.js
 // ==/UserScript==
 
 (function() {
